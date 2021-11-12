@@ -16,16 +16,21 @@ library(GSODR)
 library(dataRetrieval)
 options(noaakey = "RocTXcnTfTiprFMtvhljUQnloOuZtpeO")
 
+##Location for estimating light. Same for all sites. 
 lat<-46.790812
 long<--113.748535
+
+##Save USGS gage numbers for downloading later
 usgs.GC<-'12324680' # Gold Creek USGS gage
 usgs.DL<-'12324200' # Deer Lodge USGS gage
 usgs.PL<-'12323800' # Perkins Ln. USGS gage
 usgs.BM<-'12331800' # Near Drummond, but pretty close to Bear Mouth and Bonita
 usgs.BN<-'12331800' # Near Drummond, but pretty close to Bear Mouth and Bonita
 
+##Save MSO airport ID for downloading pressure
+station<-'727730-24153' #MSO airport
 
-# Generate temperature and O2
+# upload minidot data
 dat <- read.csv("312751_080421_MTT_forR.csv",header = TRUE)
 names(dat)<-c("unix.time", "date", "time", "time.MST", "battery", "temp.c", "do.mgl", "do.sat","q")
 #lubridate::as_datetime(dat$unix.time)
@@ -36,9 +41,10 @@ dat$date<-as.Date(dat$date,format="%m-%d-%Y")
 time<-as.POSIXct(paste(dat$date, dat$time),format="%Y-%m-%d %H:%M:%S",tz="UTC")
 dat$solar.time <- convert_UTC_to_solartime(
   time,
-  -112.724167,
+  long,
   time.type = c("apparent solar", "mean solar")
 )
+
 
 # Interpolate missing data
 starttime <- round_date(dat$solar.time[2],"15 minutes")
@@ -68,15 +74,15 @@ colnames(metab) <- c("solar.time","DO.obs","temp.water", "date")
 # Generate light
 metab$light<-calc_light(metab$solar.time, latitude = lat, longitude= long)
 
+
 # Get station (not sea level) pressure data from Missoula airport
-station<-'727730-24153' #MSO airport
 GSOD<-get_GSOD(years=2021, station=station)
 pressure<-data.frame(GSOD$YEARMODA, GSOD$STP)
 names(pressure)<-c("date", "press.mb")
 
 metab<-left_join(metab,pressure)
 
-# Generate sat
+# Calculate DO concentration at saturation
 metab$DO.sat <- calc_DO_sat(
   temp=metab$temp.water,
   press=metab$press.mb,
@@ -122,7 +128,7 @@ metab<-merge(metab, instFlow, by="date", all.x=TRUE)
 
 
 
-###
+###OLD
 meteo_nearby_stations()
 
 ncdc_stations()
