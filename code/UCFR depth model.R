@@ -14,6 +14,14 @@ library(reshape2)
 setwd("~/GitHub/UCFR-metabolism/data")
 UCFR_depth<- read_csv("UCFR_depth_summary.csv")
 UCFR_depth$date<-as.Date(UCFR_depth$date, format="%m-%d-%Y")
+start.20<-as.Date("2020-07-13")
+end.20<-as.Date("2020-10-20")
+start.21<-as.Date("2020-06-14")
+end.21<-as.Date("2020-11-01")
+
+##OPTIONAL-Make BG and BN the same data since they are very close together
+#BM.index<-which(UCFR_depth$site=="BM")
+#UCFR_depth[BM.index,]$site<-"BN"
 
 ##Save USGS gage numbers for downloading
 usgs.GC<-'12324680' # Gold Creek USGS gage
@@ -44,34 +52,42 @@ dailyflow[[i]]<-select(dailyflow[[i]], c(-'agency', -'site', -'q.cfs', -'code', 
 dailyflow[[i]]$site<-rep(USGS.gage$gage.name[[i]], length(dailyflow[[i]]$date)) # add column with site name
 }
 
+
 ## Turn list into data frame in long format
 daily.q<-do.call(rbind.data.frame, dailyflow)
 
+daily.q.sub<-subset(daily.q, date<end.20  & date> start.21)
+
+
 ## Join discharge with depth and width data (by date)
-data<-left_join(daily.q, UCFR_depth )
+data.sub<-left_join(daily.q.sub, UCFR_depth)
+data<-left_join(daily.q, UCFR_depth)
 
 ## Make sites report in order from upstream to downstream
 data$site<-factor(data$site, levels=c("PL", "DL", "GR", "GC", "BM", "BN"))
-
-dMin <- data %>%
+data.sub$site<-factor(data.sub$site, levels=c("PL", "DL", "GR", "GC", "BM", "BN"))
+data.sum <- data.sub %>%
   group_by(site) %>%
-  summarise(Min = min(q.cms), Max=max(q.cms))
+  summarise(Min = min(q.cms,na.rm=TRUE), Max=max(q.cms,na.rm=TRUE))
 
 ## plot depth vs Q relationship by site
 ggplot(data=data, aes(x=depth.m, y=q.cms, color=site))+
-  geom_point(size=3)+
+  geom_point(size=4)+
   theme_classic()+
   ylab("Discharge (cms)")+
   xlab("Depth (m)")+
-  scale_y_continuous(limits=c(0,20))+
-  theme(axis.title.x=element_text(size=18,colour = "black"))+
-  theme(axis.title.y=element_text(size=18,colour = "black"))+
-  theme(axis.text.y=element_text(size=18,colour = "black"))+
-  theme(axis.text.x=element_text(size=18,colour = "black"))+
-  facet_grid(~site, scales="free")
+  geom_hline(data = data.sum, aes(yintercept = Min)) +
+  geom_hline(data = data.sum, aes(yintercept = Max)) +
+  scale_y_continuous(limits=c(0,45))+
+  scale_x_continuous(limits=c(0.3,0.83), breaks=c(0.3,0.5,0.7))+
+  theme(axis.title.x=element_text(size=12,colour = "black"))+
+  theme(axis.title.y=element_text(size=12,colour = "black"))+
+  theme(axis.text.y=element_text(size=12,colour = "black"))+
+  theme(axis.text.x=element_text(size=12,colour = "black"))+
+  facet_grid(~site)
 
 ggplot(data=data, aes(x=depth.m, y=q.cms, color=site))+
-  geom_point(size=3)+
+  geom_point(size=4)+
   theme_classic()+
   ylab("Discharge (cms)")+
   xlab("Depth (m)")+
@@ -93,3 +109,5 @@ ggplot(data=data, aes(x=date, y=q.cms))+
   theme(axis.text.x=element_text(size=18,colour = "black"))+
   facet_grid(~site, scales="free")
 
+sub<-subset(data, site=="DL")
+min(sub$q.cms)
