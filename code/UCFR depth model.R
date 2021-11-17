@@ -9,6 +9,8 @@ library(streamMetabolizer)
 library(lubridate)
 library(dataRetrieval)
 library(reshape2)
+library(tidyverse)
+library(lme4)
 
 ##Load depth data
 setwd("~/GitHub/UCFR-metabolism/data")
@@ -71,27 +73,30 @@ data.sum <- data.sub %>%
   summarise(Min = min(q.cms,na.rm=TRUE), Max=max(q.cms,na.rm=TRUE))
 
 ## plot depth vs Q relationship by site
-ggplot(data=data, aes(x=depth.m, y=q.cms, color=site))+
+ggplot(data=data, aes(x=q.cms, y=depth.m, color=site))+
   geom_point(size=4)+
   theme_classic()+
-  ylab("Discharge (cms)")+
-  xlab("Depth (m)")+
+  xlab("Discharge (cms)")+
+  ylab("Depth (m)")+
   geom_hline(data = data.sum, aes(yintercept = Min)) +
   geom_hline(data = data.sum, aes(yintercept = Max)) +
-  scale_y_continuous(limits=c(0,45))+
-  scale_x_continuous(limits=c(0.3,0.83), breaks=c(0.3,0.5,0.7))+
+  scale_x_continuous(limits=c(0,20))+
+  scale_y_continuous(limits=c(0.3,0.83), breaks=c(0.3,0.5,0.7))+
   theme(axis.title.x=element_text(size=12,colour = "black"))+
   theme(axis.title.y=element_text(size=12,colour = "black"))+
   theme(axis.text.y=element_text(size=12,colour = "black"))+
   theme(axis.text.x=element_text(size=12,colour = "black"))+
-  facet_grid(~site)
+  facet_wrap(~site, ncol=1)
 
-ggplot(data=data, aes(x=depth.m, y=q.cms, color=site))+
+ggplot(data=data, aes(x=log(q.cms), y=log(depth.m), color=site))+
+  geom_abline(intercept=-1.2088,slope=0.3386, size=1.5, color='grey')+
+  geom_abline(intercept=-1.003,slope=0.23633, size=1.5, color='black')+
   geom_point(size=4)+
+  geom_smooth(method='lm',formula= y~x,aes(color=site),se = FALSE)+
   theme_classic()+
   ylab("Discharge (cms)")+
   xlab("Depth (m)")+
-  scale_y_continuous(limits=c(0,20))+
+  #scale_x_continuous(limits=c(0,20))+
   theme(axis.title.x=element_text(size=18,colour = "black"))+
   theme(axis.title.y=element_text(size=18,colour = "black"))+
   theme(axis.text.y=element_text(size=18,colour = "black"))+
@@ -109,5 +114,7 @@ ggplot(data=data, aes(x=date, y=q.cms))+
   theme(axis.text.x=element_text(size=18,colour = "black"))+
   facet_grid(~site, scales="free")
 
-sub<-subset(data, site=="DL")
-min(sub$q.cms)
+####Analysis
+model<-lmer(log(depth.m)~ log(q.cms)+(1|site), data=data)
+model2<-lm(log(depth.m)~ log(q.cms), data=data)
+summary(model2)
