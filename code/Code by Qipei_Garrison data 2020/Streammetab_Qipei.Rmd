@@ -1,0 +1,149 @@
+---
+title: "Streammetabolizer"
+author: "Qipei"
+date: "8/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#
+```{r packages}
+#load all packages
+library(rstan)
+options(mc.cores = parallel::detectCores())
+library(dplyr)
+library(tidyr)
+library(zoo)
+library(streamMetabolizer)
+library(lubridate)
+```
+
+# Generate temperature and O2
+```{r T and O2}
+dat <- read.csv("Gar.csv",header = TRUE)
+dat$do <- dat$do*32/1000;
+
+# convert to solar time
+time=as.POSIXct(dat$time,tz="UTC")
+# adjusting for daylight savings
+solar_time <- convert_UTC_to_solartime(
+    time,
+    -112.72,
+    time.type = "mean solar"
+)
+
+dat$time <- solar_time;
+rm(time)
+
+starttime <- round_date(solar_time[2],"15 minutes")
+endtime <- round_date(solar_time[nrow(dat)-1],"15 minutes")
+number <- as.numeric(difftime(endtime,starttime,15,units = c("mins")))/15+1
+timeframe <- seq(starttime,endtime,length.out = number)
+rm(endtime,starttime,number)
+
+#interpolate data to time frame; the reason I need a time frame is that I can match measured PAR below.
+Do.obs <- approx(
+    x = dat$time,
+    y = dat$do,
+    xout = timeframe
+);
+temp.water <- approx(
+    x = dat$time,
+    y = dat$temp,
+    xout = timeframe
+);
+
+rm(dat)
+
+dat <- data.frame(timeframe,Do.obs$y,temp.water$y)
+
+colnames(dat) <- c("solar.time","DO.obs","temp.water");
+```
+# Generate par
+```{r}
+# I use measured par from the nearby mesostation
+light <- read.csv("light.csv",header = TRUE)
+light.date=as.POSIXct(light$light_date,tz="UTC")
+
+light_solar_time <- convert_UTC_to_solartime(
+    light.date,
+    -112.724167,
+    time.type = "apparent solar"
+)
+light$light_date<-light_solar_time
+light$light <- convert_SW_to_PAR (light$light,coef=0.473)
+light <- approx(
+    x = light$light_date,
+    y = light$light,
+    xout = dat$solar.time
+);
+
+dat <- cbind(dat,light$y);
+```
+
+# Theoretical Par
+```{r Theoretical Par}
+#radi<-function(degrees){(degrees*pi/180)}
+#light<- calc_light(dat$solar.time, 46.4728, -112.7283)
+#dat <- cbind(dat,light);
+```
+
+# Generate sat
+```{r do sat}
+DO.sat <- calc_DO_sat(
+  temp=dat$temp.water,
+  press=855,
+  salinity.water = 0,
+)
+
+dat <- cbind(dat,DO.sat);
+```
+
+# Depth and discharge
+```{r depth and discharge}
+#depth <- read.csv("depth.csv",header = TRUE)
+#depth.date=as.POSIXct(depth$depth_date,tz="UTC")
+#depth <- approx(x = depth.date,y = depth$depth,xout = dat$solar.time);
+#dat <- cbind(dat,depth$y);
+m<-nrow(dat)
+depth <- data.frame (rep(1,m))
+dat <- cbind(dat,depth);
+colnames(dat) <- c("solar.time","DO.obs","temp.water","light","DO.sat","depth");
+dat <- dat[c(1,2,5,6,3,4)]
+```
+
+
+```{r format}
+# time format POSIXct
+dat$solar.time<- as.POSIXct(dat$solar.time, 
+                            tz= "UTC", 
+                            tryFormats = c("%Y-%m-%d %H:%M:%OS",
+                                           "%Y/%m/%d %H:%M:%OS",
+                                           "%Y-%m-%d %H:%M",
+                                           "%Y/%m/%d %H:%M",
+                                           "%Y-%m-%d",
+                                           "%Y/%m/%d",
+                                           "%m/%d/%y %H:%M"))
+Gar_dat<-tibble(solar.time=dat$solar.time,DO.obs=dat$DO.obs,DO.sat=dat$DO.sat,depth=dat$depth,temp.water=dat$temp.water,light=dat$light)
+write.csv(Gar_dat,"Gar_dat.csv",row.names=FALSE)
+```
+
+#Run
+```{r run}
+nb_Gar <- mm_name(type='bayes', pool_K600='normal', err_obs_iid=TRUE, err_proc_iid=TRUE)
+Gar_specs <- specs(nb_Gar, K600_daily_meanlog_meanlog=1.986474396, K600_daily_meanlog_sdlog=0.75, K600_daily_sdlog_sigma=0.1, burnin_steps=500, saved_steps=500,verbose=T)
+Gar_fit <- metab(Gar_specs, data=Gar_dat)
+Gar_params<-get_params(Gar_fit , uncertainty='ci')
+Gar_mcmc<-get_mcmc(Gar_fit)
+print(Gar_fit)
+
+plot(Gar_params$K600.daily,Gar_params$ER.daily)
+plot(Gar_params$K600.daily,Gar_params$GPP.daily)
+plot(Gar_params$GPP.daily,Gar_params$ER.daily)
+
+write.csv(Gar_params, "Gar_metab.csv")
+```
+
+
