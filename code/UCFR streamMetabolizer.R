@@ -31,14 +31,15 @@ usgs.BN<-'12331800' # Near Drummond, but pretty close to Bear Mouth and Bonita
 station<-'727730-24153' #MSO airport
 
 # upload minidot data
+setwd("~/GitHub/UCFR-metabolism/data")
 dat <- read.csv("312751_080421_MTT_forR.csv",header = TRUE)
-names(dat)<-c("unix.time", "date", "time", "time.MST", "battery", "temp.c", "do.mgl", "do.sat","q")
+names(dat)<-c("unix.time", "date.UTC", "date.MST", "battery", "temp.c", "do.mgl", "do.sat","q")
 #lubridate::as_datetime(dat$unix.time)
-dat$date<-as.Date(dat$date,format="%m-%d-%Y")
+dat$date<-as.Date(dat$date.UTC,format="%m-%d-%Y")
 
 
 # convert to solar time
-time<-as.POSIXct(paste(dat$date, dat$time),format="%Y-%m-%d %H:%M:%S",tz="UTC")
+time<-as.POSIXct(paste(dat$date.UTC),format="%Y-%m-%d %H:%M:%S",tz="UTC")
 dat$solar.time <- convert_UTC_to_solartime(
   time,
   long,
@@ -76,7 +77,7 @@ metab$light<-calc_light(metab$solar.time, latitude = lat, longitude= long)
 
 
 # Get station (not sea level) pressure data from Missoula airport
-GSOD<-get_GSOD(years=2021, station=station)
+GSOD<-get_GSOD(years=2020, station=station)
 pressure<-data.frame(GSOD$YEARMODA, GSOD$STP)
 names(pressure)<-c("date", "press.mb")
 
@@ -91,11 +92,11 @@ metab$DO.sat <- calc_DO_sat(
 
 # Discharge
 
-instFlow <- readNWISdata(sites = usgs.GC,
+instFlow <- readNWISdata(sites = usgs.DL,
                          service = "dv", 
                          parameterCd = "00060",
-                         startDate = "2021-01-01",
-                         endDate = "2021-10-31") 
+                         startDate = "2020-05-01",
+                         endDate = "2020-10-31") 
 
 instFlow$dateTime <- as.Date(instFlow$dateTime)
 instFlow$q.m3s<-instFlow$X_00060_00003/35.31
@@ -105,14 +106,21 @@ instFlow<-select(instFlow, c(-'agency', -site, -q.cfs, -code, -tz))
 metab<-merge(metab, instFlow, by="date", all.x=TRUE)
 
 # Depth
+metab$depth<-rep(0.5, times=length(metab$date))
 
 
+DL_dat<-tibble(solar.time=metab$solar.time,DO.obs=metab$DO.obs,DO.sat=metab$DO.sat,depth=metab$depth,temp.water=metab$temp.water,light=metab$light)
 
+#Run model
+nb_DL <- mm_name(type='bayes', pool_K600='normal', err_obs_iid=TRUE, err_proc_iid=TRUE)
 
+DL_specs <- specs(nb_DL, burnin_steps=500, saved_steps=500,verbose=T)
 
+Gar_fit <- metab(DL_specs, data=DL_dat)
 
-
-
+Gar_params<-get_params(Gar_fit , uncertainty='ci')
+Gar_mcmc<-get_mcmc(Gar_fit)
+print(Gar_fit)
 
 
 
