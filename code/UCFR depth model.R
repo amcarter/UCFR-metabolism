@@ -94,8 +94,8 @@ ggplot(data=data, aes(x=log(q.cms), y=log(depth.m), color=site))+
   geom_point(size=4)+
   geom_smooth(method='lm',formula= y~x,aes(color=site),se = FALSE)+
   theme_classic()+
-  ylab("Discharge (cms)")+
-  xlab("Depth (m)")+
+  ylab("log Discharge (cms)")+
+  xlab("log Depth (m)")+
   #scale_x_continuous(limits=c(0,20))+
   theme(axis.title.x=element_text(size=18,colour = "black"))+
   theme(axis.title.y=element_text(size=18,colour = "black"))+
@@ -118,3 +118,14 @@ ggplot(data=data, aes(x=date, y=q.cms))+
 model<-lmer(log(depth.m)~ log(q.cms)+(1|site), data=data)
 model2<-lm(log(depth.m)~ log(q.cms), data=data)
 summary(model2)
+
+####Individual analysis
+data.GR<-subset(data, site=="GR")
+model<-lm(depth.m~ q.cms, data=data.GR)
+summary(model)
+
+####Individual analysis
+data.GR<-subset(data, site=="DL")
+model<-lm(depth.m~ q.cms, data=data.GR)
+summary(model)
+   
