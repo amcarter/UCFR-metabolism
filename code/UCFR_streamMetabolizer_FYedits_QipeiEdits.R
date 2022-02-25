@@ -217,14 +217,15 @@ DL_mle_params<-get_params(DL_mle)
 #write.csv(DL_mle_params, "DL_mle_params.csv")
 
 ###night regression to get k600
-DL_night_reg <- metab_night(data=dat)
+DL_night_reg <- metab_night(data=DL_dat)
 predict_metab(DL_night_reg)
 DL_night_reg_params<-get_params(DL_night_reg)
 #write.csv(ACR_params, "ACR_night_reg.csv")
 
 ###import k600 from night regression to mle models
 DL_night_reg_params$date<-as.Date(DL_night_reg_params$date)
-DL_mle_fixk <- metab_mle(data=dat,data_daily=DL_night_reg_params$K600.daily)
+DL_night_reg_params<-select(DL_night_reg_params,date,K600.daily)
+DL_mle_fixk <- metab_mle(data=DL_dat,data_daily=DL_night_reg_params)
 predict_metab(DL_mle_fixk)
 DL_mle_fixk_params<-get_params(DL_mle_fixk)
 #write.csv(DL_mle_fixk_params, "DL_mle_fixk_params.csv")
