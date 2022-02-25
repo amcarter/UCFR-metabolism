@@ -123,7 +123,14 @@ colnames(metab) <- c("solar.time","DO.obs","temp.water", "date")
 metab$light<-calc_light(metab$solar.time, latitude = lat, longitude= long)
 
 #Add pressure data from DL to metab data frame
-metab<-left_join(metab,pressure_day)
+#pressure data is Denver time zone; Convert to solar time first.
+press.dl.unlist$press.dl.unlist<- calc_solar_time(press.dl.unlist$press.dl.unlist, longitude=long)
+#interpolate to sensor time
+press.dl.solar<-approx(x=press.dl.unlist$press.dl.unlist, y = press.dl.unlist$pressure, 
+                xout=metab$solar.time)
+press.dl.solar$y<-press.dl.solar$y/100
+metab<-tibble(metab,press.dl.solar$y)
+metab<-rename(metab,"press.mb"="press.dl.solar$y")
 
 #Add air temp data from DL to metab data frame
 metab<-left_join(metab,air_temp_day)
@@ -168,11 +175,11 @@ DL_dat<-data.frame(solar.time=metab$solar.time,
                    DO.obs=metab$DO.obs,DO.sat=metab$DO.sat,depth=metab$depth,temp.water=metab$temp.water,
                    light=metab$light)
 
-#sM model specs
-nb_DL <- mm_name(type='bayes', pool_K600='normal', err_obs_iid=FALSE, err_proc_iid=TRUE)
+#-----------------sM model specs---------------
+nb_DL <- mm_name(type='bayes', pool_K600='normal', err_obs_iid=TRUE, err_proc_iid=TRUE)
 
 DL_specs <- specs(nb_DL,K600_daily_meanlog_meanlog=1.986474396, K600_daily_meanlog_sdlog=0.75, 
-                  K600_daily_sdlog_sigma=0.5, burnin_steps=1000, saved_steps=200, n_cores=4, verbose=T)
+                  K600_daily_sdlog_sigma=0.5, burnin_steps=500, saved_steps=500, n_cores=4, verbose=T)
 
 #Run model
 DL_fit <- metab(DL_specs, data=DL_dat)
@@ -197,16 +204,27 @@ rstan::traceplot(DL_mcmc, pars='K600_daily', nrow=3)
 
 get_fit(DL_fit)$overall %>%
   select(ends_with('Rhat'))
-
 get_fit(DL_fit) %>%
   lapply(names)
-
 get_fit(DL_fit)$overall %>%
   select('err_proc_iid_sigma_mean')
+#launch_shinystan(DL_mcmc)
+#pairs(DL_mcmc)
 
-launch_shinystan(DL_mcmc)
-pairs(DL_mcmc)
+###-----------remove observation errors-----------------
+nb_DL_obs <- mm_name(type='bayes', pool_K600='normal', err_obs_iid=FALSE, err_proc_iid=TRUE)
 
+DL_specs_obs <- specs(nb_DL_obs,K600_daily_meanlog_meanlog=1.986474396, K600_daily_meanlog_sdlog=0.75, 
+                  K600_daily_sdlog_sigma=0.5, burnin_steps=500, saved_steps=500, n_cores=4, verbose=T)
+
+#Run model
+DL_fit_obs <- metab(DL_specs_obs, data=DL_dat)
+
+#Check model output
+DL_params_obs<-get_params(DL_fit_obs , uncertainty='ci')
+DL_mcmc_obs<-get_mcmc(DL_fit_obs)
+
+###----------------------------------------------------------------
 ###following parts aim to run DL data with mle and night regression
 ###Used to troubleshooting models
 
@@ -214,13 +232,13 @@ pairs(DL_mcmc)
 DL_mle <- metab_mle(data=DL_dat)
 predict_metab(DL_mle)
 DL_mle_params<-get_params(DL_mle)
-#write.csv(DL_mle_params, "DL_mle_params.csv")
+write.csv(DL_mle_params, "DL_mle_params.csv")
 
 ###night regression to get k600
 DL_night_reg <- metab_night(data=DL_dat)
 predict_metab(DL_night_reg)
 DL_night_reg_params<-get_params(DL_night_reg)
-#write.csv(ACR_params, "ACR_night_reg.csv")
+write.csv(ACR_params, "ACR_night_reg.csv")
 
 ###import k600 from night regression to mle models
 DL_night_reg_params$date<-as.Date(DL_night_reg_params$date)
@@ -228,4 +246,6 @@ DL_night_reg_params<-select(DL_night_reg_params,date,K600.daily)
 DL_mle_fixk <- metab_mle(data=DL_dat,data_daily=DL_night_reg_params)
 predict_metab(DL_mle_fixk)
 DL_mle_fixk_params<-get_params(DL_mle_fixk)
-#write.csv(DL_mle_fixk_params, "DL_mle_fixk_params.csv")
+write.csv(DL_mle_fixk_params, "DL_mle_fixk_params.csv")
+###save workspace
+save.image(file = "DL_troubleshoot.RData")
