@@ -238,7 +238,7 @@ write.csv(DL_mle_params, "DL_mle_params.csv")
 DL_night_reg <- metab_night(data=DL_dat)
 predict_metab(DL_night_reg)
 DL_night_reg_params<-get_params(DL_night_reg)
-write.csv(ACR_params, "ACR_night_reg.csv")
+write.csv(DL_night_reg_params, "DL_night_reg.csv")
 
 ###import k600 from night regression to mle models
 DL_night_reg_params$date<-as.Date(DL_night_reg_params$date)
