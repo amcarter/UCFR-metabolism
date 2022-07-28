@@ -13,8 +13,9 @@ library(tidyverse)
 library(lme4)
 
 ##Load depth data
-setwd("~/GitHub/UCFR-metabolism/data")
-UCFR_depth<- read_csv("UCFR_depth_summary.csv")
+setwd("C:/Users/alice.carter/git/UCFR-metabolism")
+site_dat <- read_csv('data/site_data.csv')
+UCFR_depth<- read_csv("data/UCFR_depth_summary.csv")
 UCFR_depth$date<-as.Date(UCFR_depth$date, format="%m-%d-%Y")
 start.20<-as.Date("2020-07-13")
 end.20<-as.Date("2020-10-20")
@@ -25,33 +26,22 @@ end.21<-as.Date("2020-11-01")
 #BM.index<-which(UCFR_depth$site=="BM")
 #UCFR_depth[BM.index,]$site<-"BN"
 
-##Save USGS gage numbers for downloading
-usgs.GC<-'12324680' # Gold Creek USGS gage
-usgs.DL<-'12324200' # Deer Lodge USGS gage
-usgs.PL<-'12323800' # Perkins Ln. USGS gage
-usgs.GR<-'12324400' # Clark Fork ab Little Blackfoot R nr Garrison MT
-usgs.BM<-'12331800' # Near Drummond, but pretty close to Bear Mouth and Bonita
-usgs.BN<-'12331800' # Near Drummond, but pretty close to Bear Mouth and Bonita
-
-##Turb into data frame
-gage.id<-c(usgs.GC,usgs.DL,usgs.PL,usgs.BM,usgs.BN, usgs.GR)
-gage.name<-c("GC", "DL", "PL", "BM","BN", "GR")
-USGS.gage<-data.frame(gage.id,gage.name)
-
 ## Download average daily Discharge directly from USGS for each gage
 dailyflow<-vector("list",6) # 6 = number of sites
 for (i in 1:6){
-dailyflow[[i]] <- readNWISdata(sites = USGS.gage$gage.id[i], #download
-                         service = "dv", 
+    dailyflow[[i]] <- readNWISdata(sites = site_dat$nwis_code[i], #download
+                         service = "dv",
                          parameterCd = "00060",
                          startDate = "2020-7-15",
-                         endDate = "2021-10-31") 
+                         endDate = "2021-10-31")
 
-dailyflow[[i]]$dateTime <- as.Date(dailyflow[[i]]$dateTime) #reformat date
-dailyflow[[i]]$q.m3s<-dailyflow[[i]]$X_00060_00003/35.31 #transform from cubic feet per second to cubic meters per second
-names(dailyflow[[i]])<-c("agency", "site", "date","q.cfs","code", "tz", "q.cms") # change column header names
-dailyflow[[i]]<-select(dailyflow[[i]], c(-'agency', -'site', -'q.cfs', -'code', -'tz')) # remove unecessary data
-dailyflow[[i]]$site<-rep(USGS.gage$gage.name[[i]], length(dailyflow[[i]]$date)) # add column with site name
+    dailyflow[[i]]$dateTime <- as.Date(dailyflow[[i]]$dateTime) #reformat date
+    dailyflow[[i]]$q.m3s<-dailyflow[[i]]$X_00060_00003/35.31 #transform from cubic feet per second to cubic meters per second
+    names(dailyflow[[i]])<-c("agency", "site", "date","q.cfs","code", "tz", "q.cms") # change column header names
+    dailyflow[[i]]<-select(dailyflow[[i]],
+                           c(-'agency', -'site', -'q.cfs', -'code', -'tz')) # remove unecessary data
+    dailyflow[[i]]$site<-rep(site_dat$sitecode[[i]],
+                             length(dailyflow[[i]]$date)) # add column with site name
 }
 
 
@@ -59,7 +49,7 @@ dailyflow[[i]]$site<-rep(USGS.gage$gage.name[[i]], length(dailyflow[[i]]$date)) 
 daily.q<-do.call(rbind.data.frame, dailyflow)
 
 daily.q.sub<-subset(daily.q, date<end.20  & date> start.21)
-
+write_csv(daily.q.sub, 'discharge_UCFRsites_2020.csv')
 
 ## Join discharge with depth and width data (by date)
 data.sub<-left_join(daily.q.sub, UCFR_depth)
@@ -115,17 +105,42 @@ ggplot(data=data, aes(x=date, y=q.cms))+
   facet_grid(~site, scales="free")
 
 ####Analysis
-model<-lmer(log(depth.m)~ log(q.cms)+(1|site), data=data)
+model<-lm(log(depth.m)~ log(q.cms)+ site, data=data)
 model2<-lm(log(depth.m)~ log(q.cms), data=data)
+summary(model)
 summary(model2)
 
-####Individual analysis
+coef <- model$coefficients
+fits <- tibble(site = factor(site_dat$sitecode,
+                             levels = c('PL', "DL", "GR", "GC", "BM", "BN"))) %>%
+    mutate(intercept = coef[1] + c(0, coef[3:7, drop = T]),
+           slope = rep(coef[2], 6),
+           min_q = log(sapply(!!dailyflow, function(x) min(x$q.cms, na.rm = T))),
+           max_q = log(sapply(!!dailyflow, function(x) max(x$q.cms, na.rm = T))),
+           min_d = intercept + slope * min_q,
+           max_d = intercept + slope * max_q)
+
+png('figures/depth_discharge_relationships.png')
+    plot(log(data$q.cms), log(data$depth.m), col = data$site, pch = 19,
+         xlim = c(min(fits$min_q), max(fits$max_q)),
+         ylim = c(min(fits$min_d), max(fits$max_d)),
+         ylab = 'log depth (m)', xlab = 'log discharge (cms)')
+    for(i in 1:6){
+        lines(fits[i,4:5], fits[i,6:7], col = i)
+    }
+    legend('topleft', legend = levels(fits$site),
+           col = 1:6, pch = 19, bty = 'n')
+dev.off()
+
+fits$formula = 'log(d) = a + b * log(q)'
+write_csv(fits, 'data/depth_discharge_relationships_allsites.csv')
+
+####Individual analysis ####
 data.GR<-subset(data, site=="GR")
-model<-lm(depth.m~ q.cms, data=data.GR)
+model<-lm(log(depth.m)~ log(q.cms), data=data.GR)
 summary(model)
 
 ####Individual analysis
 data.GR<-subset(data, site=="DL")
-model<-lm(depth.m~ q.cms, data=data.GR)
+model<-lm(log(depth.m)~ log(q.cms), data=data.GR)
 summary(model)
-   

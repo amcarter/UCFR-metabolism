@@ -32,7 +32,7 @@ library(mesowest)
 requestToken(apikey = "KyW2GDQXm7iuxMZIttsuCK15e1zWMzvOTrUpX9k3HN")
 
 
-##Location for estimating light. Same for all sites. 
+##Location for estimating light. Same for all sites.
 lat<-46.790812
 long<--113.748535
 
@@ -65,8 +65,8 @@ press.dl.unlist$press.dl.unlist<-as.POSIXct(as.numeric(press.dl.unlist$press.dl.
 press.dl.unlist$date<-as.Date(press.dl.unlist$press.dl.unlist)
 
 pressure_day<-press.dl.unlist %>%
-  group_by(date) %>% 
-  summarise(mean.press=mean(pressure/100))
+    group_by(date) %>%
+    summarise(mean.press=mean(pressure/100))
 
 names(pressure_day)<-c("date", "press.mb")
 
@@ -80,8 +80,8 @@ temp.dl.unlist$temp.dl.unlist<-as.POSIXct(as.numeric(temp.dl.unlist$temp.dl.unli
 temp.dl.unlist$date<-as.Date(temp.dl.unlist$temp.dl.unlist)
 
 air_temp_day<-temp.dl.unlist %>%
-  group_by(date) %>% 
-  summarise(mean.temp=mean(air_temp))
+    group_by(date) %>%
+    summarise(mean.temp=mean(air_temp))
 
 names(air_temp_day)<-c("date", "mean.temp")
 
@@ -100,9 +100,9 @@ dat$date<-as.Date(dat$date.UTC,format="%m-%d-%Y")
 # convert to solar time
 time<-lubridate::as_datetime(dat$date.UTC)
 dat$solar.time <- convert_UTC_to_solartime(
-  time,
-  long,
-  time.type = c("mean solar"))
+    time,
+    long,
+    time.type = c("mean solar"))
 
 #Alternate conversion (both work)
 # convert to solar time
@@ -110,9 +110,9 @@ posix.time.localtz <- as.POSIXct(dat$unix.time, origin='1970-01-01', tz='UTC')
 lubridate::tz(posix.time.localtz)
 
 dat$solar.time <- convert_UTC_to_solartime (
-  posix.time.localtz,
-  long, 
-  time.type="mean solar")
+    posix.time.localtz,
+    long,
+    time.type="mean solar")
 
 # clean up data
 metab <- data.frame(dat$solar.time,dat$do.mgl,dat$temp.c)
@@ -126,8 +126,8 @@ metab$light<-calc_light(metab$solar.time, latitude = lat, longitude= long)
 #pressure data is Denver time zone; Convert to solar time first.
 press.dl.unlist$press.dl.unlist<- calc_solar_time(press.dl.unlist$press.dl.unlist, longitude=long)
 #interpolate to sensor time
-press.dl.solar<-approx(x=press.dl.unlist$press.dl.unlist, y = press.dl.unlist$pressure, 
-                xout=metab$solar.time)
+press.dl.solar<-approx(x=press.dl.unlist$press.dl.unlist, y = press.dl.unlist$pressure,
+                       xout=metab$solar.time)
 press.dl.solar$y<-press.dl.solar$y/100
 metab<-tibble(metab,press.dl.solar$y)
 metab<-rename(metab,"press.mb"="press.dl.solar$y")
@@ -137,17 +137,17 @@ metab<-left_join(metab,air_temp_day)
 
 # Calculate DO concentration at saturation
 metab$DO.sat <- calc_DO_sat(
-  temp=metab$temp.water,
-  press=metab$press.mb,
-  salinity.water = 0,)
+    temp=metab$temp.water,
+    press=metab$press.mb,
+    salinity.water = 0,)
 
 # Discharge
 
 instFlow <- readNWISdata(sites = usgs.DL,
-                         service = "dv", 
+                         service = "dv",
                          parameterCd = "00060",
                          startDate = "2020-05-01",
-                         endDate = "2020-10-31") 
+                         endDate = "2020-10-31")
 
 instFlow$dateTime <- as.Date(instFlow$dateTime)
 instFlow$q.m3s<-instFlow$X_00060_00003/35.31
@@ -160,8 +160,8 @@ metab<-merge(metab, instFlow, by="date", all.x=TRUE)
 metab$depth<-0.02*metab$q.cms+0.44
 
 #Format date before model
-dat$solar.time<- as.POSIXct(dat$solar.time, 
-                            tz= "UTC", 
+dat$solar.time<- as.POSIXct(dat$solar.time,
+                            tz= "UTC",
                             tryFormats = c("%Y-%m-%d %H:%M:%OS",
                                            "%Y/%m/%d %H:%M:%OS",
                                            "%Y-%m-%d %H:%M",
@@ -178,7 +178,7 @@ DL_dat<-data.frame(solar.time=metab$solar.time,
 #-----------------sM model specs---------------
 nb_DL <- mm_name(type='bayes', pool_K600='normal', err_obs_iid=TRUE, err_proc_iid=TRUE)
 
-DL_specs <- specs(nb_DL,K600_daily_meanlog_meanlog=1.986474396, K600_daily_meanlog_sdlog=0.75, 
+DL_specs <- specs(nb_DL,K600_daily_meanlog_meanlog=1.986474396, K600_daily_meanlog_sdlog=0.75,
                   K600_daily_sdlog_sigma=0.5, burnin_steps=500, saved_steps=500, n_cores=4, verbose=T)
 
 #Run model
@@ -203,19 +203,19 @@ mcmc <- get_mcmc(DL_fit)
 rstan::traceplot(DL_mcmc, pars='K600_daily', nrow=3)
 
 get_fit(DL_fit)$overall %>%
-  select(ends_with('Rhat'))
+    select(ends_with('Rhat'))
 get_fit(DL_fit) %>%
-  lapply(names)
+    lapply(names)
 get_fit(DL_fit)$overall %>%
-  select('err_proc_iid_sigma_mean')
+    select('err_proc_iid_sigma_mean')
 #launch_shinystan(DL_mcmc)
 #pairs(DL_mcmc)
 
 ###-----------remove observation errors-----------------
 nb_DL_obs <- mm_name(type='bayes', pool_K600='normal', err_obs_iid=FALSE, err_proc_iid=TRUE)
 
-DL_specs_obs <- specs(nb_DL_obs,K600_daily_meanlog_meanlog=1.986474396, K600_daily_meanlog_sdlog=0.75, 
-                  K600_daily_sdlog_sigma=0.5, burnin_steps=500, saved_steps=500, n_cores=4, verbose=T)
+DL_specs_obs <- specs(nb_DL_obs,K600_daily_meanlog_meanlog=1.986474396, K600_daily_meanlog_sdlog=0.75,
+                      K600_daily_sdlog_sigma=0.5, burnin_steps=500, saved_steps=500, n_cores=4, verbose=T)
 
 #Run model
 DL_fit_obs <- metab(DL_specs_obs, data=DL_dat)
