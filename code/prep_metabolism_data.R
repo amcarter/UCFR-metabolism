@@ -52,14 +52,14 @@ long <- -113.748535
 
 air_press_temp <- read_csv('data/air_pressure_temp_2020.csv')
 # prep raw data files for running metabolism -------------------------------####
-f <- list.files('data/raw_DO')
-site_dat$filename <- c(f[c(7, 4, 5, 6, 1, 2)])
+f <- list.files('data/prepared_data/cleaned_data/')
+site_dat$filename <- c(f[c(6, 3, 4, 5, 1, 2)])
 site_dat <- depth_Q_fits %>%
     rename(sitecode = site) %>%
     left_join(site_dat)
 for(i in 1:6){
 
-    dat <- read_csv(paste0('data/raw_DO/', site_dat$filename[i]))
+    dat <- read_csv(paste0('data/prepared_data/cleaned_data/', site_dat$filename[i]))
     names(dat)<-c("unix.time", "date.UTC", "date.MST", "battery",
                   "temp.c", "do.mgl", "do.sat","q")
 

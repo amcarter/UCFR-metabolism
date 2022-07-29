@@ -15,7 +15,7 @@ library(tidyverse)
 library(dygraphs)
 
 # load datasets: ####
-set_wd('C:/Users/alice.carter/git/UCFR-metabolism/')
+setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
 depth_Q <- read_csv('data/depth_discharge_relationships_allsites.csv')
 
 PL<-read_csv('data/prepared_data/PL_2020.csv')
@@ -67,7 +67,7 @@ bayes_specs = specs(bayes_name,
 # set the nodes to reflect the range of discharge at this site:
 set_Q_nodes <- function(bayes_specs, Qrange){
     delta = 2
-    n = 6
+    n = 4
     while(delta > 1){
         n = n + 1
         delta <- (Qrange[2]-Qrange[1])/n
@@ -83,30 +83,31 @@ set_Q_nodes <- function(bayes_specs, Qrange){
 #Run models
 bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[1,4:5])
 PL_fit <- metab(bayes_specs, data=PL)
-saveRDS(PL_fit, 'metab_fits/PL_2020_kn_oipi.rds')
+saveRDS(PL_fit, 'data/metab_fits/PL_2020_kn_oipi.rds')
 
 bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[2,4:5])
 DL_fit <- metab(bayes_specs, data=DL)
-saveRDS(DL_fit, 'metab_fits/DL_2020_kn_oipi.rds')
+saveRDS(DL_fit, 'data/metab_fits/DL_2020_kn_oipi.rds')
 
 bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[3,4:5])
 GR_fit <- metab(bayes_specs, data=GR)
-saveRDS(GR_fit, 'metab_fits/GR_2020_kn_oipi.rds')
+saveRDS(GR_fit, 'data/metab_fits/GR_2020_kn_oipi.rds')
 
 bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[4,4:5])
 GC_fit <- metab(bayes_specs, data=GC)
-saveRDS(GC_fit, 'metab_fits/GC_2020_kn_oipi.rds')
+saveRDS(GC_fit, 'data/metab_fits/GC_2020_kn_oipi.rds')
 
 bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[5,4:5])
 BM_fit <- metab(bayes_specs, data=BM)
-saveRDS(BM_fit, 'metab_fits/BM_2020_kn_oipi.rds')
+saveRDS(BM_fit, 'data/metab_fits/BM_2020_kn_oipi.rds')
 
 bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[6,4:5])
 BN_fit <- metab(bayes_specs, data=BN)
-saveRDS(BN_fit, 'metab_fits/BN_2020_kn_oipi.rds')
+saveRDS(BN_fit, 'data/metab_fits/BN_2020_kn_oipi.rds')
 
 #Check model output:
-fit <- PL_fit
+
+fit <- BM_fit
 params<-get_params(fit , uncertainty='ci')
 mcmc<-get_mcmc(fit)
 print(fit)
