@@ -55,6 +55,8 @@ BN<-read_csv('data/prepared_data/BN_2020.csv')
 bayes_name <- mm_name(type='bayes', pool_K600='binned',
                       err_obs_iid=TRUE, err_proc_iid=TRUE)
 bayes_specs = specs(bayes_name,
+                    burnin_steps = 2000,
+                    saved_steps = 1000,
                     verbose = T, n_cores = 4)
 # bayes_specs <- specs(bayes_name, #K600_daily_meanlog_meanlog=1.986474396, # where did this number for K600 come from?
 #                   K600_daily_meanlog_sdlog=0.75,

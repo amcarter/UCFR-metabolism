@@ -9,7 +9,8 @@ library(jsonlite)
 setwd("C:/Users/alice.carter/git/UCFR-metabolism")
 
 ##Download pressure and air temp data from DeerLodge
-res<-GET("https://api.synopticdata.com/v2/stations/timeseries?stid=k38s&start=202001030000&end=202012200000&timeformat=%s&token=bc312c7c369043269a005c049228c49b")
+# for 2020:
+res<-GET("https://api.synopticdata.com/v2/stations/timeseries?stid=k38s&start=202001030000&end=202112200000&timeformat=%s&token=bc312c7c369043269a005c049228c49b")
 
 #reorganize pressure data
 data = fromJSON(rawToChar(res$content))
@@ -49,4 +50,4 @@ air_pres_temp <- temp.dl.unlist %>%
     mutate(press.mb = pressure/100) %>%
     select(datetime_MST = press.dl.unlist, date, press.mb, air_temp)
 
-write_csv(air_pres_temp, 'data/air_pressure_temp_2020.csv')
+write_csv(air_pres_temp, 'data/air_pressure_temp.csv')

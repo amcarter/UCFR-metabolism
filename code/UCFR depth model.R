@@ -1,17 +1,15 @@
 #load packages
-library(rstan)
-options(mc.cores = parallel::detectCores())
-library(dplyr)
 library(tidyr)
+library(readr)
+library(dplyr)
 library(ggplot2)
+library(brms)
 library(zoo)
 library(streamMetabolizer)
 library(lubridate)
 library(dataRetrieval)
 library(reshape2)
-library(tidyverse)
 library(lme4)
-
 ##Load depth data
 setwd("C:/Users/alice.carter/git/UCFR-metabolism")
 site_dat <- read_csv('data/site_data.csv')
@@ -19,8 +17,8 @@ UCFR_depth<- read_csv("data/UCFR_depth_summary.csv")
 UCFR_depth$date<-as.Date(UCFR_depth$date, format="%m-%d-%Y")
 start.20<-as.Date("2020-07-13")
 end.20<-as.Date("2020-10-20")
-start.21<-as.Date("2020-06-14")
-end.21<-as.Date("2020-11-01")
+start.21<-as.Date("2021-06-14")
+end.21<-as.Date("2021-11-01")
 
 ##OPTIONAL-Make BG and BN the same data since they are very close together
 #BM.index<-which(UCFR_depth$site=="BM")
@@ -105,16 +103,34 @@ ggplot(data=data, aes(x=date, y=q.cms))+
   facet_grid(~site, scales="free")
 
 ####Analysis
+# use powel center database to set a prior for the depth Q scaling coefficient:
+sp <- read_tsv('../loticlentic_synthesis/data/powell_data_import/site_data/site_data.tsv')
+glimpse(sp)
+mean_f <- mean(sp$dvqcoefs.f, na.rm = T)
+sd_f <- sd(sp$dvqcoefs.f, na.rm = T)
+
+data <- data %>%
+    mutate(logQ = log(q.cms),
+           logD = log(depth.m))
+
 model<-lm(log(depth.m)~ log(q.cms)+ site, data=data)
-model2<-lm(log(depth.m)~ log(q.cms), data=data)
+model2 <- lme4::lmer(log(depth.m)~ log(q.cms)+ (1|site), data=data)
+model3 <- brms::brm(logD~ logQ+ (1|site),
+                    data=data,
+                    prior = brms::prior(normal(0.42 , 0.1)))
+
 summary(model)
 summary(model2)
+summary(model3)
+ranef(model3)
 
-coef <- model$coefficients
+model3$ranef
+slope = 0.35
+coef <- ranef(model3)$site
 fits <- tibble(site = factor(site_dat$sitecode,
                              levels = c('PL', "DL", "GR", "GC", "BM", "BN"))) %>%
-    mutate(intercept = coef[1] + c(0, coef[3:7, drop = T]),
-           slope = rep(coef[2], 6),
+    mutate(intercept = -1.23 + coef[1:6],
+           slope = rep(slope, 6),
            min_q = log(sapply(!!dailyflow, function(x) min(x$q.cms, na.rm = T))),
            max_q = log(sapply(!!dailyflow, function(x) max(x$q.cms, na.rm = T))),
            min_d = intercept + slope * min_q,

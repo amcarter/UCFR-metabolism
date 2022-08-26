@@ -50,16 +50,18 @@ long <- -113.748535
 # mapview(sites, color = 1) +
 #     mapview(usgs, color = 2, cex = 5)
 
-air_press_temp <- read_csv('data/air_pressure_temp_2020.csv')
+air_press_temp <- read_csv('data/air_pressure_temp.csv')
 # prep raw data files for running metabolism -------------------------------####
 f <- list.files('data/prepared_data/cleaned_data/')
-site_dat$filename <- c(f[c(6, 3, 4, 5, 1, 2)])
+site_dat$filename_2020 <- c(f[c(12, 9, 10, 11, 7, 8)])
+site_dat$filename_2021 <- c(f[c(6, 3, 4, 5, 1, 2)])
 site_dat <- depth_Q_fits %>%
     rename(sitecode = site) %>%
     left_join(site_dat)
 for(i in 1:6){
+    for(j in c(14,15)){
 
-    dat <- read_csv(paste0('data/prepared_data/cleaned_data/', site_dat$filename[i]))
+    dat <- read_csv(paste0('data/prepared_data/cleaned_data/', site_dat[i,j]))
     names(dat)<-c("unix.time", "date.UTC", "date.MST", "battery",
                   "temp.c", "do.mgl", "do.sat","q")
 
@@ -119,7 +121,7 @@ for(i in 1:6){
                              service = "dv",
                              parameterCd = "00060",
                              startDate = "2020-05-01",
-                             endDate = "2020-10-31")
+                             endDate = "2021-11-30")
 
     instFlow$dateTime <- as.Date(instFlow$dateTime)
     instFlow$q.m3s<-instFlow$X_00060_00003/35.31
@@ -150,5 +152,18 @@ for(i in 1:6){
                        temp.water=metab$temp.water,
                        light=metab$light)
 
+    # remove leading and ending NAs
+    w <- which(!is.na(mod_dat$DO.obs))
+    mod_dat <- mod_dat[min(w):max(w),]
+
+
+    if(j == 14){
     write_csv(mod_dat, paste0('data/prepared_data/', site_dat$sitecode[i], '_2020.csv'))
+    } else{
+        write_csv(mod_dat, paste0('data/prepared_data/', site_dat$sitecode[i], '_2021.csv'))
+    }
+
+    }
 }
+
+
