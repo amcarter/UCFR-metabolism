@@ -1,0 +1,7 @@
+UCFR todo:
+
+- Build Metabolism fit evaluation tools file
+- evaluate metabolism fits
+    - compare KxQ and KxER with bad days highlighted
+    - compare 2020 and 2021 fits
+    - rerun with removed days if necessary

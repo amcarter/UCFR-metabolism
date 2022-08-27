@@ -108,25 +108,46 @@ BN_fit <- metab(bayes_specs, data=BN)
 saveRDS(BN_fit, 'data/metab_fits/BN_2020_kn_oipi.rds')
 
 #Check model output:
+# Perkins ####
+fit <- readRDS('data/metab_fits/PL_2020_kn_oipi.rds')
+dat <- read_csv('data/prepared_data/PL_2020.csv')
+daily <- dat %>%
+    mutate(date = as.Date(solar.time)) %>%
+    group_by(date) %>%
+    summarize(across(-solar.time, mean, na.rm = T)) %>%
+    ungroup()
 
-fit <- BM_fit
 params<-get_params(fit , uncertainty='ci')
 mcmc<-get_mcmc(fit)
 print(fit)
 
+met <- fit@fit$daily
 predict_metab(fit)
-
 plot_metab_preds(fit)
+plot(met$K600_daily_mean, met$ER_mean)
 
 get_params(fit)
 
-predict_DO(fit)
-
+# predict_DO(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs',
               y_lim = list(conc = c(NA, NA),
                            pctsat = c(NA, NA), ddodt = c(-50, 50)))
 
-rstan::traceplot(mcmc, pars='K600_daily', nrow=3)
+# Dates with poor DO fits:
+bad_days <- data.frame(date = as.Date(c('2020-08-24', '2020-08-25')),
+                       fit = 'bad')
+met %>%
+    left_join(bad_days) %>%
+    ggplot(aes(K600_daily_mean, ER_mean, col = fit)) +
+    geom_point(size = 2)
+daily %>%
+    left_join(met, by = 'date') %>%
+    left_join(bad_days, by = 'date') %>%
+    ggplot(aes(log(discharge), K600_daily_mean, col = fit)) +
+    geom_point(size = 2)
+
+# these points don't look like they are influencing the overall KxER relationship
+
 
 get_fit(fit)$overall %>%
   select(ends_with('Rhat'))
@@ -134,5 +155,5 @@ get_fit(fit) %>%
   lapply(names)
 get_fit(fit)$overall %>%
   select('err_proc_iid_sigma_mean')
-#launch_shinystan(mcmc)
-#pairs(mcmc)
+# launch_shinystan(mcmc)
+# pairs(mcmc)

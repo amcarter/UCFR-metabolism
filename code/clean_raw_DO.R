@@ -553,7 +553,8 @@ dat_clean <- left_join(dat, flag_points) %>%
     mutate(DO.raw = DO.obs,
         DO.obs = case_when(flag == 'bad data' ~ NA_real_,
                                    TRUE ~ DO.obs),
-        DO.obs = zoo::na.approx(DO.obs, maxgap = max_gap * 60/dt, x = UTC, na.rm = F))
+        DO.obs = zoo::na.approx(DO.obs, maxgap = max_gap * 60/dt, x = UTC, na.rm = F)) %>%
+    distinct()
 
 dat_clean %>%
     select(DO.obs, DO.raw) %>%
