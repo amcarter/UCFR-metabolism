@@ -1,3 +1,5 @@
 figures
 data/metab_fits
 data/prepared_data/cleaned_data
+code/light/NLDAS
+code/light/MODIS
