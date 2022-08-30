@@ -109,8 +109,260 @@ bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[6,4:5])
 BN_fit <- metab(bayes_specs, data=BN)
 saveRDS(BN_fit, 'data/metab_fits/BN_2021_kn_oipi.rds')
 
-#Check model output:
+#Check model output: ####
+bds <- data.frame()
+# Perkins ####
+fit <- readRDS('data/metab_fits/PL_2021_kn_oipi.rds')
+dat <- read_csv('data/prepared_data/PL_2021.csv')
+daily <- dat %>%
+    mutate(date = as.Date(solar.time)) %>%
+    group_by(date) %>%
+    summarize(across(-solar.time, mean, na.rm = T)) %>%
+    ungroup()
 
+met <- fit@fit$daily
+plot_metab_preds(fit)
+plot(met$K600_daily_mean, met$ER_mean)
+identify(met$K600_daily_mean, met$ER_mean, met$date)
+
+get_params(fit)
+get_fit(fit)$overall %>%
+    select(ends_with('Rhat'))
+get_fit(fit)$overall %>%
+    select('err_proc_iid_sigma_mean')
+
+# predict_DO(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs',
+              y_lim = list(conc = c(NA, NA),
+                           pctsat = c(NA, NA), ddodt = c(-50, 50)))
+
+# Dates with poor DO fits:
+bad_days <- data.frame(site = 'PL',
+                       date = as.Date(c('2021-07-01', '2021-07-20',
+                                        '2021-08-08')),
+                       fit = 'bad')
+met %>%
+    left_join(bad_days) %>%
+    ggplot(aes(K600_daily_mean, ER_mean, col = fit)) +
+    geom_point(size = 2)
+daily %>%
+    left_join(met, by = 'date') %>%
+    left_join(bad_days, by = 'date') %>%
+    ggplot(aes(log(discharge), K600_daily_mean, col = fit)) +
+    geom_point(size = 2)
+
+# these points don't look like they are influencing the overall KxER relationship
+# Just remove these days but no need to rerun for now
+bds <- bind_rows(bds, bad_days)
+# Deer Lodge ####
+fit <- readRDS('data/metab_fits/DL_2021_kn_oipi.rds')
+dat <- read_csv('data/prepared_data/DL_2021.csv')
+daily <- dat %>%
+    mutate(date = as.Date(solar.time)) %>%
+    group_by(date) %>%
+    summarize(across(-solar.time, mean, na.rm = T)) %>%
+    ungroup()
+
+met <- fit@fit$daily
+plot_metab_preds(fit)
+plot(met$K600_daily_mean, met$ER_mean)
+identify(met$K600_daily_mean, met$ER_mean, met$date)
+
+get_params(fit)
+get_fit(fit)$overall %>%
+    select(ends_with('Rhat'))
+get_fit(fit)$overall %>%
+    select('err_proc_iid_sigma_mean')
+
+# predict_DO(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs',
+              y_lim = list(conc = c(NA, NA),
+                           pctsat = c(NA, NA), ddodt = c(-50, 50)))
+
+# Dates with poor DO fits:
+bad_days <- data.frame(site = 'DL',
+                       date = as.Date(c('2021-08-08')),
+                       fit = 'bad')
+met %>%
+    left_join(bad_days) %>%
+    ggplot(aes(K600_daily_mean, ER_mean, col = fit)) +
+    geom_point(size = 2)
+daily %>%
+    left_join(met, by = 'date') %>%
+    left_join(bad_days, by = 'date') %>%
+    ggplot(aes(log(discharge), K600_daily_mean, col = fit)) +
+    geom_point(size = 2)
+
+# these points don't look like they are influencing the overall KxER relationship
+# Just remove these days but no need to rerun for now
+bds <- bind_rows(bds, bad_days)
+
+####
+write_csv(bds, 'data/metab_fits/bad_fits_2020.csv')
+
+# Garrison ####
+fit <- readRDS('data/metab_fits/GR_2021_kn_oipi.rds')
+dat <- read_csv('data/prepared_data/GR_2021.csv')
+daily <- dat %>%
+    mutate(date = as.Date(solar.time)) %>%
+    group_by(date) %>%
+    summarize(across(-solar.time, mean, na.rm = T)) %>%
+    ungroup()
+
+met <- fit@fit$daily
+plot_metab_preds(fit)
+plot(met$K600_daily_mean, met$ER_mean)
+identify(met$K600_daily_mean, met$ER_mean, met$date)
+
+get_params(fit)
+get_fit(fit)$overall %>%
+    select(ends_with('Rhat'))
+get_fit(fit)$overall %>%
+    select('err_proc_iid_sigma_mean')
+
+# predict_DO(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs',
+              y_lim = list(conc = c(NA, NA),
+                           pctsat = c(NA, NA), ddodt = c(-50, 50)))
+
+# Dates with poor DO fits:
+bad_days <- data.frame(site = 'GR',
+                       date = as.Date(c('2021-07-14', '2021-07-15',
+                                        '2021-10-24', '2021-10-29')),
+                       fit = 'bad')
+met %>%
+    left_join(bad_days) %>%
+    ggplot(aes(K600_daily_mean, ER_mean, col = fit)) +
+    geom_point(size = 2)
+daily %>%
+    left_join(met, by = 'date') %>%
+    left_join(bad_days, by = 'date') %>%
+    ggplot(aes(log(discharge), K600_daily_mean, col = fit)) +
+    geom_point(size = 2)
+
+# these points don't look like they are influencing the overall KxER relationship
+# Just remove these days but no need to rerun for now
+bds <- bind_rows(bds, bad_days)
+# Gold Creek ####
+fit <- readRDS('data/metab_fits/GC_2021_kn_oipi.rds')
+dat <- read_csv('data/prepared_data/GC_2021.csv')
+daily <- dat %>%
+    mutate(date = as.Date(solar.time)) %>%
+    group_by(date) %>%
+    summarize(across(-solar.time, mean, na.rm = T)) %>%
+    ungroup()
+
+met <- fit@fit$daily
+plot_metab_preds(fit)
+plot(met$K600_daily_mean, met$ER_mean)
+identify(met$K600_daily_mean, met$ER_mean, met$date)
+
+get_params(fit)
+get_fit(fit)$overall %>%
+    select(ends_with('Rhat'))
+get_fit(fit)$overall %>%
+    select('err_proc_iid_sigma_mean')
+
+# predict_DO(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs',
+              y_lim = list(conc = c(NA, NA),
+                           pctsat = c(NA, NA), ddodt = c(-50, 50)))
+
+# Dates with poor DO fits:
+bad_days <- data.frame(site = 'GC',
+                       date = as.Date(c('2021-07-01', '2021-07-19',
+                                        '2021-07-20', '2021-07-27',
+                                        '2021-08-04', '2021-08-05',
+                                        '2021-08-08')),
+                       fit = 'bad')
+met %>%
+    left_join(bad_days) %>%
+    ggplot(aes(K600_daily_mean, ER_mean, col = fit)) +
+    geom_point(size = 2)
+daily %>%
+    left_join(met, by = 'date') %>%
+    left_join(bad_days, by = 'date') %>%
+    ggplot(aes(log(discharge), K600_daily_mean, col = fit)) +
+    geom_point(size = 2)
+
+# these points don't look like they are influencing the overall KxER relationship
+# Just remove these days but no need to rerun for now
+bds <- bind_rows(bds, bad_days)
+# Bear Gulch####
+fit <- readRDS('data/metab_fits/BM_2021_kn_oipi.rds')
+dat <- read_csv('data/prepared_data/BM_2021.csv')
+daily <- dat %>%
+    mutate(date = as.Date(solar.time)) %>%
+    group_by(date) %>%
+    summarize(across(-solar.time, mean, na.rm = T)) %>%
+    ungroup()
+
+met <- fit@fit$daily
+plot_metab_preds(fit)
+plot(met$K600_daily_mean, met$ER_mean)
+identify(met$K600_daily_mean, met$ER_mean, met$date)
+
+get_params(fit)
+get_fit(fit)$overall %>%
+    select(ends_with('Rhat'))
+get_fit(fit)$overall %>%
+    select('err_proc_iid_sigma_mean')
+
+# predict_DO(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs',
+              y_lim = list(conc = c(NA, NA),
+                           pctsat = c(NA, NA), ddodt = c(-50, 50)))
+
+daily %>%
+    left_join(met, by = 'date') %>%
+    ggplot(aes(log(discharge), K600_daily_mean)) +
+    geom_point(size = 2)
+# Bonita ####
+fit <- readRDS('data/metab_fits/BN_2021_kn_oipi.rds')
+dat <- read_csv('data/prepared_data/BN_2021.csv')
+daily <- dat %>%
+    mutate(date = as.Date(solar.time)) %>%
+    group_by(date) %>%
+    summarize(across(-solar.time, mean, na.rm = T)) %>%
+    ungroup()
+
+met <- fit@fit$daily
+plot_metab_preds(fit)
+plot(met$K600_daily_mean, met$ER_mean)
+identify(met$K600_daily_mean, met$ER_mean, met$date)
+
+get_params(fit)
+get_fit(fit)$overall %>%
+    select(ends_with('Rhat'))
+get_fit(fit)$overall %>%
+    select('err_proc_iid_sigma_mean')
+
+# predict_DO(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs',
+              y_lim = list(conc = c(NA, NA),
+                           pctsat = c(NA, NA), ddodt = c(-50, 50)))
+
+# Dates with poor DO fits:
+bad_days <- data.frame(site = 'BN',
+                       date = as.Date(c('2021-08-08')),
+                       fit = 'bad')
+met %>%
+    left_join(bad_days) %>%
+    ggplot(aes(K600_daily_mean, ER_mean, col = fit)) +
+    geom_point(size = 2)
+daily %>%
+    left_join(met, by = 'date') %>%
+    left_join(bad_days, by = 'date') %>%
+    ggplot(aes(log(discharge), K600_daily_mean, col = fit)) +
+    geom_point(size = 2)
+
+# these points don't look like they are influencing the overall KxER relationship
+# Just remove these days but no need to rerun for now
+bds <- bind_rows(bds, bad_days)
+write_csv(bds, 'data/metab_fits/bad_fits_2021.csv')
+
+
+#old checks####
 fit <- GC_fit
 fit <- readRDS('data/metab_fits/GC_2021_kn_oipi.rds')
 params<-get_params(fit , uncertainty='ci')

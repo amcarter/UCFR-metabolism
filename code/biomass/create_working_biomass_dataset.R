@@ -26,7 +26,8 @@ bm <- biomass %>%
            cobble, sand, gravel, pebble,
            ends_with('.om.area.g.m2'),
            ends_with('.chla.mg.m2.ritchie'),
-           total.algal.biomass.g.m2) %>%
+           total.algal.biomass.g.m2,
+           phicocyanin.mg.m2) %>%
     group_by(date, site) %>%
     summarize(n_samp = n(),
               across(-n_samp, .fns = list(mean = function(x) mean(x, na.rm = T),
