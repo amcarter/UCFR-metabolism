@@ -9,7 +9,8 @@ setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
 biomass <- read_csv('data/biomass_data/biomass_working_data.csv') %>%
     mutate(site = case_when(site == 'BG' ~ 'BM',
                             site == 'WS' ~ 'PL',
-                            TRUE ~ site))
+                            TRUE ~ site))%>%
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
 met <- read_csv('data/metab_fits/metabolism_estimates_2020-21.csv')
 
 glimpse(biomass)
@@ -70,23 +71,33 @@ d <- full_join(met, bm, by = c('site', 'date')) %>%
     mutate(year = year(date),
            doy = as.numeric(format(date, '%j')))%>%
     relocate(site, year, date, doy) %>%
-    filter(site != 'CR', !is.na(site))
+    filter(site != 'CR', !is.na(site))%>%
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
 
 png('figures/GPP_biomass_visual_comp.png', width = 800, height = 600 )
     d %>%
-        # filter(biomass_gm2 < 500) %>%
-    ggplot(aes(doy, GPP, col = factor(year))) +
+        # filter(chla_mgm2 < 500) %>%
+    ggplot(aes(doy, temp.water, col = factor(year))) +
         geom_line() +
-        geom_point(aes(y = biomass_gm2/5)) +
+        # geom_point(aes(y = biomass_gm2/5), size = 2) +
         # geom_point(aes(y = chla_mgm2/10)) +
-        facet_wrap(.~site)
+        facet_wrap(.~site, ncol = 2) +
+        # ylim(0, 50)
+        theme_bw()
 dev.off()
 
+ggplot(dat, aes(log(biomass_gm2), log(chla_mgm2))) +
+    geom_point()
+    ylim(-20,500)
+
+
 png('figures/GPP_biomass_relationship.png', width = 800, height = 600 )
-    ggplot(d, aes(biomass_gm2, GPP, col = SW)) +
+    ggplot(d, aes(biomass_gm2, GPP+ER, col = doy)) +
         geom_point(size = 3) +
+        geom_smooth(method = 'lm', se = FALSE, lty = 2, col = 'grey')+
         scale_color_continuous(type = 'viridis')+
-        facet_wrap(.~site, scales = 'free')
+        facet_wrap(.~site, scales = 'free')+
+        theme_bw()
 dev.off()
 
     ggplot(d, aes(biomass_gm2, GPP, col = doy)) +

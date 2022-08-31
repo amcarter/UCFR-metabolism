@@ -24,10 +24,13 @@ bm <- biomass %>%
                               TRUE ~ 0)) %>%
     select(date, site, average.depth,
            cobble, sand, gravel, pebble,
-           ends_with('.om.area.g.m2'),
+           ends_with('om.area.g.m2'),
            ends_with('.chla.mg.m2.ritchie'),
-           total.algal.biomass.g.m2,
-           phicocyanin.mg.m2) %>%
+           matches('phicocyanin'),
+           total.algal.biomass.g.m2) %>%
+    mutate(year = year(date))
+
+bm_sum <- bm %>%
     group_by(date, site) %>%
     summarize(n_samp = n(),
               across(-n_samp, .fns = list(mean = function(x) mean(x, na.rm = T),
@@ -35,12 +38,45 @@ bm <- biomass %>%
     select(-cobble_sd, -sand_sd, -gravel_sd, -pebble_sd) %>%
     rename(pct_cobble = cobble_mean, pct_sand = sand_mean,
            pct_gravel = gravel_mean, pct_pebble = pebble_mean) %>%
-    ungroup() %>%
-    mutate(year = year(date))
+    ungroup()
 
-ggplot(bm, aes(date, total.algal.biomass.g.m2_mean, color = site)) +
+ggplot(bm_sum, aes(date, total.algal.biomass.g.m2_mean, color = site)) +
     geom_point() +
     geom_line() +
     facet_wrap(.~year, scales = 'free_x')
 
 write_csv(bm, 'data/biomass_data/biomass_working_data.csv')
+write_csv(bm_sum, 'data/biomass_data/biomass_working_data_summary.csv')
+
+
+
+# examine anomalously high chla values for fbom:
+
+bm %>%
+    filter(!is.na(site))%>%
+ggplot(aes(fbom.area.g.m2*1000, fbom.chla.mg.m2.ritchie,
+               col = factor(year)))+
+    geom_point() +
+    # geom_abline(slope = 1, intercept = 0) +
+    facet_wrap(.~site, scales = 'free')
+bm %>%
+    filter(!is.na(site))%>%
+ggplot(aes(epil.om.area.g.m2*1000, epil.chla.mg.m2.ritchie,
+               col = factor(year)))+
+    geom_point() +
+    geom_abline(slope = .1, intercept = 0) +
+    facet_wrap(.~site, scales = 'free')
+bm %>%
+    filter(!is.na(site))%>%
+ggplot(aes(epip.om.area.g.m2*1000, epip.chla.mg.m2.ritchie,
+               col = factor(year)))+
+    geom_point() +
+    geom_abline(slope = .1, intercept = 0) +
+    facet_wrap(.~site, scales = 'free')
+bm %>%
+    filter(!is.na(site))%>%
+ggplot(aes(fila.om.area.g.m2*1000, fila.chla.mg.m2.ritchie,
+               col = factor(year)))+
+    geom_point() +
+    geom_abline(slope = .1, intercept = 0) +
+    facet_wrap(.~site, scales = 'free')

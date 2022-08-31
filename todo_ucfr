@@ -1,7 +1,19 @@
 UCFR todo:
 
+DATA ANALYSIS
 - Build Metabolism fit evaluation tools file
 - evaluate metabolism fits
     - compare KxQ and KxER with bad days highlighted
-    - compare 2020 and 2021 fits
+    - look at K600 over time
+    - compare 2020 and 2021 fits (K/Q)
     - rerun with removed days if necessary
+- Compile finalized metabolism data
+- Fit GAMS to biomass data
+    - keep biomass categories as seperate as possible
+    - look through Laurel's GAM code
+    - fit biomass x chl a relationship with standardized axis regression
+- Compare cumulative GPP to biomass
+
+DATA CLEANING
+- revisit DO data looking for biofouling
+- ask matt and/or rafa about field notes
