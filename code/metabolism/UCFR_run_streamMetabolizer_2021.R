@@ -3,7 +3,7 @@
 #Reinstall unitted and streamMetabolizer if needed
 # remotes::install_github('appling/unitted', force = TRUE)
 # remotes::install_github("USGS-R/streamMetabolizer", force = TRUE)
-devtools::install('C:/Users/alice.carter/Desktop/streamMetabolizer-main/')
+# devtools::install('C:/Users/alice.carter/Desktop/streamMetabolizer-main/')
 
 
 #load all packages
@@ -12,12 +12,12 @@ options(mc.cores = parallel::detectCores())
 rstan_options(auto_write = TRUE)
 library(streamMetabolizer)
 library(lubridate)
-library(shinystan)
 library(tidyverse)
 library(dygraphs)
 
 # load datasets: ####
-setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
+setwd('~/Desktop/donkey/ucfr/')
+# setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
 depth_Q <- read_csv('data/depth_discharge_relationships_allsites.csv')
 
 PL<-read_csv('data/prepared_data/PL_2021.csv')
@@ -69,45 +69,59 @@ bayes_specs = specs(bayes_name,
 
 # Only relevant for running binned SM:
 # set the nodes to reflect the range of discharge at this site:
-set_Q_nodes <- function(bayes_specs, Qrange){
-    delta = 2
-    n = 4
+set_Q_nodes <- function(bayes_specs, discharge){
+    Qrange = quantile(log(discharge),
+                      probs = c(0.1, 0.9), na.rm = T)
+    n = 3
+    delta = (Qrange[2]-Qrange[1])/n
     while(delta > 1){
         n = n + 1
         delta <- (Qrange[2]-Qrange[1])/n
     }
-    nodes <- seq(pull(Qrange[1]), pull(Qrange[2]), length.out = n)
+    nodes <- seq(Qrange[1], Qrange[2], length.out = n)
     bayes_specs$K600_lnQ_nodes_centers <- nodes
-    bayes_specs$K600_lnQ_nodes_meanlog <- 1.986474396
+    bayes_specs$K600_lnQ_nodes_meanlog <- rep(2.484906649788, n)
     bayes_specs$K600_lnQ_nodes_sdlog=0.75
     bayes_specs$K600_daily_sigma_sigma = 0.5
     return(bayes_specs)
 }
 
 #Run models
-bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[1,4:5])
+bayes_specs <- set_Q_nodes(bayes_specs, PL$discharge)
 PL_fit <- metab(bayes_specs, data=PL)
 saveRDS(PL_fit, 'data/metab_fits/PL_2021_kn_oipi.rds')
+rm(PL_fit)
+gc()
 
-bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[2,4:5])
+bayes_specs <- set_Q_nodes(bayes_specs,  DL$discharge)
 DL_fit <- metab(bayes_specs, data=DL)
 saveRDS(DL_fit, 'data/metab_fits/DL_2021_kn_oipi.rds')
+rm(DL_fit)
+gc()
 
-bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[3,4:5])
+bayes_specs <- set_Q_nodes(bayes_specs, GR$discharge)
 GR_fit <- metab(bayes_specs, data=GR)
 saveRDS(GR_fit, 'data/metab_fits/GR_2021_kn_oipi.rds')
+rm(GR_fit)
+gc()
 
-bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[4,4:5])
+bayes_specs <- set_Q_nodes(bayes_specs, GC$discharge)
 GC_fit <- metab(bayes_specs, data=GC)
 saveRDS(GC_fit, 'data/metab_fits/GC_2021_kn_oipi.rds')
+rm(GC_fit)
+gc()
 
-bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[5,4:5])
+bayes_specs <- set_Q_nodes(bayes_specs, BM$discharge)
 BM_fit <- metab(bayes_specs, data=BM)
 saveRDS(BM_fit, 'data/metab_fits/BM_2021_kn_oipi.rds')
+rm(BM_fit)
+gc()
 
-bayes_specs <- set_Q_nodes(bayes_specs, depth_Q[6,4:5])
+bayes_specs <- set_Q_nodes(bayes_specs, BN$discharge)
 BN_fit <- metab(bayes_specs, data=BN)
 saveRDS(BN_fit, 'data/metab_fits/BN_2021_kn_oipi.rds')
+rm(BN_fit)
+gc()
 
 #Check model output: ####
 bds <- data.frame()

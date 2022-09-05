@@ -13,7 +13,7 @@ library(streamMetabolizer)
 
 # Extract data from fit ####
 # get metabolism and K600 fit data with Rhats and CIs
-extract_metab <- function(fit, site = NA, bad_days = NA){ # bad days option allows for flagging bad DO fits
+extract_metab <- function(fit, sitecode = NA, bad_days = NULL){ # bad days option allows for flagging bad DO fits
     met <- fit@fit$daily %>%
         select(date,
                GPP = GPP_daily_50pct, GPP.lower = GPP_daily_2.5pct,
@@ -27,12 +27,12 @@ extract_metab <- function(fit, site = NA, bad_days = NA){ # bad days option allo
         select(date, msgs.fit, warnings, errors)
     met <- left_join(met, m, by = 'date')
 
-    if(!is.na(site)){
-        met <- mutate(site = site) %>%
+    if(!is.na(sitecode)){
+        met <- mutate(met, site = sitecode) %>%
             relocate(site)
     }
 
-    if(!is.na(bad_days)){
+    if(!is.null(bad_days)){
         bds <- data.frame(date = bad_days,
                           DO_fit = 'bad')
         met <- left_join(met, bds, by = 'date')
@@ -66,6 +66,23 @@ plot_Rhats <- function(fit){
            lty = 1, bty = "n", lwd = 1.5)
 }
 
+get_bad_Rhats <- function(fit, threshold = 1.05, vars = c('GPP', 'ER', 'K600')){
+    rh <- fit@fit$daily %>%
+        select(date, ends_with('daily_Rhat')) %>%
+        rename_with(function(x) sub('_daily_Rhat', '', x),
+                    ends_with('Rhat'))
+
+    w <- which(colnames(rh) %in% vars)
+    rh <- rh[,c(1,w)]
+
+    high <- vector()
+    for(i in 1:length(vars)){
+        w <- which(rh[,i+1] > threshold)
+        high <- append(high, w)
+    }
+    return(rh$date[high])
+}
+
 
 plot_kde_metab <- function(met, lim = NULL, col = "grey25"){
 
@@ -88,48 +105,61 @@ plot_kde_metab <- function(met, lim = NULL, col = "grey25"){
 
 # K600 relationships ####
 # plot K X ER relationship
-plot_KxER <- function(fit){
+plot_KxER <- function(fit, rm.bds = FALSE){
 
     if(inherits(fit, 'metab_bayes')){
         met <- fit@fit$daily
 
-        ggplot(met, aes(K600_daily_50pct, ER_daily_50pct)) +
+        p <- ggplot(met, aes(K600_daily_50pct, ER_daily_50pct)) +
             geom_point(size = 2) +
             xlab(expression(paste("K600 (d"^"-1"*")")))+
             ylab(expression(paste("Ecosystem Respiration (g"~O[2]~"m"^"-2"~"d"^"-1"*")")))+
             theme_bw()
 
         pcor <- cor(met$ER_daily_50pct, met$K600_daily_50pct,
-                    method = 'pearson')
+                    method = 'pearson',
+                    use = 'complete.obs')
 
         print(paste0('Pearson Correlation = ', pcor))
 
-        return{}
+        return()
     }
 
     if(!inherits(fit, 'metab_bayes')){
         if('DO_fit' %in% colnames(fit)){
 
-            ggplot(fit, aes(K600, ER, col = DO_fit)) +
+            p <- ggplot(fit, aes(K600, ER, col = DO_fit)) +
                 geom_point(size = 2) +
                 xlab(expression(paste("K600 (d"^"-1"*")")))+
                 ylab(expression(paste("Ecosystem Respiration (g"~O[2]~"m"^"-2"~"d"^"-1"*")")))+
                 theme_bw()
         } else {
 
-            ggplot(fit, aes(K600, ER)) +
+            p <- ggplot(fit, aes(K600, ER)) +
                 geom_point(size = 2) +
                 xlab(expression(paste("K600 (d"^"-1"*")")))+
                 ylab(expression(paste("Ecosystem Respiration (g"~O[2]~"m"^"-2"~"d"^"-1"*")")))+
                 theme_bw()
         }
 
+        if(rm.bds){
+            fit$ER[fit$DO_fit == 'bad'] <- NA
+            pcor <- cor(fit$ER, fit$K600,
+                        method = 'pearson',
+                        use = 'complete.obs')
+
+            print(paste0('Pearson Correlation = ', pcor))
+
+            return(p)
+        }
+
         pcor <- cor(fit$ER, fit$K600,
-                    method = 'pearson')
+                    method = 'pearson',
+                    use = 'complete.obs')
 
         print(paste0('Pearson Correlation = ', pcor))
 
-        return{}
+        return(p)
     }
 }
 
@@ -138,17 +168,17 @@ plot_KxQ <- function(fit, dat = NULL){
 
     if(inherits(fit, 'metab_bayes')){
 
-        SM_day <- get_data_daily(fit) %?% select(date, discharge.daily)
+        SM_day <- get_data_daily(fit) %>% select(date, discharge.daily)
         met <- fit@fit$daily %>%
             left_join(SM_day, by = 'date')
 
-        ggplot(met, aes(log(discharge.daily), K600_daily_50pct)) +
+        p <- ggplot(met, aes(log(discharge.daily), K600_daily_50pct)) +
             geom_point(size = 2) +
             ylab(expression(paste("K600 (d"^"-1"*")")))+
             xlab(expression(paste("log Discharge (m"^"3"~"s"^"-2"*")")))+
             theme_bw()
 
-        return{}
+        return(p)
     }
 
     if(!inherits(fit, 'metab_bayes')){
@@ -159,23 +189,24 @@ plot_KxQ <- function(fit, dat = NULL){
             summarize(across(-solar.time, mean, na.rm = T)) %>%
             ungroup() %>%
             left_join(fit, by = 'date')
+        fit <- daily %>% select(date, discharge) %>% right_join(fit, by = 'date')
 
         if('DO_fit' %in% colnames(fit)){
 
-            ggplot(fit, aes(log(discharge), K600, col = DO_fit)) +
+            p <- ggplot(fit, aes(log(discharge), K600, col = DO_fit)) +
                 geom_point(size = 2) +
                 ylab(expression(paste("K600 (d"^"-1"*")")))+
                 xlab(expression(paste("log Discharge (m"^"3"~"s"^"-2"*")")))+
                 theme_bw()
         } else {
 
-            ggplot(fit, aes(log(discharge), K600)) +
+            p <- ggplot(fit, aes(log(discharge), K600)) +
                 geom_point(size = 2) +
                 ylab(expression(paste("K600 (d"^"-1"*")")))+
                 xlab(expression(paste("log Discharge (m"^"3"~"s"^"-2"*")")))+
                 theme_bw()
         }
-        return{}
+        return(p)
     }
 }
 
@@ -205,8 +236,8 @@ plot_KxQ_bins <- function(fit){
     colnames(nodes)<-c('Q', 'K600','K600_2.5', 'K600_97.5',  'K600_prior')
     xlim = c(min(c(log(day$Q), log(nodes$Q)), na.rm = T),
              max(c(log(day$Q), log(nodes$Q)), na.rm = T))
-    ylim = c(min(c(day$K600, nodes$K600_2.5, nodes$K600_prior), na.rm = T),
-             max(c(day$K600, nodes$K600_97.5, nodes$K600_prior), na.rm = T))
+    ylim = c(min(c(day$K600, nodes$K600_2.5, nodes$K600_prior - prior_sd), na.rm = T),
+             max(c(day$K600, nodes$K600_97.5, nodes$K600_prior + prior_sd), na.rm = T))
     plot(log(day$Q), day$K600, type = 'n', xlim = xlim, ylim = ylim,
          xlab = expression(paste("log discharge (m"^"3"~"s"^"-1"*")")),
          ylab = expression(paste("K600 (d"^"-1"*")")))
