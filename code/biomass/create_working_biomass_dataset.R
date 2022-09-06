@@ -22,7 +22,7 @@ bm <- biomass %>%
                               TRUE ~ 0),
            pebble = case_when(substrate == 'PEBBLE' ~ 1,
                               TRUE ~ 0)) %>%
-    select(date, site, average.depth,
+    select(date, site, sample, average.depth,
            cobble, sand, gravel, pebble,
            ends_with('om.area.g.m2'),
            ends_with('.chla.mg.m2.ritchie'),
@@ -35,10 +35,12 @@ bm_sum <- bm %>%
     summarize(n_samp = n(),
               across(-n_samp, .fns = list(mean = function(x) mean(x, na.rm = T),
                                            sd = function(x) sd(x, na.rm = T)))) %>%
-    select(-cobble_sd, -sand_sd, -gravel_sd, -pebble_sd) %>%
+    select(-starts_with('sample'),
+           -cobble_sd, -sand_sd, -gravel_sd, -pebble_sd) %>%
     rename(pct_cobble = cobble_mean, pct_sand = sand_mean,
            pct_gravel = gravel_mean, pct_pebble = pebble_mean) %>%
-    ungroup()
+    ungroup() %>%
+    mutate(year = year(date))
 
 ggplot(bm_sum, aes(date, total.algal.biomass.g.m2_mean, color = site)) +
     geom_point() +
