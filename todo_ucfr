@@ -6,10 +6,7 @@ DATA ANALYSIS
     - compare 2020 and 2021 fits (K/Q)
     - rerun with removed days if necessary
 - Compile finalized metabolism data
-- Fit GAMS to biomass data
-    - keep biomass categories as seperate as possible
-    - look through Laurel's GAM code
-    - fit biomass x chl a relationship with standardized axis regression
+- fit biomass x chl a relationship with standardized axis regression
 - Compare cumulative GPP to biomass
 
 DATA CLEANING

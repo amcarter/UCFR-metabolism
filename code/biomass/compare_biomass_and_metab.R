@@ -5,7 +5,7 @@
 library(tidyverse)
 library(lubridate)
 library(mcgv)
-library(plyr)
+
 setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
 
 biomass <- read_csv('data/biomass_data/biomass_working_data.csv') %>%
@@ -194,7 +194,8 @@ bm %>%
 ggplot( aes(x = doy,y=AFDM_gm2, fill=Cat)) +
     geom_area() +
     facet_grid(year~site,  scales = 'free_x')+
-    scale_fill_manual(values = c('forestgreen', 'grey')) +
+    scale_fill_manual(values = c('#5B8853', '#A68A87')) +
+    xlab('Day of Year') + ylab('Biomass (AFDM, gm-2)') +
     theme_bw()
 
 
@@ -211,11 +212,15 @@ png('figures/GPP_biomass_visual_comp.png', width = 800, height = 600 )
     d %>%
         filter(!is.na(site)) %>%
     ggplot(aes(doy, GPP, col = factor(year))) +
-        geom_line() +
-        geom_point(aes(y = (epil_gm2 + fila_gm2)/5), size = 2) +
+        geom_line(col = '#007929') +
+        geom_point(col = '#007929') +
+        geom_line(aes(y = ER), col = '#A64B00') +
+        geom_point(aes(y = ER), col = '#A64B00') +
+        geom_hline(yintercept = 0, col = 'grey70')+
+        # geom_point(aes(y = (epil_gm2 + fila_gm2)/5), size = 2) +
         # geom_point(aes(y = chla_mgm2/10)) +
         facet_grid(year~site) +
-        ylim(0,30)+
+        # ylim(0,30)+
         xlab('Day of year')+
         ylab('GPP and biomass')+
         theme_bw()
@@ -254,7 +259,7 @@ png('figures/GPP_biomass_relationship.png', width = 800, height = 600 )
         filter(site == 'BN')%>%
         mutate(across(ends_with('gm2'),
                       ~zoo::na.approx(., x = date, na.rm = F))) %>%
-        ggplot( aes(light, GPP, col = log(epil_gm2 + fila_gm2))) +
+        ggplot( aes(light, GPP))+#, col = log(epil_gm2 + fila_gm2))) +
         geom_point(size = 2) +
         scale_color_continuous(type = 'viridis') +
         labs(color = 'biomass')+
