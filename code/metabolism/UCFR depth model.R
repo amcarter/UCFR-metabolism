@@ -4,20 +4,16 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 library(brms)
-library(zoo)
-library(streamMetabolizer)
-library(lubridate)
 library(dataRetrieval)
-library(reshape2)
-library(lme4)
+library(lubridate)
+
 ##Load depth data
 setwd("C:/Users/alice.carter/git/UCFR-metabolism")
-site_dat <- read_csv('data/site_data.csv')
+site_dat <- read_csv('data/site_data.csv')%>%
+    filter(!is.na(sitecode))
 UCFR_depth<- read_csv("data/UCFR_depth_summary.csv")
-UCFR_depth$date<-as.Date(UCFR_depth$date, format="%m-%d-%Y")
+UCFR_depth$date <- as.Date(UCFR_depth$date, format="%m-%d-%Y")
 start.20<-as.Date("2020-07-13")
-end.20<-as.Date("2020-10-20")
-start.21<-as.Date("2021-06-14")
 end.21<-as.Date("2021-11-01")
 
 ##OPTIONAL-Make BG and BN the same data since they are very close together
@@ -44,18 +40,18 @@ for (i in 1:6){
 
 
 ## Turn list into data frame in long format
-daily.q<-do.call(rbind.data.frame, dailyflow)
+daily.q <- do.call(rbind.data.frame, dailyflow)
 
-daily.q.sub<-subset(daily.q, date<end.20  & date> start.21)
+daily.q.sub <- filter(daily.q, date >= start.20  & date <= end.21)
 write_csv(daily.q.sub, 'discharge_UCFRsites_2020.csv')
 
 ## Join discharge with depth and width data (by date)
-data.sub<-left_join(daily.q.sub, UCFR_depth)
-data<-left_join(daily.q, UCFR_depth)
+data.sub <- left_join(daily.q.sub, UCFR_depth)
+data <- left_join(daily.q, UCFR_depth)
 
 ## Make sites report in order from upstream to downstream
-data$site<-factor(data$site, levels=c("PL", "DL", "GR", "GC", "BM", "BN"))
-data.sub$site<-factor(data.sub$site, levels=c("PL", "DL", "GR", "GC", "BM", "BN"))
+data$site <- factor(data$site, levels=c("PL", "DL", "GR", "GC", "BM", "BN"))
+data.sub$site <- factor(data.sub$site, levels=c("PL", "DL", "GR", "GC", "BM", "BN"))
 data.sum <- data.sub %>%
   group_by(site) %>%
   summarise(Min = min(q.cms,na.rm=TRUE), Max=max(q.cms,na.rm=TRUE))
@@ -73,8 +69,7 @@ ggplot(data=data, aes(x=q.cms, y=depth.m, color=site))+
   theme(axis.title.x=element_text(size=12,colour = "black"))+
   theme(axis.title.y=element_text(size=12,colour = "black"))+
   theme(axis.text.y=element_text(size=12,colour = "black"))+
-  theme(axis.text.x=element_text(size=12,colour = "black"))+
-  facet_wrap(~site, ncol=1)
+  theme(axis.text.x=element_text(size=12,colour = "black"))
 
 ggplot(data=data, aes(x=log(q.cms), y=log(depth.m), color=site))+
   geom_abline(intercept=-1.2088,slope=0.3386, size=1.5, color='grey')+
@@ -90,46 +85,40 @@ ggplot(data=data, aes(x=log(q.cms), y=log(depth.m), color=site))+
   theme(axis.text.y=element_text(size=18,colour = "black"))+
   theme(axis.text.x=element_text(size=18,colour = "black"))
 
-ggplot(data=data, aes(x=date, y=q.cms))+
-  geom_point(size=3)+
-  theme_classic()+
-  ylab("Discharge (cms)")+
-  xlab("Date")+
-  #scale_y_continuous(limits=c(0,25))+
-  theme(axis.title.x=element_text(size=18,colour = "black"))+
-  theme(axis.title.y=element_text(size=18,colour = "black"))+
-  theme(axis.text.y=element_text(size=18,colour = "black"))+
-  theme(axis.text.x=element_text(size=18,colour = "black"))+
-  facet_grid(~site, scales="free")
-
 ####Analysis
 # use powel center database to set a prior for the depth Q scaling coefficient:
 sp <- read_tsv('../loticlentic_synthesis/data/powell_data_import/site_data/site_data.tsv')
 glimpse(sp)
-mean_f <- mean(sp$dvqcoefs.f, na.rm = T)
-sd_f <- sd(sp$dvqcoefs.f, na.rm = T)
+mean_f <- mean(sp$dvqcoefs.f, na.rm = T)    # 0.44686
+sd_f <- sd(sp$dvqcoefs.f, na.rm = T)        # 0.07805
 
 data <- data %>%
     mutate(logQ = log(q.cms),
            logD = log(depth.m))
 
-model<-lm(log(depth.m)~ log(q.cms)+ site, data=data)
-model2 <- lme4::lmer(log(depth.m)~ log(q.cms)+ (1|site), data=data)
-model3 <- brms::brm(logD~ logQ+ (1|site),
-                    data=data,
-                    prior = brms::prior(normal(0.42 , 0.1)))
+# compare different model fits:
+# model<-lm(log(depth.m)~ log(q.cms)+ site, data=data)
+# model2 <- lme4::lmer(log(depth.m)~ log(q.cms)+ (1|site), data=data)
 
-summary(model)
-summary(model2)
+# bayesian mixed effects model
+model3 <- brms::brm(logD ~ logQ + (1|site),
+                    data = data,
+                    prior = brms::prior(normal(0.447 , 0.078)), # mean and sd of discharge x q relationships from powell center dataset
+                    control = list(adapt_delta = 0.95))
+
+# summary(model)
+# summary(model2)
 summary(model3)
 ranef(model3)
 
-model3$ranef
-slope = 0.35
+
+slope = summary(model3)$fixed[2,1]
+intercept = summary(model3)$fixed[1,1]
+
 coef <- ranef(model3)$site
 fits <- tibble(site = factor(site_dat$sitecode,
                              levels = c('PL', "DL", "GR", "GC", "BM", "BN"))) %>%
-    mutate(intercept = -1.23 + coef[1:6],
+    mutate(intercept = intercept + coef[1:6],
            slope = rep(slope, 6),
            min_q = log(sapply(!!dailyflow, function(x) min(x$q.cms, na.rm = T))),
            max_q = log(sapply(!!dailyflow, function(x) max(x$q.cms, na.rm = T))),
@@ -151,12 +140,12 @@ dev.off()
 fits$formula = 'log(d) = a + b * log(q)'
 write_csv(fits, 'data/depth_discharge_relationships_allsites.csv')
 
-####Individual analysis ####
-data.GR<-subset(data, site=="GR")
-model<-lm(log(depth.m)~ log(q.cms), data=data.GR)
-summary(model)
-
-####Individual analysis
-data.GR<-subset(data, site=="DL")
-model<-lm(log(depth.m)~ log(q.cms), data=data.GR)
-summary(model)
+# ####Individual analysis ####
+# data.GR<-subset(data, site=="GR")
+# model<-lm(log(depth.m)~ log(q.cms), data=data.GR)
+# summary(model)
+#
+# ####Individual analysis
+# data.GR<-subset(data, site=="DL")
+# model<-lm(log(depth.m)~ log(q.cms), data=data.GR)
+# summary(model)
