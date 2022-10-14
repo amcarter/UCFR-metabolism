@@ -80,7 +80,7 @@ set_Q_nodes <- function(bayes_specs, discharge){
     nodes <- seq(Qrange[1], Qrange[2], length.out = n)
     bayes_specs$K600_lnQ_nodes_centers <- nodes
     bayes_specs$K600_lnQ_nodes_meanlog <- rep(2.484906649788, n)
-    bayes_specs$K600_lnQ_nodes_sdlog=0.75
+    bayes_specs$K600_lnQ_nodes_sdlog = 0.75
     bayes_specs$K600_daily_sigma_sigma = 0.5
     return(bayes_specs)
 }

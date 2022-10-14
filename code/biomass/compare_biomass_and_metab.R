@@ -4,7 +4,7 @@
 # setup ####
 library(tidyverse)
 library(lubridate)
-library(mcgv)
+library(mgcv)
 
 setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
 
@@ -109,7 +109,7 @@ gam_2021$year <- 2021
 bm_gams <- bind_rows(gam_2020,gam_2021)
 
 write_csv(bm_gams, 'data/biomass_data/gam_fits_biomass.csv')
-
+bm_gams <- read_csv('data/biomass_data/gam_fits_biomass.csv')
 
 # Plot biomass data:
 ggplot(bm_gams, aes(doy, epilitheon_gm2_mean, col = site)) +
@@ -126,15 +126,16 @@ bm_class <- bm %>%
                  names_to = c('biomass_type', 'meas'),
                  names_sep = '_',
                  values_to = 'value') %>%
-    pivot_wider(id_cols = c('date', 'site', 'sample', 'biomass_type'),
+    pivot_wider(id_cols = c('date', 'doy', 'site', 'sample', 'biomass_type'),
                 values_from = 'value',
                 names_from = 'meas')%>%
-    rename(biomass.gm2 = gm2)
+    rename(biomass.gm2 = gm2) %>%
+    mutate(year = substr(date, 1,4))
 
 png('figures/biomass_categories_by_site.png', width = 10, height = 6,
     units = 'in', res = 300)
     bm_class %>%
-    ggplot( aes(doy, biomass.gm2, col = factor(year))) +
+    ggplot(aes(doy, biomass.gm2, col = factor(year))) +
         geom_line() +
         facet_grid(biomass_type~site, scale = 'free') +
         theme_bw()
@@ -143,7 +144,9 @@ png('figures/biomass_categories_by_site.png', width = 10, height = 6,
     units = 'in', res = 300)
     bm_class %>%
     ggplot( aes(doy, chla.mgm2, col = factor(year))) +
-        geom_line() +
+        geom_point() +
+        geom_smooth(se = FALSE)+
+        scale_y_log10()+
         facet_grid(biomass_type~site, scale = 'free') +
         theme_bw()
 dev.off()
@@ -233,12 +236,22 @@ plot(gc$date, gc$q.cms, col = '#2B6785', type = 'l', xlab = 'date',
      ylab = 'Discharge', log = 'y', lwd = 3)
 
 
-png('figures/GPP_biomass_relationship.png', width = 800, height = 600 )
+# png('figures/GPP_biomass_relationship.png', width = 800, height = 600 )
     d %>%
         group_by(site)%>%
-        mutate(across(ends_with('gm2'),
-                      ~zoo::na.approx(., x = date, na.rm = F))) %>%
+        # mutate(across(ends_with('gm2'),
+        #               ~zoo::na.approx(., x = date, na.rm = F))) %>%
         ggplot( aes(epil_gm2 + fila_gm2, GPP, col = light)) +
+        geom_point(size = 2) +
+        geom_smooth(method = 'lm', se = FALSE, lty = 2, col = 'grey')+
+        scale_color_continuous(type = 'viridis')+
+        facet_wrap(.~site, scales = 'free')+
+        theme_bw()
+    d %>%
+        group_by(site)%>%
+        # mutate(across(ends_with('gm2'),
+        #               ~zoo::na.approx(., x = date, na.rm = F))) %>%
+        ggplot( aes(epil_chla_mgm2 + fila_chla_mgm2, GPP, col = light)) +
         geom_point(size = 2) +
         geom_smooth(method = 'lm', se = FALSE, lty = 2, col = 'grey')+
         scale_color_continuous(type = 'viridis')+
@@ -259,16 +272,47 @@ png('figures/GPP_biomass_relationship.png', width = 800, height = 600 )
         filter(site == 'BN')%>%
         mutate(across(ends_with('gm2'),
                       ~zoo::na.approx(., x = date, na.rm = F))) %>%
-        ggplot( aes(light, GPP))+#, col = log(epil_gm2 + fila_gm2))) +
+        ggplot( aes(light, GPP, col = log(epil_gm2 + fila_gm2))) +
         geom_point(size = 2) +
         scale_color_continuous(type = 'viridis') +
         labs(color = 'biomass')+
         theme_bw()
-dev.off()
+# dev.off()
 
-    ggplot(d, aes(biomass_gm2, GPP, col = doy)) +
+    ggplot(d, aes(biomass.gm2, GPP, col = doy)) +
         geom_point(size = 3) +
         scale_color_continuous(type = 'viridis')+
         facet_wrap(.~site, scales = 'free')
 
 write_csv(d, 'data/metabolism_biomass_compiled_all_sites.csv')
+
+
+
+# explore basic biomass models
+par(mfrow =c(2,3))
+d2 <- data.frame()
+for(i in 1:6){
+    s <- filter(d, site == unique(d$site)[i])
+    acf(zoo::na.approx(s$GPP),  main = unique(d$site)[i])
+    s$GPP_pre <- c(s$GPP[1], s$GPP[1:(nrow(s)-1)])
+    # m <- lm(GPP ~ GPP_pre + light + fila_chla_mgm2 + epil_chla_mgm2, data = s)
+    # summary(m)
+    d2 <- bind_rows(d2, s)
+
+
+}
+
+for(i in 1:6){
+    s <- filter(d, site == unique(d$site)[i],
+                !is.na(fila_chla_mgm2))
+    acf(zoo::na.approx(s$fila_chla_mgm2),  main = unique(d$site)[i])
+}
+
+for(i in 1:6){
+    s <- filter(d, site == unique(d$site)[i],
+                !is.na(epil_chla_mgm2))
+    acf(zoo::na.approx(s$epil_chla_mgm2),  main = unique(d$site)[i])
+}
+m <- lme4::lmer(GPP ~ GPP_pre + light + fila_chla_mgm2 + epil_chla_mgm2 + (1|site),
+         data = d2)
+

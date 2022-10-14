@@ -1,7 +1,8 @@
 UCFR todo:
 
 DATA ANALYSIS
-- evaluate metabolism fits
+- rerun metabolism combining both years of data for each site.
+- evaluate metabolism fit
     - look at K600 over time
     - compare 2020 and 2021 fits (K/Q)
     - rerun with removed days if necessary
@@ -10,5 +11,10 @@ DATA ANALYSIS
 - Compare cumulative GPP to biomass
 
 DATA CLEANING
+- figure out where the field notes are
+- look to see when the last time the sensors were visited.
 - revisit DO data with field notes
 - ask matt about field notes
+
+WRITING
+- 
