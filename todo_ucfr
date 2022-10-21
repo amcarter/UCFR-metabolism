@@ -10,6 +10,11 @@ DATA ANALYSIS
 - fit biomass x chl a relationship with standardized axis regression
 - Compare cumulative GPP to biomass
 
+FIT GAMS
+- read Gavin Simpson article
+- learn how mgcv works for hierarchical models
+- fit the biomass data
+
 DATA CLEANING
 - figure out where the field notes are
 - look to see when the last time the sensors were visited.
@@ -17,4 +22,4 @@ DATA CLEANING
 - ask matt about field notes
 
 WRITING
-- 
+-
