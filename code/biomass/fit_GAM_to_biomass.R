@@ -10,7 +10,8 @@ biomass <- read_csv('data/biomass_data/biomass_working_data.csv') %>%
                             site == 'WS' ~ 'PL',
                             TRUE ~ site),
            doy = as.numeric(format(date, '%j')))%>%
-    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')),
+           year = as.factor(year))
 
 glimpse(biomass)
 
@@ -96,3 +97,122 @@ polygon(x = c(preds$doy, rev(preds$doy)),
 # wy is this working better?
 # fitting it with just time as a predictor is clearly not working very well
 acf(preds$f_med)
+biomass <- biomass %>%
+    filter(!is.na(site)) %>%
+    mutate(site_year = as.factor(paste(site, year, sep = '_')),
+           fila.om.area.g.m2 = case_when(is.na(epip.om.area.g.m2) ~ fila.om.area.g.m2,
+                                         TRUE ~ fila.om.area.g.m2 + epip.om.area.g.m2),
+           fila.chla.mg.m2.ritchie = case_when(is.na(epip.chla.mg.m2.ritchie) ~ fila.chla.mg.m2.ritchie,
+                                         TRUE ~ fila.chla.mg.m2.ritchie + epip.chla.mg.m2.ritchie))
+dates <- c(seq(min(biomass$date), max(biomass$date[biomass$year == 2020]), by = 'day'),
+           seq(min(biomass$date[biomass$year == 2021]), max(biomass$date), by = 'day'))
+
+preds <- data.frame(date = dates,
+                    doy = as.numeric(format(dates, '%j')),
+                    year = lubridate::year(dates))%>%
+    mutate(year = as.factor(year))
+s_preds <- data.frame()
+for(site in unique(biomass$site)){
+    preds$site = site
+    s_preds <- bind_rows(s_preds, preds)
+}
+s_preds <- mutate(s_preds,
+                  site_year = as.factor(paste(site, year, sep = '_'))) %>%
+    tibble()
+
+# try it for all sites
+fg2 <- gam(epil.om.area.g.m2 ~ s(doy) +
+                  s(doy, site_year, bs = 'fs'),
+              data = biomass, method = 'REML')
+
+pp <- mgcv::predict.gam(fg2, s_preds, se.fit = TRUE)
+
+s_preds <- mutate(s_preds,
+                epil_gm2_fit = c(pp$fit),
+                epil_gm2_se = c(pp$se.fit))
+
+# filamentous
+fg2_fila <- gam(fila.om.area.g.m2 ~ s(doy) +
+                  s(doy, site_year, bs = 'fs'),
+              data = biomass, method = 'REML')
+
+pp <- mgcv::predict.gam(fg2_fila, s_preds, se.fit = TRUE)
+
+s_preds <- mutate(s_preds,
+                fila_gm2_fit = pp$fit,
+                fila_gm2_se = pp$se.fit)
+
+
+epi <- ggplot(s_preds, aes(doy, epil_gm2_fit, col = year)) +
+    geom_line() +
+    geom_line(aes(y = epil_gm2_fit + epil_gm2_se), lty = 2)+
+    geom_line(aes(y = epil_gm2_fit - epil_gm2_se), lty = 2)+
+    geom_point(aes(doy, epil.om.area.g.m2), data = biomass) +
+    facet_wrap(.~site, scales = 'free_y', ncol = 1, strip.position = 'right')+
+    ylab('Epilithion (g/m2)')
+
+fila <- ggplot(s_preds, aes(doy, fila_gm2_fit, col = year)) +
+    geom_line() +
+    geom_line(aes(y = fila_gm2_fit + fila_gm2_se), lty = 2)+
+    geom_line(aes(y = fila_gm2_fit - fila_gm2_se), lty = 2)+
+    geom_point(aes(doy, fila.om.area.g.m2 ), data = biomass)+
+    facet_wrap(.~site, scales = 'free_y', ncol = 1, strip.position = 'right')+
+    ylab('Filamentous algae (g/m2)')
+# chlorophyll
+# try it for all sites
+fg2_chla <- gam(epil.chla.mg.m2.ritchie ~ s(doy) +
+                  s(doy, site_year, bs = 'fs'),
+              data = biomass, method = 'REML')
+
+pp <- mgcv::predict.gam(fg2_chla, s_preds, se.fit = TRUE)
+
+s_preds <- mutate(s_preds,
+                epil_chla_mgm2_fit = pp$fit,
+                epil_chla_mgm2_se = pp$se.fit)
+
+# filamentous
+fg2_fila_chla <- gam(fila.chla.mg.m2.ritchie ~ s(doy) +
+                  s(doy, site_year, bs = 'fs'),
+              data = biomass, method = 'REML')
+
+pp <- mgcv::predict.gam(fg2_fila_chla, s_preds, se.fit = TRUE)
+
+s_preds <- mutate(s_preds,
+                fila_chla_mgm2_fit = pp$fit,
+                fila_chla_mgm2_se = pp$se.fit)
+
+
+epi_chla <- ggplot(s_preds, aes(doy, epil_chla_mgm2_fit, col = year)) +
+    geom_line() +
+    geom_line(aes(y = epil_chla_mgm2_fit + epil_chla_mgm2_se), lty = 2)+
+    geom_line(aes(y = epil_chla_mgm2_fit - epil_chla_mgm2_se), lty = 2)+
+    geom_point(aes(doy, epil.chla.mg.m2.ritchie), data = biomass) +
+    facet_wrap(.~site, scales = 'free_y', ncol = 1, strip.position = 'right')+
+    ylab('Epilithion Chla (mg/m2)')
+
+fila_chla <- ggplot(s_preds, aes(doy, fila_chla_mgm2_fit, col = year)) +
+    geom_line() +
+    geom_line(aes(y = fila_chla_mgm2_fit + fila_chla_mgm2_se), lty = 2)+
+    geom_line(aes(y = fila_chla_mgm2_fit - fila_chla_mgm2_se), lty = 2)+
+    geom_point(aes(doy, fila.chla.mg.m2.ritchie ), data = biomass)+
+    facet_wrap(.~site, scales = 'free_y', ncol = 1, strip.position = 'right')+
+    ylab('Filamentous algae Chla (mg/m2)')
+
+
+png('figures/biomass_chla_gams.png', height = 6, width = 8, res = 300, units = 'in')
+    ggpubr::ggarrange( epi_chla, fila_chla,
+                      nrow = 1, common.legend = TRUE)
+dev.off()
+
+png('figures/biomass_gams.png', height = 6, width = 8, res = 300, units = 'in')
+    ggpubr::ggarrange(epi, fila,
+                      nrow = 1, common.legend = TRUE)
+dev.off()
+
+
+s_preds <- select(s_preds, -site_year)
+# attributes(s_preds) <- NULL
+as_tibble(s_preds)
+qq=as_tibble(lapply(s_preds, c))
+write_csv(qq, 'data/biomass_data/gam_fits_biomass.csv')
+

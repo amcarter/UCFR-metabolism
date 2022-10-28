@@ -108,8 +108,8 @@ gam_2021$year <- 2021
 
 bm_gams <- bind_rows(gam_2020,gam_2021)
 
-write_csv(bm_gams, 'data/biomass_data/gam_fits_biomass.csv')
-bm_gams <- read_csv('data/biomass_data/gam_fits_biomass.csv')
+write_csv(bm_gams, 'data/biomass_data/gam_fits_biomass_2.csv')
+bm_gams <- read_csv('data/biomass_data/gam_fits_biomass_2.csv')
 
 # Plot biomass data:
 ggplot(bm_gams, aes(doy, epilitheon_gm2_mean, col = site)) +
