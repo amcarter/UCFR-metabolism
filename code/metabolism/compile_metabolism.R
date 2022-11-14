@@ -1,10 +1,11 @@
 # Compile metabolism estimates from UCFR sites
 # A Carter 8/2022
-
+setwd('~/Desktop/donkey/ucfr/')
+source('functions_examine_SM_output.R')
 library(tidyverse)
 library(lubridate)
 library(streamMetabolizer)
-source('code/metabolism/functions_examine_SM_output.R')
+# source('code/metabolism/functions_examine_SM_output.R')
 
 site_dat <- read_csv('data/site_data.csv') %>%
     filter(!is.na(sitecode))
@@ -17,21 +18,24 @@ dat <- read_csv('data/prepared_data/PL2020_2021.csv')
 plot_metab_preds(fit)
 plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-bad_Rhats <- get_bad_Rhats(fit)
-bad_days <- c(as.Date(c('2020-08-24', '2020-08-25',
-                        '2020-08-26', '2020-10-23')))#,
-bad_days <- unique(c(as.Date(c('2021-07-01', '2021-07-20',
-                               '2021-08-08')),
-                     bad_Rhats))
-              # bad_Rhats)
+bad_Rhats <- get_bad_Rhats(fit, threshold = 1.1)
+bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', #'2020-08-26',
+                        '2020-10-23', '2021-07-01', '2021-07-07',
+                        '2021-07-20', '2021-08-02', '2021-08-05',
+                        '2021-08-08')), bad_Rhats))
+
 met <- extract_metab(fit, sitecode = 'PL', bad_days)
 
 # plot(met$K600, met$ER)
 # identify(met$K600, met$ER, labels = met$date)
-plot_KxER(met, rm.bds = TRUE) +
-    ggtitle( 'PL_2020')
-plot_KxQ(met, dat)
+a <- plot_KxER(met, rm.bds = TRUE)
+b <- plot_KxQ(met, dat)
 plot_KxQ_bins(fit)
+
+png('figures/model_fits/PL_K_diagnostics.png', width = 6, height = 4,
+    units = 'in', res = 300)
+    ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE)
+dev.off()
 
 get_fit(fit)$overall %>%
     select(ends_with('Rhat'))
@@ -45,14 +49,19 @@ dat <- read_csv('data/prepared_data/DL2020_2021.csv')
 plot_metab_preds(fit)
 plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-bad_Rhats <- get_bad_Rhats(fit)
-bad_days <- unique(c(as.Date(c('2021-06-26', '2021-08-08'))))#,
-                     # bad_Rhats))
+bad_Rhats <- get_bad_Rhats(fit, threshold = 1.05)
+bad_days <- unique(c(as.Date(c('2021-06-26', '2021-08-05', '2021-08-08')),
+                     bad_Rhats))
 met <- extract_metab(fit, sitecode = 'DL', bad_days)
 
-plot_KxER(met, rm.bds = TRUE)
-plot_KxQ(met, dat)
+a <- plot_KxER(met, rm.bds = TRUE)
+b <- plot_KxQ(met, dat)
 plot_KxQ_bins(fit)
+
+png('figures/model_fits/DL_K_diagnostics.png', width = 6, height = 4,
+    units = 'in', res = 300)
+    ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE)
+dev.off()
 
 get_fit(fit)$overall %>%
     select(ends_with('Rhat'))
@@ -66,21 +75,26 @@ dat <- read_csv('data/prepared_data/GC2020_2021.csv')
 plot_metab_preds(fit)
 plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-bad_Rhats <- get_bad_Rhats(fit)
-bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25',
-                               '2020-09-22')),
-              bad_Rhats))
-bad_days <- unique(c(as.Date(c('2021-07-12', '2021-07-13',
-                               '2021-07-14', '2021-07-15',
-                               '2021-08-05', '2021-08-08')),
+bad_Rhats <- get_bad_Rhats(fit, threshold = 1.05)
+bad_days <- unique(c(as.Date(c('2020-07-22, 2020-08-24', '2020-08-25',
+                               '2020-09-22', '2021-06-30', '2021-07-12',
+                               '2021-07-13', '2021-07-14', '2021-07-15',
+                               '2021-07-20', '2021-08-05', '2021-08-08',
+                               # '2021-08-01',
+                               '2021-08-10')),
                      bad_Rhats))
 met <- extract_metab(fit, sitecode = 'GC', bad_days)
 
 plot(met$K600, met$ER)
 identify(x = met$K600, y = met$ER, labels = met$date)
-plot_KxER(met, rm.bds = TRUE)
-plot_KxQ(met, dat)
+a <- plot_KxER(met, rm.bds = TRUE)
+b <- plot_KxQ(met, dat)
 plot_KxQ_bins(fit)
+
+png('figures/model_fits/GC_K_diagnostics.png', width = 6, height = 4,
+    units = 'in', res = 300)
+    ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE)
+dev.off()
 
 get_fit(fit)$overall %>%
     select(ends_with('Rhat'))
@@ -95,17 +109,21 @@ plot_metab_preds(fit)
 plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
 bad_Rhats <- get_bad_Rhats(fit)
-bad_days <- as.Date(c('2020-08-24', '2020-08-25'))
-bad_days <- unique(c(as.Date(c('2021-07-01', '2021-07-19',
-                               '2021-07-20', '2021-07-27',
-                               '2021-08-04',
-                               '2021-08-05','2021-08-08')),
+bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', '2020-09-07',
+                      '2021-07-01', '2021-07-19', '2021-07-20',
+                      '2021-07-25', '2021-07-27', '2021-07-28',
+                      '2021-08-04', '2021-08-05','2021-08-08')),
                      bad_Rhats))
 met <- extract_metab(fit, sitecode = 'GR', bad_days)
 
-plot_KxER(met, rm.bds = TRUE)
-plot_KxQ(met, dat)
+a <- plot_KxER(met, rm.bds = TRUE)
+b <- plot_KxQ(met, dat)
 plot_KxQ_bins(fit)
+
+png('figures/model_fits/GR_K_diagnostics.png', width = 6, height = 4,
+    units = 'in', res = 300)
+    ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE)
+dev.off()
 
 get_fit(fit)$overall %>%
     select(ends_with('Rhat'))
@@ -119,15 +137,20 @@ dat <- read_csv('data/prepared_data/BM2020_2021.csv')
 plot_metab_preds(fit)
 plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-bad_Rhats <- get_bad_Rhats(fit)
-bad_days <- unique(bad_Rhats)
-bad_days <- unique(c(as.Date(c('2021-08-08'))))#,
-                     # bad_Rhats))
+bad_Rhats <- get_bad_Rhats(fit, threshold = 1.1)
+bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', '2021-07-19',
+                               '2021-07-20', '2021-07-21', '2021-08-08')),
+                     bad_Rhats))
 met <- extract_metab(fit, sitecode = 'BM', bad_days)
 
-plot_KxER(met, rm.bds = TRUE)
-plot_KxQ(met, dat)
+a <- plot_KxER(met, rm.bds = TRUE)
+b <- plot_KxQ(met, dat)
 plot_KxQ_bins(fit)
+
+png('figures/model_fits/BM_K_diagnostics.png', width = 6, height = 4,
+    units = 'in', res = 300)
+    ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE)
+dev.off()
 
 get_fit(fit)$overall %>%
     select(ends_with('Rhat'))
@@ -141,19 +164,22 @@ dat <- read_csv('data/prepared_data/BN2020_2021.csv')
 plot_metab_preds(fit)
 plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-bad_Rhats <- get_bad_Rhats(fit)
-bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25')),
+bad_Rhats <- get_bad_Rhats(fit, threshold = 1.1)
+bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', '2021-08-01',
+                               '2021-08-02', '2021-08-08')),
                      bad_Rhats))
-bad_days <- unique(c(as.Date(c('2021-08-01', '2021-08-02', '2021-08-08'))))#,
-                     # bad_Rhats))
 met <- extract_metab(fit, sitecode = 'BN', bad_days)
 
 plot(met$K600, met$ER)
 identify(met$K600, met$ER, labels = met$date)
-plot_KxER(met, rm.bds = TRUE)
-plot_KxQ(met, dat)
+a <- plot_KxER(met, rm.bds = TRUE)
+b <- plot_KxQ(met, dat)
 plot_KxQ_bins(fit)
-BN_kq <- plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
+
+png('figures/model_fits/BN_K_diagnostics.png', width = 6, height = 4,
+    units = 'in', res = 300)
+    ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE)
+dev.off()
 
 get_fit(fit)$overall %>%
     select(ends_with('Rhat'))
@@ -161,33 +187,49 @@ compiled_metab <- bind_rows(compiled_metab, met)
 
 write_csv(compiled_metab, 'data/metabolism_compiled_all_sites.csv')
 
-par(mfrow = c(2,3),
-    mar = c(1,1,1,1),
-    oma = c(4,4,3,0))
+png('figures/model_fits/QxK_across_sites.png', width = 8, height = 6.5,
+png('figures/model_fits/Rhat_across_sites.png', width = 8, height = 6.5,
+    res = 300, units = 'in')
 
-fit <- readRDS('data/metab_fits/PL_kn_oipi.rds')
-plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-mtext('PL', 3, line = -2.5, adj = 0.1)
-fit <- readRDS('data/metab_fits/DL_kn_oipi.rds')
-plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-mtext('DL', 3, line = -2.5, adj = 0.1)
-fit <- readRDS('data/metab_fits/GR_kn_oipi.rds')
-plot_KxQ_bins(fit, labs = FALSE, legend = TRUE)
-mtext('GR', 3, line = -2.5, adj = 0.1)
-fit <- readRDS('data/metab_fits/GC_kn_oipi.rds')
-plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-mtext('GC', 3, line = -2.5, adj = 0.1)
-fit <- readRDS('data/metab_fits/BM_kn_oipi.rds')
-plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-mtext('BM', 3, line = -2.5, adj = 0.1)
-fit <- readRDS('data/metab_fits/BN_kn_oipi.rds')
-plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-mtext('BN', 3, line = -2.5, adj = 0.1)
+    par(mfrow = c(2,3),
+        mar = c(1,1,0,1),
+        oma = c(4,4,3,0))
+    fit <- readRDS('data/metab_fits/PL_kn_oipi.rds')
+    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
+    plot_Rhats(fit)
+    mtext('PL', 3, line = -2.5, adj = 0.9)
+    rm(fit)
+    fit <- readRDS('data/metab_fits/DL_kn_oipi.rds')
+    plot_Rhats(fit)
+    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
+    mtext('DL', 3, line = -2.5, adj = 0.9)
+    rm(fit)
+    fit <- readRDS('data/metab_fits/GR_kn_oipi.rds')
+    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
+    plot_Rhats(fit)
+    mtext('GR', 3, line = -2.5, adj = 0.9)
+    rm(fit)
+    fit <- readRDS('data/metab_fits/GC_kn_oipi.rds')
+    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
+    plot_Rhats(fit)
+    mtext('GC', 3, line = -2.5, adj = 0.9)
+    rm(fit)
+    fit <- readRDS('data/metab_fits/BM_kn_oipi.rds')
+    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
+    plot_Rhats(fit)
+    mtext('BM', 3, line = -2.5, adj = 0.9)
+    rm(fit)
+    fit <- readRDS('data/metab_fits/BN_kn_oipi.rds')
+    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
+    plot_Rhats(fit)
+    mtext('BN', 3, line = -2.5, adj = 0.9)
 
-
-par(mfrow = c(1,1), oma = c(0,0,2.5,0), new = T)
-mtext(expression(paste("log discharge (m"^"3"~"s"^"-1"*")")), 1, adj = .55)
-mtext(expression(paste("K600 (d"^"-1"*")")), 2, line = 0)
-legend('top', legend = c("prior", "posterior", "data"),
-       col = c( "brown3", "brown3", "grey25"), xpd = NA, inset = c(0, -0.1),
-       pch = c(1, 19, 20), bty = 'n', ncol = 3)
+    par(mfrow = c(1,1), oma = c(0,0,2.5,0), new = T)
+    # mtext(expression(paste("log discharge (m"^"3"~"s"^"-1"*")")), 1, adj = .55)
+    # mtext(expression(paste("K600 (d"^"-1"*")")), 2, line = 0)
+    mtext('Date', 1, adj = .55)
+    mtext('Rhat', 2, line = 0)
+    # legend('top', legend = c("prior", "posterior", "data"),
+    #        col = c( "brown3", "brown3", "grey25"), xpd = NA, inset = c(0, -0.12),
+    #        pch = c(1, 19, 20), bty = 'n', ncol = 3)
+dev.off()
