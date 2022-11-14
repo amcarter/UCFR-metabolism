@@ -1,19 +1,20 @@
 UCFR todo:
 
 DATA ANALYSIS
-- rerun metabolism combining both years of data for each site.
-- evaluate metabolism fit
+- evaluate metabolism fit (and make SI plots)
     - look at K600 over time
     - compare 2020 and 2021 fits (K/Q)
     - rerun with removed days if necessary
-- Compile finalized metabolism data
 - fit biomass x chl a relationship with standardized axis regression
-- Compare cumulative GPP to biomass
+- Compare cumulative GPP to biomass (maybe...)
+-make plot of metabolism for publication
 
 FIT GAMS
-- read Gavin Simpson article
-- learn how mgcv works for hierarchical models
-- fit the biomass data
+- clean up GAMs plots for publication
+
+FIT MODELS
+- code in stan to include biomass sampler
+- look at the residuals through time
 
 DATA CLEANING
 - figure out where the field notes are
@@ -22,4 +23,10 @@ DATA CLEANING
 - ask matt about field notes
 
 WRITING
--
+- Make storyboard
+- Write up methods:
+	- fitting GAMS
+	- fitting stan models
+- Write up results including:
+	- comparison of Chla and biomass models
+

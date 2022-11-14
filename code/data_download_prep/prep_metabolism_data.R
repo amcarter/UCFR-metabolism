@@ -14,7 +14,6 @@ library(dataRetrieval)
 library(zoo)
 
 ##set working directory
-setwd("C:/Users/alice.carter/git/UCFR-metabolism")
 site_dat <- read_csv('data/site_data.csv') %>%
     filter(!is.na(sitecode)) %>%
     mutate(filecode = c('PERKINS', 'DL', 'GC', 'Gar', 'BEAR.*', 'BONITA'))
@@ -57,6 +56,7 @@ site_dat <- depth_Q_fits %>%
     left_join(site_dat)
 
 for(i in 1:6){
+    yy = data.frame()
     for(y in c(2020, 2021)){
 
     filename <- grep(paste0(site_dat$filecode[i], '_', y), f, value = TRUE)
@@ -142,10 +142,29 @@ for(i in 1:6){
     w <- which(!is.na(mod_dat$DO.obs))
     mod_dat <- mod_dat[min(w):max(w),]
 
-    write_csv(mod_dat, paste0('data/prepared_data/', site_dat$sitecode[i],
-                              '_', y, '.csv'))
+#     # ensure the timesteps are the same for both years:
+    if(y == 2021){
+        ts_20 <- as.numeric(median(diff(yy$solar.time)))
+        ts_21 <- as.numeric(median(diff(mod_dat$solar.time)))
+        if(ts_20 > ts_21){
+            mod_dat$keep = rep(c('TRUE', 'FALSE'), length.out = nrow(mod_dat))
+            mod_dat <- filter(mod_dat, keep == TRUE) %>%
+                select(-keep)
+        }
+        if(ts_20 < ts_21){
+            yy$keep = rep(c('TRUE', 'FALSE'), length.out = nrow(yy))
+            yy <- filter(yy, keep == TRUE) %>%
+                select(-keep)
+        }
+    }
+
+    yy <- bind_rows(yy, mod_dat)
 
     }
+
+    write_csv(yy, paste0('data/prepared_data/', site_dat$sitecode[i],
+                              '2020_2021.csv'))
+
 }
 
 

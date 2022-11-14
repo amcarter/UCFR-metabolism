@@ -182,13 +182,15 @@ plot_KxQ <- function(fit, dat = NULL){
     }
 
     if(!inherits(fit, 'metab_bayes')){
-
-        daily <- dat %>%
-            mutate(date = as.Date(solar.time)) %>%
-            group_by(date) %>%
-            summarize(across(-solar.time, mean, na.rm = T)) %>%
-            ungroup() %>%
-            left_join(fit, by = 'date')
+        if('solar.time' %in% colnames(dat)){
+            daily <- dat %>%
+                mutate(date = as.Date(solar.time)) %>%
+                group_by(date) %>%
+                summarize(across(-solar.time, mean, na.rm = T)) %>%
+                ungroup()
+        } else { daily <- dat}
+        daily <- daily %>%
+                left_join(fit, by = 'date')
         fit <- daily %>% select(date, discharge) %>% right_join(fit, by = 'date')
 
         if('DO_fit' %in% colnames(fit)){
@@ -211,7 +213,7 @@ plot_KxQ <- function(fit, dat = NULL){
 }
 
 # plot KxQ relationship showing the kxq bins used when fitting and the posterior fit
-plot_KxQ_bins <- function(fit){
+plot_KxQ_bins <- function(fit, labs = TRUE, legend = TRUE){
     mm_fit <- get_fit(fit)
 
     SM_output <- mm_fit$daily
@@ -238,13 +240,22 @@ plot_KxQ_bins <- function(fit){
              max(c(log(day$Q), log(nodes$Q)), na.rm = T))
     ylim = c(min(c(day$K600, nodes$K600_2.5, nodes$K600_prior - prior_sd), na.rm = T),
              max(c(day$K600, nodes$K600_97.5, nodes$K600_prior + prior_sd), na.rm = T))
-    plot(log(day$Q), day$K600, type = 'n', xlim = xlim, ylim = ylim,
-         xlab = expression(paste("log discharge (m"^"3"~"s"^"-1"*")")),
-         ylab = expression(paste("K600 (d"^"-1"*")")))
-    legend('topleft', legend = c("prior", "posterior", "data"),
-           col = c( "brown3", "brown3", "grey25"), xpd = NA, inset = c(0, -0.1),
-           pch = c(1, 19, 20), bty = 'n', ncol = 3)
 
+    if(labs){
+        plot(log(day$Q), day$K600, type = 'n', xlim = xlim, ylim = ylim,
+             xlab = expression(paste("log discharge (m"^"3"~"s"^"-1"*")")),
+             ylab = expression(paste("K600 (d"^"-1"*")")))
+    }
+    if(!labs){
+        par(mar = c(2, 2, 1, 1))
+        plot(log(day$Q), day$K600, type = 'n', xlim = xlim, ylim = ylim,
+             xlab = '', ylab = '')
+        }
+    if(legend){
+        legend('topleft', legend = c("prior", "posterior", "data"),
+               col = c( "brown3", "brown3", "grey25"), xpd = NA, inset = c(0, -0.1),
+               pch = c(1, 19, 20), bty = 'n', ncol = 3)
+    }
     polygon(log(c(nodes$Q, rev(nodes$Q))),
             c(nodes$K600_prior + prior_sd, rev(nodes$K600_prior - prior_sd)),
             col = alpha('brown3', 0.2), border=NA)
@@ -254,6 +265,7 @@ plot_KxQ_bins <- function(fit){
     points(log(nodes$Q), nodes$K600, col = "brown3", pch = 19, cex = 0.8)
     arrows(log(nodes$Q), nodes$K600_2.5, log(nodes$Q), nodes$K600_97.5,
            length = 0, col = 'brown3', lwd = 2)
+
 }
 
 

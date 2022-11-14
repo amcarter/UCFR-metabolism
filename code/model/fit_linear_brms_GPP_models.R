@@ -14,7 +14,8 @@ light <- read_csv('data/sw_radiation_all_sites') %>%
     group_by(sitecode, date) %>%
     summarize(light = sum(SW)) %>%
     ungroup() %>%
-    rename(site = sitecode)
+    rename(site = sitecode) %>%
+    mutate(light_rel = light/max(light))
 q <- read_csv('data/discharge_UCFRsites_2020.csv')
 
 met <- left_join(met, light, by = c('site', 'date')) %>%
@@ -25,10 +26,12 @@ biomass <- read_csv('data/biomass_data/gam_fits_biomass.csv')
 met <- left_join(met, biomass, by = c('site', 'date'))
 
 m <- met %>%
-    select(site, date, GPP, light, q.cms, ends_with(c('2_fit'))) %>%
-    mutate(log_q = log(q.cms),
-           across(-c(site, date), function(x) (x - mean(x, na.rm = T))/sd(x, na.rm = T)))
+    select(site, date, GPP, GPP.lower, GPP.upper, light = light_rel, q.cms,
+           ends_with(c('2_fit', '2_se'))) %>%
+    mutate(log_q = log(q.cms))#,
+           # across(-c(site, date), function(x) (x - mean(x, na.rm = T))/sd(x, na.rm = T)))
 
+write_csv(m, 'data/biomass_metab_model_data.csv')
 
 # Fit BRMS models
 
@@ -55,6 +58,9 @@ bmods <- readRDS('data/brms_gpp_models.rds')
 plot(bmods$epil)
 plot(conditional_effects(bmods$epil), points = TRUE)
 pp_check(bmods$epil)
+rr <- data.frame(residuals(bmods$epil))
+plot(rr$Estimate)
+bind_cols(m, rr)
 
 plot(bmods$fila)
 plot(conditional_effects(bmods$fila), points = TRUE)
@@ -76,4 +82,3 @@ plot(bmods$epil_fila_chl)
 plot(conditional_effects(bmods$epil_fila_chl), points = TRUE)
 pp_check(bmods$epil_fila_chl)
 
-loo(bmods$epil_fila_chl, bmods$fila_chl)
