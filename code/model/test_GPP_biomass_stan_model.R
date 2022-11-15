@@ -5,6 +5,8 @@
 # - add uncertainty draws for biomass
 # - decide how to scale data
 
+# remove.packages(c("rstan", "StanHeaders"))
+# install.packages("rstan", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 library(rstan)
 dat <- read_csv('data/biomass_metab_model_data.csv')
 
@@ -45,7 +47,7 @@ plot(mfit)
 traceplot(mfit)
 
 # test on dataset:
-dat <- filter(dat, !is.na(GPP), !is.na(light), !is.na(epil_chla_mgm2_fit))
+dat <- dplyr::filter(dat, !is.na(GPP), !is.na(light), !is.na(epil_chla_mgm2_fit))
 datlist <- list(
     N = nrow(dat),
     light = dat$light,

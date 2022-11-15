@@ -3,15 +3,16 @@
 
 data {
   int<lower=0> N;
-  vector[N] P;
-  vector[N] light;
-  vector[N] biomass;
+  vector[N] P;       // productivity (response)
+  // vector[N] site;    // grouping variable
+  vector[N] light;   // covariate
+  vector[N] biomass; // covariate
   // vector[N] epil_mean;
 }
 
 parameters {
-  vector[3] beta;
-  real<lower=0> sigma;
+  vector[3] beta;       // intercept and covariate parameters
+  real<lower=0> sigma;  // sd of innovations
 }
 
 model {

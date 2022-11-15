@@ -13,19 +13,20 @@ good_met <- met %>%
     select(-DO_fit)
 
 # compile the input data:
-dat <- data.frame()
-for(site in unique(met$site)){
-    d <- read_csv(paste0('data/prepared_data/', site, '2020_2021.csv'))
-    d$site = site
-    dat <- bind_rows(dat, d)
-}
+# dat <- data.frame()
+# for(site in unique(met$site)){
+#     d <- read_csv(paste0('data/prepared_data/', site, '2020_2021.csv'))
+#     d$site = site
+#     dat <- bind_rows(dat, d)
+# }
+#
+# dat <- dat %>%
+#     mutate(date = as.Date(solar.time)) %>%
+#     group_by(site, date) %>%
+#     summarize(across(-solar.time, mean, na.rm = T))
 
-dat <- dat %>%
-    mutate(date = as.Date(solar.time)) %>%
-    group_by(site, date) %>%
-    summarize(across(-solar.time, mean, na.rm = T))
-
-write_csv(dat, 'data/prepared_data/compiled_prepared_data.csv')
+# write_csv(dat, 'data/prepared_data/compiled_prepared_data.csv')
+dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')
 
 png('figures/metabolism_across_sites.png', width = 6.5, height = 4,
     res = 300, units = 'in')
@@ -59,15 +60,15 @@ png('figures/K600xER_across_sites.png', width = 6, height = 5,
         theme_bw()
 dev.off()
 
-png('figures/K600xER_across_sites.png', width = 6, height = 5,
+png('figures/K600xGPP_across_sites.png', width = 6, height = 5,
     res = 300, units = 'in')
     met %>%
         filter(is.na(DO_fit) | DO_fit != 'bad') %>%
         # filter(year == 2020) %>%
-        ggplot(aes(K600, ER)) +
+        ggplot(aes(K600, GPP)) +
         geom_point(size = .8) +
         facet_wrap(.~site) +
-        ylab(expression(paste('ER (g ', O[2], m^-2, d^-1, ')'))) +
+        ylab(expression(paste('GPP (g ', O[2], m^-2, d^-1, ')'))) +
         xlab(expression(paste('K600 (', d^-1, ')'))) +
         theme_bw()
 dev.off()
