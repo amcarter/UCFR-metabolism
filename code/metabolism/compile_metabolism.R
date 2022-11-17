@@ -1,11 +1,11 @@
 # Compile metabolism estimates from UCFR sites
 # A Carter 8/2022
-setwd('~/Desktop/donkey/ucfr/')
-source('functions_examine_SM_output.R')
+# setwd('~/Desktop/donkey/ucfr/')
+# source('functions_examine_SM_output.R')
 library(tidyverse)
 library(lubridate)
 library(streamMetabolizer)
-# source('code/metabolism/functions_examine_SM_output.R')
+source('code/metabolism/functions_examine_SM_output.R')
 
 site_dat <- read_csv('data/site_data.csv') %>%
     filter(!is.na(sitecode))
@@ -19,8 +19,8 @@ plot_metab_preds(fit)
 plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
 bad_Rhats <- get_bad_Rhats(fit, threshold = 1.1)
-bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', #'2020-08-26',
-                        '2020-10-23', '2021-07-01', '2021-07-07',
+bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', #'2020-08-26','2020-10-23',
+                               '2021-07-01', '2021-07-07',
                         '2021-07-20', '2021-08-02', '2021-08-05',
                         '2021-08-08')), bad_Rhats))
 
@@ -180,6 +180,7 @@ png('figures/model_fits/BN_K_diagnostics.png', width = 6, height = 4,
     units = 'in', res = 300)
     ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE)
 dev.off()
+
 
 get_fit(fit)$overall %>%
     select(ends_with('Rhat'))

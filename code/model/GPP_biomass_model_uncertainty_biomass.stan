@@ -17,6 +17,8 @@ parameters {
 
 model {
 
+  vector[N] biomass_draw ~ normal(biomass, biomass_se);
+
   vector[N] mu; //linear predictor
 
   //priors
@@ -29,22 +31,11 @@ model {
   }
 
   for(n in 1:N){
-      mu[n] = beta[ss[n]] + X[n]*gamma[2:(K+1)];
+      mu[n] = beta[ss[n]] + biomass_draw[n] * gamma[2] + X[n]*gamma[2:(K+1)];
   }
 
   //likelihood
   P ~ normal(mu, sigma);
-
-}
-
-generated quantities {
-    vector[N] y_tilde;
-    vector[N] mu; //linear predictor
-
-    for(n in 1:N){
-        mu[n] = beta[ss[n]] + X[n]*gamma[2:(K+1)];
-        y_tilde[n] = normal_rng(mu[n], sigma);
-    }
 
 }
 

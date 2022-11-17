@@ -1,6 +1,6 @@
 data {
   int<lower=0> N;             // total number of observations
-  int<lower=1> K;             // number of covariates
+  int<lower=1> K;             // number of covariates + intercept
   int<lower=1> S;             // number of groups (sites)
   int<lower=1,upper=S> ss[N]; // site for each observation
   matrix[N,K] X;              // covariate matrix
@@ -8,10 +8,10 @@ data {
 }
 
 parameters {
-  vector[K+1] gamma;     // population level coefficients
-  real<lower=0> tau;     //standard deviation of intercepts
+  vector[K] gamma;       // population level coefficientss
+  vector<lower=0>[K] tau;//standard deviation of regression coefficients
 
-  vector[S] beta;        // vector of site level intercepts
+  vector[K] beta[S];     //matrix of site level reg coefficients
   real<lower=0> sigma;   // sd of individual observations
 }
 
@@ -25,26 +25,15 @@ model {
   sigma ~ gamma(2,1);
 
   for(s in 1:S){
-      beta[s] ~ normal(gamma[1],tau);
+      beta[s] ~ normal(gamma,tau);
   }
 
   for(n in 1:N){
-      mu[n] = beta[ss[n]] + X[n]*gamma[2:(K+1)];
+      mu[n] = X[n]*beta[ss[n]];
   }
 
   //likelihood
   P ~ normal(mu, sigma);
-
-}
-
-generated quantities {
-    vector[N] y_tilde;
-    vector[N] mu; //linear predictor
-
-    for(n in 1:N){
-        mu[n] = beta[ss[n]] + X[n]*gamma[2:(K+1)];
-        y_tilde[n] = normal_rng(mu[n], sigma);
-    }
 
 }
 

@@ -33,6 +33,20 @@ m <- met %>%
 
 write_csv(m, 'data/biomass_metab_model_data.csv')
 
+# Lm models
+
+BM <- filter(m, site == 'BM' & !is.na(GPP) & !is.na(epil_chla_mgm2_fit))
+BM$year <- year(BM$date)
+mod <- lm(GPP ~ light + epil_chla_mgm2_fit + fila_chla_mgm2_fit,
+          data = BM)
+
+summary(mod)
+BM$mod_resid <- residuals(mod)
+ggplot(BM, aes(date, mod_resid)) + geom_point() + facet_wrap(.~year, scales = 'free')
+acf(BM$GPP)
+acf(BM$light)
+acf(BM$fila_chla_mgm2_fit)
+acf(BM$mod_resid)
 # Fit BRMS models
 
 epil <- brms::brm(GPP ~ epil_gm2_fit + light + (1|site), data = m)
