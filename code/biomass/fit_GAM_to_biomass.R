@@ -153,6 +153,36 @@ as_tibble(s_preds)
 qq=as_tibble(lapply(s_preds, c))
 write_csv(qq, 'data/biomass_data/gam_fits_biomass.csv')
 
+# replot biomass gams with dates instead of DOY
+# qq <- read_csv('data/biomass_data/gam_fits_biomass.csv') %>%
+#     mutate(year = factor(year))
+# # epi_chla <-
+#     ggplot(qq, aes(date, epil_chla_mgm2_fit, col = year, group =)) +
+#     geom_line() +
+#     geom_line(aes(y = epil_chla_mgm2_fit + epil_chla_mgm2_se), lty = 2)+
+#     geom_line(aes(y = epil_chla_mgm2_fit - epil_chla_mgm2_se), lty = 2)+
+#     geom_point(aes(date, epil.chla.mg.m2.ritchie), data = biomass) +
+#     facet_wrap(.~site, scales = 'free', ncol = 1, strip.position = 'right')+
+#     ylab('Epilithion Chla (mg/m2)')
+#
+# fila_chla <- ggplot(s_preds, aes(doy, fila_chla_mgm2_fit, col = year)) +
+#     geom_line() +
+#     geom_line(aes(y = fila_chla_mgm2_fit + fila_chla_mgm2_se), lty = 2)+
+#     geom_line(aes(y = fila_chla_mgm2_fit - fila_chla_mgm2_se), lty = 2)+
+#     geom_point(aes(doy, fila.chla.mg.m2.ritchie ), data = biomass)+
+#     facet_wrap(.~site, scales = 'free_y', ncol = 1, strip.position = 'right')+
+#     ylab('Filamentous algae Chla (mg/m2)')
+#
+#
+# png('figures/biomass_chla_gams.png', height = 6, width = 8, res = 300, units = 'in')
+#     ggpubr::ggarrange( epi_chla, fila_chla,
+#                       nrow = 1, common.legend = TRUE)
+# dev.off()
+#
+# png('figures/biomass_gams.png', height = 6, width = 8, res = 300, units = 'in')
+#     ggpubr::ggarrange(epi, fila,
+#                       nrow = 1, common.legend = TRUE)
+# dev.off()
 
 
 # earlier code testing Bayes gam:

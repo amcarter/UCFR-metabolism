@@ -10,6 +10,7 @@ source('code/metabolism/functions_examine_SM_output.R')
 site_dat <- read_csv('data/site_data.csv') %>%
     filter(!is.na(sitecode))
 
+all_bad_days <- data.frame()
 compiled_metab <- data.frame()
 # Perkins ####
 fit <- readRDS('data/metab_fits/PL_kn_oipi.rds')
@@ -22,8 +23,10 @@ bad_Rhats <- get_bad_Rhats(fit, threshold = 1.1)
 bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', #'2020-08-26','2020-10-23',
                                '2021-07-01', '2021-07-07',
                         '2021-07-20', '2021-08-02', '2021-08-05',
-                        '2021-08-08')), bad_Rhats))
-
+                        '2021-08-08'))))#, bad_Rhats))
+all_bad_days = data.frame(site = rep('PL', length(bad_days)),
+                          bad_days = bad_days) %>%
+    bind_rows(all_bad_days)
 met <- extract_metab(fit, sitecode = 'PL', bad_days)
 
 # plot(met$K600, met$ER)
@@ -50,8 +53,11 @@ plot_metab_preds(fit)
 plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
 bad_Rhats <- get_bad_Rhats(fit, threshold = 1.05)
-bad_days <- unique(c(as.Date(c('2021-06-26', '2021-08-05', '2021-08-08')),
-                     bad_Rhats))
+bad_days <- unique(c(as.Date(c('2021-06-26', '2021-08-05', '2021-08-08'))))#,
+                     # bad_Rhats))
+all_bad_days = data.frame(site = rep('DL', length(bad_days)),
+                          bad_days = bad_days) %>%
+    bind_rows(all_bad_days)
 met <- extract_metab(fit, sitecode = 'DL', bad_days)
 
 a <- plot_KxER(met, rm.bds = TRUE)
@@ -81,8 +87,11 @@ bad_days <- unique(c(as.Date(c('2020-07-22, 2020-08-24', '2020-08-25',
                                '2021-07-13', '2021-07-14', '2021-07-15',
                                '2021-07-20', '2021-08-05', '2021-08-08',
                                # '2021-08-01',
-                               '2021-08-10')),
-                     bad_Rhats))
+                               '2021-08-10'))))#,
+                     # bad_Rhats))
+all_bad_days = data.frame(site = rep('GC', length(bad_days)),
+                          bad_days = bad_days) %>%
+    bind_rows(all_bad_days)
 met <- extract_metab(fit, sitecode = 'GC', bad_days)
 
 plot(met$K600, met$ER)
@@ -112,8 +121,11 @@ bad_Rhats <- get_bad_Rhats(fit)
 bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', '2020-09-07',
                       '2021-07-01', '2021-07-19', '2021-07-20',
                       '2021-07-25', '2021-07-27', '2021-07-28',
-                      '2021-08-04', '2021-08-05','2021-08-08')),
-                     bad_Rhats))
+                      '2021-08-04', '2021-08-05','2021-08-08'))))#,
+                     # bad_Rhats))
+all_bad_days = data.frame(site = rep('GR', length(bad_days)),
+                          bad_days = bad_days) %>%
+    bind_rows(all_bad_days)
 met <- extract_metab(fit, sitecode = 'GR', bad_days)
 
 a <- plot_KxER(met, rm.bds = TRUE)
@@ -139,8 +151,11 @@ plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
 bad_Rhats <- get_bad_Rhats(fit, threshold = 1.1)
 bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', '2021-07-19',
-                               '2021-07-20', '2021-07-21', '2021-08-08')),
-                     bad_Rhats))
+                               '2021-07-20', '2021-07-21', '2021-08-08'))))#,
+                     # bad_Rhats))
+all_bad_days = data.frame(site = rep('BM', length(bad_days)),
+                          bad_days = bad_days) %>%
+    bind_rows(all_bad_days)
 met <- extract_metab(fit, sitecode = 'BM', bad_days)
 
 a <- plot_KxER(met, rm.bds = TRUE)
@@ -166,8 +181,11 @@ plot_Rhats(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
 bad_Rhats <- get_bad_Rhats(fit, threshold = 1.1)
 bad_days <- unique(c(as.Date(c('2020-08-24', '2020-08-25', '2021-08-01',
-                               '2021-08-02', '2021-08-08')),
-                     bad_Rhats))
+                               '2021-08-02', '2021-08-08'))))#,
+                     # bad_Rhats))
+all_bad_days = data.frame(site = rep('BN', length(bad_days)),
+                          bad_days = bad_days) %>%
+    bind_rows(all_bad_days)
 met <- extract_metab(fit, sitecode = 'BN', bad_days)
 
 plot(met$K600, met$ER)
@@ -187,7 +205,7 @@ get_fit(fit)$overall %>%
 compiled_metab <- bind_rows(compiled_metab, met)
 
 write_csv(compiled_metab, 'data/metabolism_compiled_all_sites.csv')
-
+write_csv(all_bad_days, 'data/days_with_poor_DO_fits.csv')
 png('figures/model_fits/QxK_across_sites.png', width = 8, height = 6.5,
 png('figures/model_fits/Rhat_across_sites.png', width = 8, height = 6.5,
     res = 300, units = 'in')

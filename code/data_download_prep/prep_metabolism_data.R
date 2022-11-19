@@ -18,7 +18,7 @@ site_dat <- read_csv('data/site_data.csv') %>%
     filter(!is.na(sitecode)) %>%
     mutate(filecode = c('PERKINS', 'DL', 'GC', 'Gar', 'BEAR.*', 'BONITA'))
 depth_Q_fits <- read_csv('data/depth_discharge_relationships_allsites.csv')
-
+bad_days <- read_csv('data/days_with_poor_DO_fits.csv')
 ##Save USGS gage numbers for downloading
 # usgs.GC<-'12324680' # Gold Creek USGS gage
 # usgs.DL<-'12324200' # Deer Lodge USGS gage
@@ -54,6 +54,9 @@ f <- list.files('data/prepared_data/cleaned_data/')
 site_dat <- depth_Q_fits %>%
     rename(sitecode = site) %>%
     left_join(site_dat)
+
+remove_bad_days = TRUE
+enddate <- ymd_hms('2021-10-14 12:00:00')
 
 for(i in 1:6){
     yy = data.frame()
@@ -161,6 +164,17 @@ for(i in 1:6){
     yy <- bind_rows(yy, mod_dat)
 
     }
+
+    # remove bad days
+    if(remove_bad_days){
+        bds <- filter(bad_days, site == site_dat$sitecode[i])
+
+        yy <- yy %>%
+            mutate(DO.obs = ifelse(substr(solar.time, 1, 13) %in%
+                                       paste0(bds$bad_days, ' 12'), NA, DO.obs))
+    }
+
+    yy <- filter(yy, solar.time <= enddate)
 
     write_csv(yy, paste0('data/prepared_data/', site_dat$sitecode[i],
                               '2020_2021.csv'))

@@ -24,8 +24,7 @@ BN <- filter(dd, site == 'BN') %>%
                            starts_with('fila')),
                   zoo::na.approx, na.rm = F)) %>%
     filter(!is.na(GPP) & !is.na(epil_gm2_fit) & !is.na(fila_gm2_fit))
-X_bn <- matrix(c(rep(1, nrow(BN)), BN$light, BN$fila_chla_mgm2_fit),
-               ncol = 3)
+
 GPP <- BN$GPP
 GPP_sd <- (BN$GPP.upper - BN$GPP.lower)/3.92
 # compile stan models
@@ -44,6 +43,7 @@ plot(l_fit, pars = 'gamma')
 
 
 ar1_fit <- sampling(ar1_mod, data = mdat)#, chains = 1)
-ar1_fit <- sampling(ar1_mod, data = mdat, chains = 1)
+# ar1_fit <- sampling(ar1_mod, data = mdat, chains = 1)
+print(ar1_fit, pars = c('phi', 'sigma', 'gamma'))
 plot(ar1_fit, pars = c('phi', 'sigma', 'gamma'))
 pairs(ar1_fit, pars = c('phi', 'sigma', 'gamma'))

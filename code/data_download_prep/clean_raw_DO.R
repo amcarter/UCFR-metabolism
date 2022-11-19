@@ -714,6 +714,9 @@ DO_comp <-
 ggplot(DO_comp, aes(DO_PL, DO_DL, col = UTC))+
     geom_point() +
     geom_abline(slope = 1, intercept = 0)
+ggplot(DO_comp, aes(UTC, DO_PL))+
+    geom_point() +
+    geom_point(aes(y = DO_BM), col = 2)
 ggplot(DO_comp, aes(UTC, DO_PL)) +
     geom_line() +
     geom_line(aes(y = DO_DL), col = 2)

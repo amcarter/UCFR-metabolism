@@ -15,8 +15,6 @@ parameters {
 }
 
 model {
-
-
   //priors
   gamma ~ normal(0,5);
   phi ~ beta(1,1);
