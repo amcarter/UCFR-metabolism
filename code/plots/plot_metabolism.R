@@ -47,12 +47,12 @@ png('figures/metabolism_across_sites.png', width = 6.5, height = 4,
         xlab('Date')
 dev.off()
 
-png('figures/K600xER_across_sites.png', width = 6, height = 5,
+png('figures/K600xER_across_sites_normal_pool.png', width = 6, height = 5,
     res = 300, units = 'in')
     met %>%
-        filter(is.na(DO_fit) | DO_fit != 'bad') %>%
+        # filter(is.na(DO_fit) | DO_fit != 'bad') %>%
         # filter(year == 2020) %>%
-        ggplot(aes(K600, ER)) +
+        ggplot(aes(K600, ER, col = DO_fit)) +
         geom_point(size = .8) +
         facet_wrap(.~site) +
         ylab(expression(paste('ER (g ', O[2], m^-2, d^-1, ')'))) +
