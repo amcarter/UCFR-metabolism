@@ -26,7 +26,9 @@ biomass <- read_csv('data/biomass_data/gam_fits_biomass.csv')
 met <- left_join(met, biomass, by = c('site', 'date'))
 
 m <- met %>%
-    select(site, date, GPP, GPP.lower, GPP.upper, light = light_rel, q.cms,
+    select(site, date, GPP, GPP.lower, GPP.upper,
+           ER, ER.lower, ER.upper, K600, K600.lower, K600.upper,
+           light = light_rel, q.cms,
            ends_with(c('2_fit', '2_se'))) %>%
     mutate(log_q = log(q.cms))#,
            # across(-c(site, date), function(x) (x - mean(x, na.rm = T))/sd(x, na.rm = T)))

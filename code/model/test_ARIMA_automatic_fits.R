@@ -17,13 +17,13 @@ dd <- dd %>%
                   function(x) x/max(dd$fila_gm2_fit, na.rm = T)))
 
 sites <- unique(dd$site)
-
 # fill in observation data to use as covariates in simulation
 dd <- dd %>%
     mutate(year = lubridate::year(date)) %>%
     group_by(site, year) %>%
     mutate(across(-date, ~zoo::na.approx(., na.rm = F))) %>%
     filter(!is.na(GPP), !is.na(light), !is.na(fila_gm2_fit))
+sim_dat <- filter(dd, site == 'GC')
 
 # simulate data
 tt <- seq(as.Date('2015-01-01'), as.Date('2023-01-10'), by = 'day')[1:2000]
@@ -61,6 +61,10 @@ forecast::checkresiduals(fit)
 plot(dat$date, dat$GPP)
 lines(dat$date, fit$fitted, col = 'blue', lwd = 2)
 fit
-
-
+dat$fit <- fit$fitted
+ggplot(dat, aes(date, GPP)) +
+    geom_point() +
+    geom_line( aes(y = fit), col = 'blue')+
+    facet_wrap(.~year, scales = 'free_x') +
+    theme_bw()
 # the overall structure that seems to fit decently across sites is ARIMA(1,0,1)

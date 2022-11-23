@@ -16,18 +16,17 @@ dd <- dd %>%
                   function(x) x/max(dd$fila_gm2_fit, na.rm = T)))
 
 
-# insert fake data test here
-
 ## run on datasets ####
 # compile stan models
 l_mod <- stan_model("code/model/GPP_biomass_model_one_site.stan")
 ar1_mod <- stan_model("code/model/GPP_biomass_model_ar1.stan")
+ar1k_mod <- stan_model("code/model/GPP_biomass_model_ar1_K600.stan")
 
 
 compare_fits <- function(dd, s){
     BN <- filter(dd, site == s) %>%
         mutate(across(c(starts_with('GPP'), 'light', starts_with('epil'),
-                               starts_with('fila')),
+                               starts_with('fila'), 'K600'),
                       zoo::na.approx, na.rm = F)) %>%
         filter(!is.na(GPP) & !is.na(epil_gm2_fit) & !is.na(fila_gm2_fit) &
                    !is.na(light))
@@ -55,6 +54,20 @@ compare_fits <- function(dd, s){
         mutate(model = 'ar1',
                site = s) %>%
         bind_rows(ests)
+    mdat <- list(N = nrow(BN),
+                 K = 4,
+                 light = BN$light,
+                 biomass = BN$fila_chla_mgm2_fit,
+                 K600 = BN$K600,
+                 P = GPP,
+                 P_sd = GPP_sd)
+    ar1k_fit <- sampling(ar1k_mod, data = mdat)
+    ests <- rstan::summary(ar1k_fit, pars = c('gamma', 'sigma', 'phi'))$summary %>%
+        data.frame() %>%
+        select(mean, se_mean, sd, lower = 'X2.5.', upper = 'X97.5.') %>%
+        mutate(model = 'ar1_K600',
+               site = s) %>%
+        bind_rows(ests)
 
     return(ests)
 }
@@ -79,24 +92,32 @@ ests <- ests %>%
 
 row.names(ests) = NULL
 
-ests %>% filter(parameter == 'phi')
+plot_param_dist <- function(ests, para){
+    tmp <- ests %>% filter(parameter == para)
+    plot(density(tmp$mean), main = para)
+    points(tmp$mean, rep(0, nrow(tmp)),pch = 19,
+           col = as.numeric(factor(tmp$model)))
+}
 
-png('figures/parameter_comparison_lm_ar1.png')
+plot_param_dist(ests, 'phi')
+
+png('figures/parameter_comparison_lm_ar1_K600.png')
 ests %>%
     select(-se_mean, -sd) %>%
     pivot_wider(id_cols = c(model, site), names_from = parameter,
                 values_from = c(mean, lower, upper)) %>%
     mutate(across(ends_with(c('gamma1', 'gamma2', 'gamma3')),
-                  ~case_when(model == 'ar1' ~ ./(1-mean_phi),
+                  ~case_when(model == 'ar1' | model == 'ar1_K600' ~ ./(1-mean_phi),
                              model == 'lm' ~ .))) %>%
-    select(-ends_with(c('sigma', 'phi'))) %>%
+    select(-ends_with(c('sigma', 'phi','gamma4'))) %>%
     pivot_longer(cols = c(-model, -site), names_to = c('stat', 'parameter'),
                  values_to = 'estimate', names_sep = '_') %>%
     ggplot(aes(parameter, estimate, fill = model)) +
     geom_boxplot() +
+    geom_hline(yintercept = 0)+
     facet_wrap(.~site)
 dev.off()
 
-print(ar1_fit, pars = c('phi', 'sigma', 'gamma'))
-plot(ar1_fit, pars = c('phi', 'sigma', 'gamma'))
-pairs(ar1_fit, pars = c('phi', 'sigma', 'gamma'))
+# print(ar1_fit, pars = c('phi', 'sigma', 'gamma'))
+# plot(ar1_fit, pars = c('phi', 'sigma', 'gamma'))
+# pairs(ar1_fit, pars = c('phi', 'sigma', 'gamma'))

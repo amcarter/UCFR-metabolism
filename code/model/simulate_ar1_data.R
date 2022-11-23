@@ -22,51 +22,168 @@ dd <- dd %>%
     mutate(year = lubridate::year(date)) %>%
     group_by(site, year) %>%
     mutate(across(-date, ~zoo::na.approx(., na.rm = F))) %>%
-    filter(!is.na(GPP), !is.na(light), !is.na(fila_gm2_fit))
+    filter(!is.na(GPP), !is.na(light), !is.na(fila_gm2_fit)) %>%
+    mutate(site = factor(site, levels = c('PL','DL','GR','GC','BM','BN')))
 
+# individual site model ########################################################
+# Simulate AR1 data ####
 sim_dat <- dd %>% filter(site == 'BN')
-
 # set params
 n <- nrow(sim_dat)
-gamma <- c(1,6,3)       # population level coefficients
+gamma <- c(1,6,3,0.5)       # population level coefficients
 phi <- 0.5              # ar1 parameter
-sigma_proc <- .1
+sigma_proc <- 1
 sigma_obs <- 0.5
-# tau <- 1                # standard deviation of intercepts
-# sites <- seq(1:6)       # unique sites
 K <- length(gamma)      # number of parameters
-# S <- length(sites)      # number of sites
-# ss <- rep(sites, n/S)   # site for each observation
 
 light <- sim_dat$light
 biomass <- sim_dat$fila_chla_mgm2_fit
-
-# beta <- vector(mode = 'double', length = S)
-# for(i in 1:S){
-#     beta[i] <- rnorm(1, gamma[1], tau)
-# }
+K600 <- sim_dat$K600
 
 # simulate response vector
 mu <- vector(mode = 'double', length = n)
-mu[1] = (gamma[1] + gamma[2]*light[1] + gamma[3]*biomass[1])/(1-phi)
+mu[1] = (gamma[1] + gamma[2]*light[1] + gamma[3]*biomass[1] + gamma[4] * K600[1])/(1-phi)
 
 for(i in 2:n){
-    mu[i] <- gamma[1] + gamma[2]*light[i] + gamma[3]*biomass[i] + phi*mu[i-1] +
+    mu[i] <- gamma[1] + gamma[2]*light[i] + gamma[3]*biomass[i] +
+        gamma[4] * K600[i] + phi*mu[i-1] +
         rnorm(1, 0, sigma_proc)
 }
 
 P <- vector(mode = "double", length = n)
 P <- rnorm(n, mean = mu, sd = sigma_obs)
 P_sd <- rep(sigma_obs, n)
-# sim <- data.frame(site = ss, light = light, biomass = biomass, GPP = P)
-# ggplot(sim, aes(light, GPP, col = factor(site))) +
-#     geom_point()
+
+datlist <- list(
+    N = n, K = K,
+    light = light, biomass = biomass, K600 = K600,
+    P = P, P_sd = P_sd
+)
+
+# compile stan model
+P_mod <- stan_model("code/model/GPP_biomass_model_ar1_K600.stan")
+
+# fit the model
+mfit <- sampling(
+    P_mod,
+    data = datlist#, chains = 1
+)
+
+print(mfit, pars = c('gamma', 'phi', 'sigma'))
+plot(mfit, pars = c('gamma', 'phi', 'sigma'))
+pairs(mfit, pars = c('gamma', 'phi', 'sigma'))
+# shinystan::launch_shinystan(mfit)
+
+
+
+# run on real data: ####
+dat <- dd %>% filter(site == 'BN')
+GPP <- dat$GPP
+GPP_sd <- (dat$GPP.upper - dat$GPP.lower)/3.92
+
+datlist <- list(
+    N = nrow(dat), K = 4,
+    light = dat$light,
+    biomass = dat$fila_chla_mgm2_fit,
+    K600 = dat$K600,
+    P = GPP, P_sd = GPP_sd
+)
+
+dfit <- sampling(
+    P_mod,
+    data = datlist
+)
+
+# plot(dfit, pars = c('phi', 'gamma', 'sigma'))
+print(dfit, pars = c('phi', 'gamma', 'sigma'))
+# shinystan::launch_shinystan(dfit)
+
+
+# look at model residuals
+preds <- rstan::summary(dfit, pars = 'y_tilde')$summary %>%
+    data.frame() %>%
+    select(P_mod = mean, P_mod_upper = 'X97.5.', P_mod_lower = 'X2.5.')
+preds_poly <- data.frame(date = c(dat$date, rev(dat$date)),
+                         y = c(preds$P_mod_lower, rev(preds$P_mod_upper))) %>%
+    left_join(dat, by = 'date')
+
+preds <- bind_cols(dat, preds)
+
+
+ggplot(preds, aes(date, GPP)) +
+    geom_point() +
+    geom_errorbar(aes(ymin = GPP.lower, ymax = GPP.upper)) +
+    geom_line(aes(y = P_mod), col = 'steelblue', linewidth = 1.2) +
+    geom_polygon(data = preds_poly, aes(date, y),
+                 fill = alpha('steelblue', 0.3),
+                 col = alpha('steelblue', 0.3))+
+    facet_wrap(.~year, scales = 'free_x') +
+    theme_bw()
+
+# ggpubr::ggarrange(PL, DL, GR, GC, BM, BN)
+
+# hierarchical model ###########################################################
+rle2 <- function(x){ # function for breaking site years to restart AR model
+
+    r <- rle(x)
+    ends <- cumsum(r$lengths)
+
+    r <- tibble(values = r$values,
+                starts = c(1, ends[-length(ends)] + 1),
+                stops = ends,
+                lengths = r$lengths)
+
+    return(r)
+}
+# Simulate AR1 data ####
+
+sim_dat <- dd
+# set params
+n <- nrow(sim_dat)
+gamma <- c(-10,6,3,0.2)         # population level coefficients
+phi <- 0.5                      # ar1 parameter
+sigma_proc <- 1
+sigma_obs <- 0.5
+tau <- 1                        # standard deviation of intercepts
+K <- length(gamma)              # number of parameters
+S <- length(unique(dd$site))    # number of sites
+ss <- as.numeric(dd$site)       # site for each observation
+
+light <- sim_dat$light
+biomass <- sim_dat$fila_chla_mgm2_fit
+K600 <- sim_dat$K600
+
+# select random intercept for each site
+beta <- vector(mode = 'double', length = S)
+for(i in 1:S){
+    beta[i] <- rnorm(1, gamma[1], tau)
+}
+
+# simulate response vector
+mu <- vector(mode = 'double', length = n)
+mu[1] = (beta[ss[1]] + gamma[2]*light[1] + gamma[3]*biomass[1] +
+             gamma[4] * K600[1])/(1-phi)
+
+for(i in 2:n){
+    mu[i] <- beta[ss[i]] + gamma[2]*light[i] + gamma[3]*biomass[i] +
+        gamma[4] * K600[i] + phi*mu[i-1] +
+        rnorm(1, 0, sigma_proc)
+}
+
+P <- vector(mode = "double", length = n)
+P <- rnorm(n, mean = mu, sd = sigma_obs)
+P_sd <- rep(sigma_obs, n)
+sim <- data.frame(site = ss, light = light, biomass = biomass, GPP = P)
+ggplot(sim, aes(light, GPP, col = factor(site))) +
+    geom_point()
+
+rle2(paste0(sim_dat$year, sim_dat$site))
 # compile data for stan
 
 datlist <- list(
     N = n, K = K,
-    # S = S, ss = ss,
-    light = light, biomass = biomass,
+    S = S, ss = ss,
+    light = light, biomass = biomass, K600 = K600,
     P = P, P_sd = P_sd
 )
 
@@ -79,19 +196,23 @@ mfit <- sampling(
     data = datlist#, chains = 1
 )
 
-print(mfit, pars = c('gamma', 'phi', 'sigma'))
+print(mfit, pars = c('gamma', 'beta', 'phi', 'sigma', 'tau'))
 plot(mfit, pars = c('gamma', 'phi', 'sigma'))
-shinystan::launch_shinystan(mfit)
+pairs(mfit, pars = c('gamma', 'phi', 'sigma'))
+# shinystan::launch_shinystan(mfit)
 
-# run on data:
-sim_dat <- dd %>% filter(site == 'PL')
-GPP <- sim_dat$GPP
-GPP_sd <- (sim_dat$GPP.upper - sim_dat$GPP.lower)/3.92
+
+
+# run on real data: ####
+GPP <- dd$GPP
+GPP_sd <- (dd$GPP.upper - dd$GPP.lower)/3.92
 
 datlist <- list(
-    N = nrow(sim_dat), K = 3,
-    # S = S, ss = ss,
-    light = sim_dat$light, biomass = sim_dat$fila_chla_mgm2_fit,
+    N = nrow(dd), K = 4,
+    S = S, ss = as.numeric(dd$site),
+    light = dd$light,
+    biomass = dd$fila_chla_mgm2_fit,
+    K600 = dd$K600,
     P = GPP, P_sd = GPP_sd
 )
 
@@ -100,28 +221,34 @@ dfit <- sampling(
     data = datlist
 )
 
-plot(dfit, pars = c('phi', 'gamma', 'sigma'))
-print(dfit, pars = c('phi', 'gamma', 'sigma'))
-shinystan::launch_shinystan(dfit)
+a <- plot(dfit, pars = c('phi', 'gamma', 'sigma'))+
+    xlim(0, 7)
+b <- plot(dfit, pars = c('beta', 'tau'))
+ggpubr::ggarrange(a, b)
+print(dfit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma'))
+# shinystan::launch_shinystan(dfit)
 
 
 # look at model residuals
-preds <- rstan::summary(dfit, pars = 'mu_tilde')$summary %>%
+preds <- rstan::summary(dfit, pars = 'y_tilde')$summary %>%
     data.frame() %>%
     select(P_mod = mean, P_mod_upper = 'X97.5.', P_mod_lower = 'X2.5.')
-preds_poly <- data.frame(date = c(sim_dat$date, rev(sim_dat$date)),
+preds_poly <- data.frame(date = c(dd$date, rev(dd$date)),
+                         site = c(dd$site, rev(dd$site)),
                          y = c(preds$P_mod_lower, rev(preds$P_mod_upper))) %>%
-    left_join(sim_dat, by = 'date')
+    left_join(dd, by = c('site', 'date'))
 
-preds <- bind_cols(sim_dat, preds)
+preds <- bind_cols(dd, preds)
 
 
 ggplot(preds, aes(date, GPP)) +
-    geom_point() +
+    geom_point(size = 1) +
     geom_errorbar(aes(ymin = GPP.lower, ymax = GPP.upper)) +
-    geom_line(aes(y = P_mod), col = 'steelblue', size = 2) +
+    geom_line(aes(y = P_mod), col = 'steelblue', linewidth = 1) +
     geom_polygon(data = preds_poly, aes(date, y),
                  fill = alpha('steelblue', 0.3),
                  col = alpha('steelblue', 0.3))+
-    facet_wrap(.~year, scales = 'free_x') +
+    facet_grid(site~year, scales = 'free') +
     theme_bw()
+
+# ggpubr::ggarrange(PL, DL, GR, GC, BM, BN)

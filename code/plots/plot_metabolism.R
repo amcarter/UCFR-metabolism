@@ -4,7 +4,7 @@ library(tidyverse)
 library(lubridate)
 source('code/metabolism/functions_examine_SM_output.R')
 
-met <- read_csv('data/metabolism_compiled_all_sites.csv') %>%
+met <- read_csv('data/metabolism_compiled_all_sites_2.csv') %>%
     mutate(year = factor(year(date)),
            doy = as.numeric(format(date, '%j')),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
@@ -52,8 +52,8 @@ png('figures/K600xER_across_sites_normal_pool.png', width = 6, height = 5,
     met %>%
         # filter(is.na(DO_fit) | DO_fit != 'bad') %>%
         # filter(year == 2020) %>%
-        ggplot(aes(K600, ER, col = DO_fit)) +
-        geom_point(size = .8) +
+        ggplot(aes(doy, ER, col = year)) +
+        geom_line(size = .8) +
         facet_wrap(.~site) +
         ylab(expression(paste('ER (g ', O[2], m^-2, d^-1, ')'))) +
         xlab(expression(paste('K600 (', d^-1, ')'))) +
@@ -63,7 +63,7 @@ dev.off()
 png('figures/K600xGPP_across_sites.png', width = 6, height = 5,
     res = 300, units = 'in')
     met %>%
-        filter(is.na(DO_fit) | DO_fit != 'bad') %>%
+        # filter(is.na(DO_fit) | DO_fit != 'bad') %>%
         # filter(year == 2020) %>%
         ggplot(aes(K600, GPP)) +
         geom_point(size = .8) +
@@ -81,3 +81,7 @@ BM <- good_met %>% filter(site == 'BM') %>% plot_KxQ(dat = dat[dat$site == 'BM',
 BN <- good_met %>% filter(site == 'BN') %>% plot_KxQ(dat = dat[dat$site == 'BN',] )
 
 ggpubr::ggarrange(PL, DL, GR, GC, BM, BN, ncol = 3,nrow = 2, align = 'hv')
+
+PL <- filter(met, site == 'PL')
+mod <- lm(ER ~ doy, data = PL)
+summary(mod)
