@@ -18,9 +18,9 @@ dd <- dd %>%
 
 ## run on datasets ####
 # compile stan models
-l_mod <- stan_model("code/model/GPP_biomass_model_one_site.stan")
-ar1_mod <- stan_model("code/model/GPP_biomass_model_ar1.stan")
-ar1k_mod <- stan_model("code/model/GPP_biomass_model_ar1_K600.stan")
+l_mod <- stan_model("code/model/stan_code/GPP_biomass_model_one_site.stan")
+ar1_mod <- stan_model("code/model/stan_code/GPP_biomass_model_ar1.stan")
+ar1k_mod <- stan_model("code/model/stan_code/GPP_biomass_model_ar1_K600.stan")
 
 
 compare_fits <- function(dd, s){
@@ -107,7 +107,7 @@ ests %>%
     pivot_wider(id_cols = c(model, site), names_from = parameter,
                 values_from = c(mean, lower, upper)) %>%
     mutate(across(ends_with(c('gamma1', 'gamma2', 'gamma3')),
-                  ~case_when(model == 'ar1' | model == 'ar1_K600' ~ ./(1-mean_phi),
+                 ~case_when(model == 'ar1' | model == 'ar1_K600' ~ ./(1-mean_phi),
                              model == 'lm' ~ .))) %>%
     select(-ends_with(c('sigma', 'phi','gamma4'))) %>%
     pivot_longer(cols = c(-model, -site), names_to = c('stat', 'parameter'),

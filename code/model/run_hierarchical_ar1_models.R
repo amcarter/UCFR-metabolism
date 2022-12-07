@@ -1,5 +1,6 @@
 library(rstan)
 options(mc.cores = parallel::detectCores())
+library(loo)
 library(tidyverse)
 rle2 <- function(x){ # function for breaking site years to restart AR model
 
@@ -27,7 +28,8 @@ fit_biomass_model <- function(dd, biomass, model){
         K600 = dd$K600,
         light = dd$light,
         biomass = biomass,
-        P = dd$GPP, P_sd = dd$GPP_sd,
+        P = dd$GPP,
+        P_sd = dd$GPP_sd,
         new_ts = new_ts
     )
 
@@ -70,7 +72,8 @@ plot_model_fit <- function(preds, dat, mod = 'fila_epil_chla'){
            plot = p, width = 6, height = 7, units = 'in', dpi = 300)
 }
 
-extract_model_params <- function(fit, bmv = 'fila + epil', units = 'gm2'){
+extract_model_params <- function(fit, bmv = 'fila + epil', units = 'gm2',
+                                 phi_corrected = FALSE){
     ss <- summary(fit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma'))$summary %>%
         data.frame()
     ss$biomass_vars = bmv
@@ -78,14 +81,49 @@ extract_model_params <- function(fit, bmv = 'fila + epil', units = 'gm2'){
     ss$parameter = row.names(ss)
     row.names(ss) <- NULL
 
+    w <- which(ss$parameter != 'phi')
+
+    if(phi_corrected){
+    ss <- mutate(ss,
+                 across(c('mean', 'se_mean', 'sd', starts_with('X')),
+                        ~case_when(parameter != 'phi' ~ ./(1-ss$mean[1]),
+                                   TRUE ~ .)))
+    }
+
     return(ss)
 }
+
+extract_model_chains <- function(fit, bmv = 'fila + epil', units = 'gm2'){
+    ss <- rstan::extract(fit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma')) %>%
+        data.frame()
+    ss <- ss %>%
+        select(phi, starts_with('gamma')) %>%
+        select(-gamma.1, -gamma.2) %>%
+        mutate(across(starts_with('gamma'),
+                      ~ ./(1-phi))) %>%
+        pivot_longer(cols = everything(), names_to = 'parameter',
+                     values_to = 'chains') %>%
+        mutate(biomass_vars = bmv,
+               units = units,
+               parameter = case_when(parameter == 'gamma.3' ~ 'gamma_light',
+                                 parameter == 'gamma.4' &
+                                     biomass_vars %in% c('fila', 'fila_epil') ~ 'gamma_fila',
+                                 parameter == 'gamma.4' &
+                                     biomass_vars == 'epil' ~ 'gamma_epil',
+                                 parameter == 'gamma.5' ~ 'gamma_epil',
+                                 TRUE ~ parameter))
+
+
+    return(ss)
+}
+
 
 # prep data ####
 dd <- read_csv('data/biomass_metab_model_data.csv')
 dd <- dd %>%
-    # mutate(across(starts_with(c('epil','fila', 'light', 'K600')), ~scale(.)[,1]),
-    mutate(across(starts_with(c('epil','fila')), ~scale(.)[,1]),
+    mutate(across(starts_with(c('epil','fila', 'light', 'K600')), ~scale(.)[,1]),
+           across(starts_with(c('epil','fila', 'light', 'K600')), ~ . - min(., na.rm = T)),
+    # mutate(across(starts_with(c('epil','fila')), ~scale(.)[,1]),
            across(where(is.numeric), zoo::na.approx, na.rm = FALSE),
            year = lubridate::year(date),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
@@ -93,8 +131,10 @@ dd <- dd %>%
            !is.na(light))
 
 sites <- unique(dd$site)
-P_mod <- stan_model("code/model/GPP_biomass_model_ar1_hierarchical.stan")
-P_mod_nb <- stan_model("code/model/GPP_NObiomass_model_ar1_hierarchical.stan")
+P_mod <- stan_model("code/model/stan_code/GPP_biomass_model_ar1_hierarchical.stan")
+P_mod_nb <- stan_model("code/model/stan_code/GPP_NObiomass_model_ar1_hierarchical.stan")
+# P_mod <- stan_model("code/model/stan_code/logGPP_biomass_model_ar1_hierarchical.stan")
+# P_mod_nb <- stan_model("code/model/stan_code/logGPP_NObiomass_model_ar1_hierarchical.stan")
 
 # run on real data: ####
 
@@ -108,31 +148,103 @@ plot(dfit, pars = c('gamma[1]', 'beta'), show_density = TRUE)
 
 # shinystan::launch_shinystan(dfit)
 preds <- get_model_preds(dfit, dd)
+calculate_r2_adj <- function(preds, npar = 13){
+
+    N = nrow(preds)
+    r2 = 1 - sum((preds$GPP - preds$P_mod)^2)/
+        sum((preds$GPP - mean(preds$GPP))^2)
+
+    r2_adj = 1 - ((1-r2)*(N-1))/(N-npar-1)
+
+    return(r2_adj)
+}
+calculate_rmse <- function(preds){
+
+    N = nrow(preds)
+    rmse = sqrt((1/N) * sum((preds$GPP - preds$P_mod)^2))
+
+    return(rmse)
+}
+# rstan::loo(dfit)
 
 # run different model combinations: ####
 mod_ests <- data.frame()
+chains <- data.frame()
 # Chlorophyll:
 # fila
 biomass <- matrix(dd$fila_chla_mgm2_fit, ncol = 1)
 fit <- fit_biomass_model(dd, biomass, P_mod)
 preds <- get_model_preds(fit, dd)
 plot_model_fit(preds, dd, mod = 'fila_chla')
-ests <- extract_model_params(fit, 'fila', 'chla_mgm2')
+ests <- extract_model_params(fit, 'fila', 'chla_mgm2', phi_corrected = TRUE)
+ests$rmse = calculate_rmse(preds)
+ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
+cc <- extract_model_chains(fit, 'fila', 'chla_mgm2')
+chains <- bind_rows(chains, cc)
+#
+# library(brms)
+# N = length(LakeHuron)
+# df <- data.frame(
+#     y = as.numeric(LakeHuron),
+#     year = as.numeric(time(LakeHuron)),
+#     time = 1:N
+# )
+# dd$time <- seq(1:nrow(dd))
+# fit <- brm(
+#     GPP ~ ar(time, p = 1) + light + fila_chla_mgm2_fit + K600,
+#     data = dd,
+#     # prior = prior(normal(0, 0.5), class = "ar"),
+#     control = list(adapt_delta = 0.9),
+#     chains = 4
+# )
+# preds <- posterior_predict(fit)
+# preds <- cbind(
+#     Estimate = colMeans(preds),
+#     Q5 = apply(preds, 2, quantile, probs = 0.05),
+#     Q95 = apply(preds, 2, quantile, probs = 0.95)
+# )
+#
+#
+# ggplot(cbind(dd, preds), aes(x = date, y = Estimate)) +
+#     geom_smooth(aes(ymin = Q5, ymax = Q95), stat = "identity", size = 0.5) +
+#     geom_point(aes(y = GPP)) +
+#     labs(
+#         y = "Water Level (ft)",
+#         x = "Year",
+#         title = "Water Level in Lake Huron (1875-1972)",
+#         subtitle = "Mean (blue) and 90% predictive intervals (gray) vs. observed data (black)"
+#     )
+#
+# L <- 20
+#
+# loo_cv <- loo(log_lik(fit)[, (L + 1):N])
+# print(loo_cv)
+#
+# stancode(fit)
 # epil
 biomass <- matrix(dd$epil_chla_mgm2_fit, ncol = 1)
 fit <- fit_biomass_model(dd, biomass, P_mod)
 preds <- get_model_preds(fit, dd)
 plot_model_fit(preds, dd, mod = 'epil_chla')
-ests <- extract_model_params(fit, 'epil', 'chla_mgm2')
+ests <- extract_model_params(fit, 'epil', 'chla_mgm2', phi_corrected = TRUE)
+ests$rmse = calculate_rmse(preds)
+ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
+cc <- extract_model_chains(fit, 'epil', 'chla_mgm2')
+chains <- bind_rows(chains, cc)
+
 # fila + epil
 biomass <- matrix(c(dd$fila_chla_mgm2_fit, dd$epil_chla_mgm2_fit), ncol = 2)
 fit <- fit_biomass_model(dd, biomass, P_mod)
 preds <- get_model_preds(fit, dd)
 plot_model_fit(preds, dd, mod = 'fila_epil_chla')
-ests <- extract_model_params(fit, 'fila_epil', 'chla_mgm2')
+ests <- extract_model_params(fit, 'fila_epil', 'chla_mgm2', phi_corrected = TRUE)
+ests$rmse = calculate_rmse(preds)
+ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
+cc <- extract_model_chains(fit, 'fila_epil', 'chla_mgm2')
+chains <- bind_rows(chains, cc)
 
 # biomass:
 # fila
@@ -140,22 +252,36 @@ biomass <- matrix(dd$fila_gm2_fit, ncol = 1)
 fit <- fit_biomass_model(dd, biomass, P_mod)
 preds <- get_model_preds(fit, dd)
 plot_model_fit(preds, dd, mod = 'fila_gm2')
-ests <- extract_model_params(fit, 'fila', 'gm2')
+ests <- extract_model_params(fit, 'fila', 'gm2', phi_corrected = TRUE)
+ests$rmse = calculate_rmse(preds)
+ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
+cc <- extract_model_chains(fit, 'fila', 'gm2')
+chains <- bind_rows(chains, cc)
+
 # epil
 biomass <- matrix(dd$epil_gm2_fit, ncol = 1)
 fit <- fit_biomass_model(dd, biomass, P_mod)
 preds <- get_model_preds(fit, dd)
 plot_model_fit(preds, dd, mod = 'epil_gm2')
-ests <- extract_model_params(fit, 'epil', 'gm2')
+ests <- extract_model_params(fit, 'epil', 'gm2', phi_corrected = TRUE)
+ests$rmse = calculate_rmse(preds)
+ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
+cc <- extract_model_chains(fit, 'epil', 'gm2')
+chains <- bind_rows(chains, cc)
+
 # fila + epil
 biomass <- matrix(c(dd$fila_gm2_fit, dd$epil_gm2_fit), ncol = 2)
 fit <- fit_biomass_model(dd, biomass, P_mod)
 preds <- get_model_preds(fit, dd)
 plot_model_fit(preds, dd, mod = 'fila_epil_gm2')
-ests <- extract_model_params(fit, 'fila_epil', 'gm2')
+ests <- extract_model_params(fit, 'fila_epil', 'gm2', phi_corrected = TRUE)
+ests$rmse = calculate_rmse(preds)
+ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
+cc <- extract_model_chains(fit, 'fila_epil', 'gm2')
+chains <- bind_rows(chains, cc)
 
 
 # model with no biomass
@@ -177,8 +303,12 @@ fit <- sampling(
 )
 preds <- get_model_preds(fit, dd)
 plot_model_fit(preds, dd, mod = 'no_biomass')
-ests <- extract_model_params(fit, NA, NA)
+ests <- extract_model_params(fit, NA, NA, phi_corrected = TRUE)
+ests$rmse = calculate_rmse(preds)
+ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
+cc <- extract_model_chains(fit, NA, NA)
+chains <- bind_rows(chains, cc)
 
 # compare parameter estimates across models
 
@@ -197,45 +327,46 @@ mod_ests <- mod_ests %>%
                                  parameter == 'gamma5' ~ 'gamma_epil',
                                  TRUE ~ parameter))
 write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters.csv')
+write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot.csv')
+# write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_logGPP.csv')
 
 mod_ests %>%
     filter(!grepl('^beta', parameter) ,
            parameter != 'intercept') %>%
-ggplot( aes(parameter, mean, fill = units))+
-    geom_boxplot() +
-    ylim(0,2)
+ggplot( aes(parameter, mean, fill = units, col = units))+
+    geom_boxplot(aes(ymin = X2.5., lower = X25., middle = X50.,
+                     upper = X75., ymax = X97.5.)) +
+    ylim(0,2) +
+    facet_wrap(.~biomass_vars)
 
 
 mod_ests %>% filter(parameter %in% c('gamma_epil', 'gamma_fila'))
 
-par(mfrow = c(1,3),
-    mar = c(4,0.3,5,0.3),
-    oma = c(1,1,1,1))
+plot(dd$epil_gm2_fit, dd$epil_chla_mgm2_fit)
+abline(0,1)
+plot(dd$fila_gm2_fit, dd$fila_chla_mgm2_fit)
 
-plot(mod_ests$mean[mod_ests$parameter == 'gamma_light'], seq(1:7),
-     xlim = c(-6.5, 6.5), pch = 19,
-     xlab = 'Light', yaxt = 'n', bty = 'n')
-segments(x0 = mod_ests$X2.5.[mod_ests$parameter == 'gamma_light'], y0 = seq(1:7),
-         x1 = mod_ests$X97.5.[mod_ests$parameter == 'gamma_light'], y1 = seq(1:7))
-abline(v = 0)
-mtext('Coefficient', line = 3.1, adj = 0)
-mtext('Estimates', line = 1.9, adj = 0)
-plot(mod_ests$mean[mod_ests$parameter == 'gamma_K600'], seq(1:7),
-     pch = 19, xlab = 'K600', xlim = c(-0.5, 0.5),
-     yaxt = 'n', bty = 'n')
-segments(x0 = mod_ests$X2.5.[mod_ests$parameter == 'gamma_K600'], y0 = seq(1:7),
-         x1 = mod_ests$X97.5.[mod_ests$parameter == 'gamma_K600'], y1 = seq(1:7))
-abline(v = 0)
-plot(mod_ests$mean[mod_ests$parameter == 'gamma_fila'], seq(1:4),
-     pch = as.numeric(factor(mod_ests$units[mod_ests$parameter == 'gamma_epil'])),
-     xlab = 'Connectivity',
-     yaxt = 'n', bty = 'n')
-segments(x0 = mod_table$C_mean - mod_table$C_se, y0 = seq(1:nrow(mod_table)),
-         x1 = mod_table$C_mean + mod_table$C_se, y1 = seq(1:nrow(mod_table)),
-         col = mod_table$C_col)
-abline(v = 0)
-legend(x = -.2, y = nrow(mod_table) + 2.5,
-       legend = c('width to area', 'precipitation',
-                  'terrestrial NPP', 'con. drainage dens'),
-       pch = c(18, 17, 16, 15), col = c('black', rep('brown3', 3)),
-       bty = 'n', xpd = TRUE)
+
+library(viridis)
+chains <- data.frame(parameter = c(rep('gamma_fila',2),
+                                   rep('gamma_epil',2)),
+                                   chains = rep(0,4),
+                                   biomass_vars = rep(NA_character_,4),
+                                   units = rep(NA_character_,4)) %>%
+    bind_rows(chains)
+
+chains %>%
+    filter(biomass_vars == 'fila_epil' | is.na(biomass_vars)) %>%
+    mutate(model = case_when(units == 'chla_mgm2' ~ 'c Algal chl a',
+                             units == 'gm2' ~ 'b Algal mass',
+                             TRUE ~ 'a No biomass')) %>%
+    mutate(parameter = factor(parameter,
+                              levels=c("phi", "gamma_light", "gamma_fila",
+                                       "gamma_epil"))) %>%
+    ggplot(aes(fill = model, y = chains, x = parameter)) +
+    geom_violin(position=position_dodge(0.7), alpha=0.5,
+                scale = 'width', adjust =4, width = .5) +
+    scale_fill_viridis(discrete=T, option = "G", name="") +
+    ylab("Parameter Estimate") +
+    xlab("") +
+    theme_bw()

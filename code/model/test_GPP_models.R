@@ -94,7 +94,7 @@ dd <- dd %>%
 
 mod_dat <- list(P_obs = dd$GPP, N = nrow(dd),
                 light = dd$light, mu_obs = sigma_obs)
-fit <- stan(file = 'code/model/ar1_model_lognormal.stan',
+fit <- stan(file = 'code/model/stan_code/ar1_model_lognormal.stan',
             data = mod_dat,
             warmup = 2000, iter = 3000,
             chains = 4, cores = 4)

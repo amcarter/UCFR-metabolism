@@ -82,7 +82,7 @@ datlist <- list(
 )
 
 # compile stan model
-P_mod <- stan_model("code/model/GPP_biomass_model_ar1_K600.stan")
+P_mod <- stan_model("code/model/stan_code/GPP_biomass_model_ar1_K600.stan")
 
 # fit the model
 mfit <- sampling(
@@ -200,7 +200,7 @@ datlist <- list(
 )
 
 # compile stan model
-P_mod <- stan_model("code/model/GPP_biomass_model_ar1_hierarchical.stan")
+P_mod <- stan_model("code/model/stan_code/GPP_biomass_model_ar1_hierarchical.stan")
 
 # fit the model
 mfit <- sampling(
@@ -332,7 +332,7 @@ datlist <- list(
 )
 
 # compile stan model
-P_mod <- stan_model("code/model/GPP_biomass_model_ar1_hierarchical_uncertainty.stan")
+P_mod <- stan_model("code/model/stan_code/GPP_biomass_model_ar1_hierarchical_uncertainty.stan")
 
 # fit the model
 mfit_u <- sampling(

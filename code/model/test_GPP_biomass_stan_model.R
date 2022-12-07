@@ -57,7 +57,7 @@ datlist <- list(
 )
 
 # compile stan model
-P_mod <- stan_model("code/model/GPP_biomass_model.stan")
+P_mod <- stan_model("code/model/stan_code/GPP_biomass_model.stan")
 
 # fit the model
 mfit <- sampling(
