@@ -118,6 +118,42 @@ s_preds <- mutate(s_preds,
                 fila_chla_mgm2_fit = pp$fit,
                 fila_chla_mgm2_se = pp$se.fit)
 
+ddd <- s_preds %>%
+    mutate(across(where(is.array), c),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+    select(date, doy, year, site, starts_with(c('epil_chla', 'fila_chla'))) %>%
+    full_join(select(biomass, date, site, sample, epil.chla.mg.m2.ritchie,
+                     fila.chla.mg.m2.ritchie), by = c('date', 'site')) %>%
+    rename(epil_chla_mgm2_meas = epil.chla.mg.m2.ritchie,
+           fila_chla_mgm2_meas = fila.chla.mg.m2.ritchie) %>%
+    pivot_longer(cols = starts_with(c('epil', 'fila')),
+                 names_to = c('biomass_type', 'stat'),
+                 names_pattern = '([a-z]+)_chla_mgm2_([a-z]+)',
+                 values_to = 'value') %>%
+    pivot_wider(names_from = 'stat', values_from = 'value')
+
+dpoly <- bind_rows(ddd, ddd[nrow(ddd):1,])
+dpoly$fit[1:nrow(ddd)] <- dpoly$fit[1:nrow(ddd)] + dpoly$se[1:nrow(ddd)]
+dpoly$fit[(nrow(ddd)+1):nrow(dpoly)] <- dpoly$fit[(nrow(ddd)+1):nrow(dpoly)] -
+    dpoly$se[(nrow(ddd)+1):nrow(dpoly)]
+png('figures/biomass_chla_gams.png', width = 5, height = 6, units = 'in',
+    res = 300)
+ggplot(ddd, aes(date, fit, col = biomass_type)) +
+    geom_line() +
+    geom_point(aes(y = meas), size = 1.2) +
+    # geom_line(aes(y = fit + se), lty = 2)+
+    # geom_line(aes(y = fit - se), lty = 2)+
+    geom_polygon(data = dpoly, aes(x = date, y = fit, fill = biomass_type),
+                 alpha = 0.3, linetype = 2)+
+    scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
+    scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
+    facet_grid(site~year, scales = 'free_x')+
+    xlab('Date') +
+    ylab(expression('Algal Biomass (mg chl a '~ m^-2*')')) +
+    theme_bw() +
+    theme(legend.position = 'none')
+
+dev.off()
 
 epi_chla <- ggplot(s_preds, aes(doy, epil_chla_mgm2_fit, col = year)) +
     geom_line() +
@@ -125,7 +161,7 @@ epi_chla <- ggplot(s_preds, aes(doy, epil_chla_mgm2_fit, col = year)) +
     geom_line(aes(y = epil_chla_mgm2_fit - epil_chla_mgm2_se), lty = 2)+
     geom_point(aes(doy, epil.chla.mg.m2.ritchie), data = biomass) +
     facet_wrap(.~site, scales = 'free_y', ncol = 1, strip.position = 'right')+
-    ylab('Epilithion Chla (mg/m2)')
+    ylab('Biofilm chl a (mg/m2)')
 
 fila_chla <- ggplot(s_preds, aes(doy, fila_chla_mgm2_fit, col = year)) +
     geom_line() +

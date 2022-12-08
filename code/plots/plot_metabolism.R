@@ -28,21 +28,28 @@ good_met <- met %>%
 # write_csv(dat, 'data/prepared_data/compiled_prepared_data.csv')
 dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')
 
-png('figures/metabolism_across_sites.png', width = 6.5, height = 4,
+png('figures/metabolism_across_sites.png', width = 5, height = 6,
     res = 300, units = 'in')
     met %>%
         mutate(NEP = ER + GPP,
                date = as.Date(paste0('2021-', doy), format = '%Y-%j')) %>%
         filter(is.na(DO_fit) | DO_fit != 'bad') %>%
-        ggplot(aes(date, GPP, col = year)) +
-        geom_line() +
+        ggplot(aes(date, GPP)) +
+        geom_line(col = '#007828') +
+        geom_point(col = '#007828', size = 0.7) +
+        geom_errorbar(aes(ymin = GPP.lower, ymax = GPP.upper),
+                      col = '#007828') +
         # geom_point() +
-        geom_line(aes(y = ER)) +
+        geom_line(aes(y = ER), col = '#A84F06') +
+        geom_point(aes(y = ER), col = '#A84F06', size = 0.7) +
+        geom_errorbar(aes(ymin = ER.lower, ymax = ER.upper),
+                      col = '#A84F06') +
         # geom_line(aes(y = NEP), lty = 2) +
         geom_hline(yintercept = 0, size = 0.5, col = 'grey50')+
         # geom_point(aes(y = ER)) +
-        facet_wrap(.~site, ncol = 2) +
+        facet_grid(site~year, scales = 'free_x') +
         theme_bw() +
+        ylim(-24,24)+
         ylab(expression(paste('Metabolism (g ', O[2], m^-2, d^-1, ')'))) +
         xlab('Date')
 dev.off()
