@@ -72,7 +72,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -120,7 +120,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -146,7 +146,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC')%>%
-    select( -MST, -Q)
+    select(-DO.sat, -MST, -Q)
 
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
@@ -203,7 +203,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -249,7 +249,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -298,7 +298,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -366,7 +366,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -427,7 +427,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -519,7 +519,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -583,7 +583,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -641,7 +641,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 
@@ -699,7 +699,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
 
 dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
-    select(-DO.raw, -flag, -MST, -Q)
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
 # points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
 

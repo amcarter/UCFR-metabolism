@@ -149,7 +149,47 @@ ggplot(ddd, aes(date, fit, col = biomass_type)) +
     scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
     facet_grid(site~year, scales = 'free_x')+
     xlab('Date') +
-    ylab(expression('Algal Biomass (mg chl a '~ m^-2*')')) +
+    ylab(expression('Algal Standing Crop (mg chl a '~ m^-2*')')) +
+    theme_bw() +
+    theme(legend.position = 'none')
+
+dev.off()
+
+
+ddd <- s_preds %>%
+    mutate(across(where(is.array), c),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+    select(date, doy, year, site, starts_with(c('epil_gm2', 'fila_gm2'))) %>%
+    full_join(select(biomass, date, site, sample, epil.om.area.g.m2,
+                     fila.om.area.g.m2), by = c('date', 'site')) %>%
+    rename(epil_gm2_meas = epil.om.area.g.m2,
+           fila_gm2_meas = fila.om.area.g.m2) %>%
+    filter(fila_gm2_meas < 500)%>%
+    pivot_longer(cols = starts_with(c('epil', 'fila')),
+                 names_to = c('biomass_type', 'stat'),
+                 names_pattern = '([a-z]+)_gm2_([a-z]+)',
+                 values_to = 'value') %>%
+    pivot_wider(names_from = 'stat', values_from = 'value') %>%
+    group_by(site, biomass_type) %>%
+    mutate(across(c('fit', 'se'), ~zoo::na.approx(., x = date, na.rm = F)))
+dpoly <- bind_rows(ddd, ddd[nrow(ddd):1,])
+dpoly$fit[1:nrow(ddd)] <- dpoly$fit[1:nrow(ddd)] + dpoly$se[1:nrow(ddd)]
+dpoly$fit[(nrow(ddd)+1):nrow(dpoly)] <- dpoly$fit[(nrow(ddd)+1):nrow(dpoly)] -
+    dpoly$se[(nrow(ddd)+1):nrow(dpoly)]
+png('figures/biomass_gm2_gams.png', width = 5, height = 6, units = 'in',
+    res = 300)
+ggplot(ddd, aes(date, fit, col = biomass_type)) +
+    geom_line() +
+    geom_point(aes(y = meas), size = 1.2) +
+    # geom_line(aes(y = fit + se), lty = 2)+
+    # geom_line(aes(y = fit - se), lty = 2)+
+    geom_polygon(data = dpoly, aes(x = date, y = fit, fill = biomass_type),
+                 alpha = 0.3, linetype = 2)+
+    scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
+    scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
+    facet_grid(site~year, scales = 'free_x')+
+    xlab('Date') +
+    ylab(expression('Algal Standing Crop (g '~ m^-2*')')) +
     theme_bw() +
     theme(legend.position = 'none')
 
