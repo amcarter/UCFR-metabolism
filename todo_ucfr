@@ -9,21 +9,12 @@ DATA ANALYSIS
 - Compare cumulative GPP to biomass (maybe...)
 -make plot of metabolism for publication
 
-FIT GAMS
-- clean up GAMs plots for publication
 
 FIT MODELS
 - code in stan to include biomass sampler
 - look at the residuals through time
 
-DATA CLEANING
-- figure out where the field notes are
-- look to see when the last time the sensors were visited.
-- revisit DO data with field notes
-- ask matt about field notes
-
 WRITING
-- Make storyboard
 - Write up methods:
 	- fitting GAMS
 	- fitting stan models

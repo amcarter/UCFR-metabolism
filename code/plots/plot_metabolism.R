@@ -4,12 +4,14 @@ library(tidyverse)
 library(lubridate)
 source('code/metabolism/functions_examine_SM_output.R')
 
-met <- read_csv('data/metabolism_compiled_all_sites_2.csv') %>%
-    mutate(year = factor(year(date)),
-           doy = as.numeric(format(date, '%j')),
-           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
+met <- read_csv('data/metabolism_compiled_all_sites.csv') %>%
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
+
 good_met <- met %>%
-    filter(is.na(DO_fit) | DO_fit != 'bad') %>%
+    select(-errors) %>%
+    mutate(across(starts_with(c('GPP', 'ER', 'K600')),
+                  ~case_when((!is.na(DO_fit) & DO_fit == 'bad') ~ NA_real_,
+                             TRUE ~ .))) %>%
     select(-DO_fit)
 
 # compile the input data:
@@ -26,7 +28,9 @@ good_met <- met %>%
 #     summarize(across(-solar.time, mean, na.rm = T))
 
 # write_csv(dat, 'data/prepared_data/compiled_prepared_data.csv')
-dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')
+dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')%>%
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
+
 
 png('figures/metabolism_across_sites.png', width = 5, height = 6,
     res = 300, units = 'in')
@@ -54,17 +58,25 @@ png('figures/metabolism_across_sites.png', width = 5, height = 6,
         xlab('Date')
 dev.off()
 
-png('figures/K600xER_across_sites_normal_pool.png', width = 6, height = 5,
+png('figures/K600_plots_across_sites_normal_pool.png', width = 5.5, height = 7,
     res = 300, units = 'in')
     met %>%
-        # filter(is.na(DO_fit) | DO_fit != 'bad') %>%
-        # filter(year == 2020) %>%
-        ggplot(aes(doy, ER, col = year)) +
-        geom_line(size = .8) +
-        facet_wrap(.~site) +
-        ylab(expression(paste('ER (g ', O[2], m^-2, d^-1, ')'))) +
-        xlab(expression(paste('K600 (', d^-1, ')'))) +
-        theme_bw()
+        left_join(dat, by = c('site', 'date')) %>%
+        mutate(Q = log10(discharge),
+               DO_fit = if_else(DO_fit == 'bad', 'poor DO fit', NA_character_))%>%
+        pivot_longer(cols = c('GPP', 'ER', 'Q'),
+                     names_to = 'variable', values_to = 'value') %>%
+        filter(is.na(DO_fit))%>%
+        ggplot(aes(value, K600)) +
+        geom_point(size = 1) +
+        facet_grid(site~variable, scales = 'free_x') +
+        ylab(expression(paste('K600 (', d^-1, ')'))) +
+        xlab(expression(paste('       ER (g ', O[2], m^-2, d^-1, ')         GPP (g ', O[2], m^-2, d^-1, ')      Discharge (', m^3, s^-1,', lo',g[10],')'))) +
+        theme_bw()+
+        theme(legend.position = 'none',
+              # legend.title = element_blank(),
+              strip.background.x = element_blank(),
+              strip.text.x = element_blank())
 dev.off()
 
 png('figures/K600xGPP_across_sites.png', width = 6, height = 5,

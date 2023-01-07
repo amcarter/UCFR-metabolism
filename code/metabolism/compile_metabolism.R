@@ -8,7 +8,10 @@ library(streamMetabolizer)
 source('code/metabolism/functions_examine_SM_output.R')
 
 site_dat <- read_csv('data/site_data.csv') %>%
-    filter(!is.na(sitecode))
+    mutate(site = factor(sitecode,
+                         levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+    filter(!is.na(sitecode)) %>%
+    rename(distance_dwnstrm_km = 'Distance downstream (km)')
 
 # all_bad_days <- data.frame()
 compiled_metab <- data.frame()
@@ -204,6 +207,12 @@ get_fit(fit)$overall %>% glimpse()
 get_fit(fit)$KQ_overall %>% glimpse()
 
 compiled_metab <- bind_rows(compiled_metab, met)
+compiled_metab <- compiled_metab %>%
+    mutate(year = factor(year(date)),
+           doy = as.numeric(format(date, '%j')),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+    left_join(select(site_dat, site, distance_dwnstrm_km))
+
 
 write_csv(compiled_metab, 'data/metabolism_compiled_all_sites.csv')
 # write_csv(all_bad_days, 'data/days_with_poor_DO_fits.csv')

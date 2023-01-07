@@ -18,7 +18,7 @@ site_dat <- read_csv('data/site_data.csv') %>%
     filter(!is.na(sitecode)) %>%
     mutate(filecode = c('PERKINS', 'DL', 'GC', 'Gar', 'BEAR.*', 'BONITA'))
 depth_Q_fits <- read_csv('data/depth_discharge_relationships_allsites.csv')
-bad_days <- read_csv('data/days_with_poor_DO_fits.csv')
+bad_days <- read_csv('data/days_with_poor_DO_fits_initial_run.csv')
 ##Save USGS gage numbers for downloading
 # usgs.GC<-'12324680' # Gold Creek USGS gage
 # usgs.DL<-'12324200' # Deer Lodge USGS gage
@@ -56,6 +56,7 @@ site_dat <- depth_Q_fits %>%
     left_join(site_dat)
 
 remove_bad_days = TRUE
+# remove_bad_days = FALSE
 enddate <- ymd_hms('2021-10-14 12:00:00')
 
 for(i in 1:6){
@@ -145,21 +146,11 @@ for(i in 1:6){
     w <- which(!is.na(mod_dat$DO.obs))
     mod_dat <- mod_dat[min(w):max(w),]
 
-#     # ensure the timesteps are the same for both years:
-    if(y == 2021){
-        ts_20 <- as.numeric(median(diff(yy$solar.time)))
-        ts_21 <- as.numeric(median(diff(mod_dat$solar.time)))
-        if(ts_20 > ts_21){
-            mod_dat$keep = rep(c('TRUE', 'FALSE'), length.out = nrow(mod_dat))
-            mod_dat <- filter(mod_dat, keep == TRUE) %>%
-                select(-keep)
-        }
-        if(ts_20 < ts_21){
-            yy$keep = rep(c('TRUE', 'FALSE'), length.out = nrow(yy))
-            yy <- filter(yy, keep == TRUE) %>%
-                select(-keep)
-        }
-    }
+    # Make the time steps 15 minutes
+    mod_dat <- data.frame(solar.time = seq(min(mod_dat$solar.time),
+                                           max(mod_dat$solar.time),
+                                           by = '15 min')) %>%
+        left_join(mod_dat, by = 'solar.time')
 
     yy <- bind_rows(yy, mod_dat)
 

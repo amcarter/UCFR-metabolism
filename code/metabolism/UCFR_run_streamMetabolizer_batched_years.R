@@ -58,11 +58,11 @@ BN<-read_csv('data/prepared_data/BN2020_2021.csv') %>% select(-discharge)
 bayes_name <- mm_name(type='bayes', pool_K600='normal',
                       err_obs_iid=TRUE, err_proc_iid=TRUE)
 # bayes_specs = specs(bayes_name,
-#                     burnin_steps = 1000,
-#                     saved_steps = 2000,
 #                     verbose = T, n_cores = 4)
 bayes_specs <- specs(bayes_name,
                      # K600_daily_meanlog_meanlog = 1.986474396, # where did this number for K600 come from?
+                     burnin_steps = 1000,
+                     saved_steps = 1000,
                      K600_daily_meanlog_meanlog = 2.484906649788,
                      K600_daily_meanlog_sdlog = 0.75,
                      K600_daily_sdlog_sigma = 0.1,

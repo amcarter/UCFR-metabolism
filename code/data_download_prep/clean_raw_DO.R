@@ -2,12 +2,12 @@
 # A Carter
 # 7/2022
 
-# NOTE#############################################################
+# NOTE#############################################################--
 # The raw sensor data for each site has both a UTC and MST datetime columns
 # However, the MST column is actually in MT (ie, MST in winter, MDT in summer)
 # This is an important distinction for how these times are converted to solartime
 # For this reason, the UTC and unix time columns are the correct times.
-####################################################################
+####################################################################--
 
 # setup
 library(tidyverse)
@@ -118,7 +118,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
     mutate(across(c(-UTC, -MST, -flag),
                   function(x) zoo::na.approx(x, maxgap = max_gap * 60, x = UTC, na.rm = F)))
 
-dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
+dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
     select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
@@ -201,7 +201,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
     mutate(across(c(-UTC, -MST, -flag),
                   function(x) zoo::na.approx(x, maxgap = max_gap * 60, x = UTC, na.rm = F)))
 
-dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
+dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
     select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
@@ -425,7 +425,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
     mutate(across(c(-UTC, -MST, -flag),
                   function(x) zoo::na.approx(x, maxgap = max_gap * 60, x = UTC, na.rm = F)))
 
-dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
+dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
     select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
@@ -517,7 +517,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
     mutate(across(c(-UTC, -MST, -flag),
                   function(x) zoo::na.approx(x, maxgap = max_gap * 60, x = UTC, na.rm = F)))
 
-dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
+dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
     select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
@@ -581,7 +581,7 @@ dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
     mutate(across(c(-UTC, -MST, -flag),
                   function(x) zoo::na.approx(x, maxgap = max_gap * 60, x = UTC, na.rm = F)))
 
-dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '10 min')) %>%
+dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
     left_join(dat_filled, by = 'UTC') %>%
     select(-DO.raw, -DO.sat, -flag, -MST, -Q)
 # plot(dat$UTC, dat$DO.obs, type = 'l')
@@ -706,37 +706,37 @@ dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
 write_csv(dat_clean, paste0('data/prepared_data/cleaned_data/cleaned_', ff))
 
 
-# DO cross site comparison ####
-DO_comp <-
-    arrange(DO_comp, UTC) %>%
-    mutate(across(-UTC, zoo::na.approx, na.rm = F))
-
-ggplot(DO_comp, aes(DO_PL, DO_DL, col = UTC))+
-    geom_point() +
-    geom_abline(slope = 1, intercept = 0)
-ggplot(DO_comp, aes(UTC, DO_PL))+
-    geom_point() +
-    geom_point(aes(y = DO_BM), col = 2)
-ggplot(DO_comp, aes(UTC, DO_PL)) +
-    geom_line() +
-    geom_line(aes(y = DO_DL), col = 2)
-ggplot(DO_comp, aes(DO_PL, DO_GC, col = UTC))+
-    geom_point() +
-    geom_abline(slope = 1, intercept = 0)
-ggplot(DO_comp, aes(UTC, DO_DL)) +
-    geom_line() +
-    geom_line(aes(y = DO_GC), col = 2)
-ggplot(DO_comp, aes(DO_GC, DO_GR, col = UTC))+
-    geom_point() +
-    geom_abline(slope = 1, intercept = 0)+
-    ylim(0,20)
-ggplot(DO_comp, aes(UTC, DO_GC)) +
-    geom_line() +
-    geom_line(aes(y = DO_GR), col = 2)+
-    ylim(0,20)
-ggplot(DO_comp, aes(DO_BM, DO_BN, col = UTC))+
-    geom_point() +
-    geom_abline(slope = 1, intercept = 0)
-ggplot(DO_comp, aes(UTC, DO_BM)) +
-    geom_line() +
-    geom_line(aes(y = DO_BN), col = 2)
+# # DO cross site comparison ####
+# DO_comp <-
+#     arrange(DO_comp, UTC) %>%
+#     mutate(across(-UTC, zoo::na.approx, na.rm = F))
+#
+# ggplot(DO_comp, aes(DO_PL, DO_DL, col = UTC))+
+#     geom_point() +
+#     geom_abline(slope = 1, intercept = 0)
+# ggplot(DO_comp, aes(UTC, DO_PL))+
+#     geom_point() +
+#     geom_point(aes(y = DO_BM), col = 2)
+# ggplot(DO_comp, aes(UTC, DO_PL)) +
+#     geom_line() +
+#     geom_line(aes(y = DO_DL), col = 2)
+# ggplot(DO_comp, aes(DO_PL, DO_GC, col = UTC))+
+#     geom_point() +
+#     geom_abline(slope = 1, intercept = 0)
+# ggplot(DO_comp, aes(UTC, DO_DL)) +
+#     geom_line() +
+#     geom_line(aes(y = DO_GC), col = 2)
+# ggplot(DO_comp, aes(DO_GC, DO_GR, col = UTC))+
+#     geom_point() +
+#     geom_abline(slope = 1, intercept = 0)+
+#     ylim(0,20)
+# ggplot(DO_comp, aes(UTC, DO_GC)) +
+#     geom_line() +
+#     geom_line(aes(y = DO_GR), col = 2)+
+#     ylim(0,20)
+# ggplot(DO_comp, aes(DO_BM, DO_BN, col = UTC))+
+#     geom_point() +
+#     geom_abline(slope = 1, intercept = 0)
+# ggplot(DO_comp, aes(UTC, DO_BM)) +
+#     geom_line() +
+#     geom_line(aes(y = DO_BN), col = 2)

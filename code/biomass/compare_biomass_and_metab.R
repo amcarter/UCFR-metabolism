@@ -6,14 +6,26 @@ library(tidyverse)
 library(lubridate)
 library(mgcv)
 
-setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
-
 biomass <- read_csv('data/biomass_data/biomass_working_data.csv') %>%
     mutate(site = case_when(site == 'BG' ~ 'BM',
                             site == 'WS' ~ 'PL',
                             TRUE ~ site))%>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
-met <- read_csv('data/metabolism_compiled_all_sites.csv')
+met <- read_csv('data/metabolism_compiled_all_sites.csv') %>%
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
+
+met <- met %>%
+    select(-errors) %>%
+    mutate(across(starts_with(c('GPP', 'ER', 'K600')),
+                  ~case_when((!is.na(DO_fit) & DO_fit == 'bad') ~ NA_real_,
+                             TRUE ~ .))) %>%
+    select(-DO_fit)
+
+dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')
+dd <- left_join(dat, met, by = c('site', 'date')) %>%
+    select(-msgs.fit, -warnings, ends_with('Rhat') )
+write_csv(dd, 'data/metab_for_results.csv')
+
 light <- read_csv('data/sw_radiation_all_sites') %>%
     group_by(sitecode, date) %>%
     summarize(light = sum(SW)) %>%
