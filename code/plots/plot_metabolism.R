@@ -4,7 +4,7 @@ library(tidyverse)
 library(lubridate)
 source('code/metabolism/functions_examine_SM_output.R')
 
-met <- read_csv('data/metabolism_compiled_all_sites.csv') %>%
+met <- read_csv('data/metabolism_compiled_all_sites_2000iter_bdr_kss05.csv') %>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
 
 good_met <- met %>%
@@ -26,7 +26,7 @@ good_met <- met %>%
 #     mutate(date = as.Date(solar.time)) %>%
 #     group_by(site, date) %>%
 #     summarize(across(-solar.time, mean, na.rm = T))
-
+#
 # write_csv(dat, 'data/prepared_data/compiled_prepared_data.csv')
 dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')%>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
@@ -53,7 +53,7 @@ png('figures/metabolism_across_sites.png', width = 5, height = 6,
         # geom_point(aes(y = ER)) +
         facet_grid(site~year, scales = 'free_x') +
         theme_bw() +
-        ylim(-24,24)+
+        # ylim(-24,24)+
         ylab(expression(paste('Metabolism (g ', O[2], m^-2, d^-1, ')'))) +
         xlab('Date')
 dev.off()
@@ -102,5 +102,5 @@ BN <- good_met %>% filter(site == 'BN') %>% plot_KxQ(dat = dat[dat$site == 'BN',
 ggpubr::ggarrange(PL, DL, GR, GC, BM, BN, ncol = 3,nrow = 2, align = 'hv')
 
 PL <- filter(met, site == 'PL')
-mod <- lm(ER ~ doy, data = PL)
+mod <- lm(ER ~ K600, data = PL)
 summary(mod)

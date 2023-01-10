@@ -137,6 +137,31 @@ dat %>% select(DO.obs) %>%
     dyRangeSelector()
 # looks good!
 
+# in this case, water temperature has some points that need to be flagged.
+dat %>% select(water.temp) %>%
+    xts(order.by = dat$UTC) %>%
+    dygraph() %>%
+    dySeries('water.temp', drawPoints = TRUE) %>%
+    dyRangeSelector()
+
+flag_points <- data.frame(MST =
+    seq(ymd_hms('2020-08-27 13:40:00'),
+        ymd_hms('2020-08-27 14:00:00'),
+        by = 'min'),
+    flag = 'bad data')
+dt <- as.numeric(median(diff(dat$UTC)))
+
+dat_clean <- left_join(dat, flag_points) %>%
+    mutate(water.temp = case_when(flag == 'bad data' ~ NA_real_,
+                              TRUE ~ water.temp),
+           water.temp = zoo::na.approx(water.temp, maxgap = max_gap * 60/dt, x = UTC, na.rm = F))
+
+dat_clean %>%
+    select(water.temp) %>%
+    xts(order.by = dat_clean$UTC) %>%
+    dygraph() %>%
+    dySeries('water.temp')
+
 # align samples to consistent intervals:
 dt <- as.numeric(median(diff(dat$UTC)))
 dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
