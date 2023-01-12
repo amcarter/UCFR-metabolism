@@ -9,31 +9,7 @@ library(stringr)
 library(lubridate)
 library(brms)
 
-met <- read_csv('data/metabolism_compiled_all_sites.csv')
-light <- read_csv('data/sw_radiation_all_sites') %>%
-    group_by(sitecode, date) %>%
-    summarize(light = sum(SW)) %>%
-    ungroup() %>%
-    rename(site = sitecode) %>%
-    mutate(light_rel = light/max(light))
-q <- read_csv('data/discharge_UCFRsites_2020.csv')
-
-met <- left_join(met, light, by = c('site', 'date')) %>%
-    left_join(q, by = c('site', 'date'))
-
-biomass <- read_csv('data/biomass_data/gam_fits_biomass.csv')
-
-met <- left_join(met, biomass, by = c('site', 'date'))
-
-m <- met %>%
-    select(site, date, GPP, GPP.lower, GPP.upper,
-           ER, ER.lower, ER.upper, K600, K600.lower, K600.upper,
-           light = light_rel, q.cms,
-           ends_with(c('2_fit', '2_se'))) %>%
-    mutate(log_q = log(q.cms))#,
-           # across(-c(site, date), function(x) (x - mean(x, na.rm = T))/sd(x, na.rm = T)))
-
-write_csv(m, 'data/biomass_metab_model_data.csv')
+m <- read_csv('data/model_fits/biomass_metab_model_data.csv')
 
 # Lm models
 
@@ -68,9 +44,9 @@ brms_mods <- list(epil = epil,
                   fila_chl = fila_chl,
                   epil_fila_chl = epil_fila_chl)
 
-saveRDS(brms_mods, 'data/brms_gpp_models.rds')
+saveRDS(brms_mods, 'data/model_fits/brms_gpp_models.rds')
 
-bmods <- readRDS('data/brms_gpp_models.rds')
+bmods <- readRDS('data/model_fits/brms_gpp_models.rds')
 plot(bmods$epil)
 plot(conditional_effects(bmods$epil), points = TRUE)
 pp_check(bmods$epil)

@@ -5,7 +5,7 @@ library(nlme)
 library(tidyverse)
 
 # prep data ####
-dd <- read_csv('data/biomass_metab_model_data.csv')
+dd <- read_csv('data/model_fits/biomass_metab_model_data.csv')
 dd <- dd %>%
     mutate(across(starts_with('epil_chla'),
                   function(x) x/max(dd$epil_chla_mgm2_fit, na.rm = T)),

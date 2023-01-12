@@ -2,6 +2,7 @@
 
 # setup ####
 #Use the devtools packge to install StreamLightUtils
+# note this package is huge. you might have to adjust the timeout settings to install it
 # devtools::install_github("psavoy/StreamLightUtils")
 # devtools::install_github("psavoy/StreamLight")
 
@@ -11,8 +12,8 @@ library(lubridate)
 library(tidyverse)
 setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
 
-source('modified_streamLight_functions.R')
-sitedat <- read_csv('data/Site_Locations.csv') %>%
+source('code/data_download_prep/light/modified_streamLight_functions.R')
+sitedat <- read_csv('data/site_data/site_data.csv') %>%
   dplyr::rename(Lat = Latitude, Lon = Longitude) %>%
   mutate(startDate = as.Date('2020-08-01'),
          endDate = as.Date('2021-11-30'),
@@ -20,7 +21,7 @@ sitedat <- read_csv('data/Site_Locations.csv') %>%
 # Download and Process NLDAS data for incoming radiation ####
 # Set the download location (add your own directory)
 base_dir <- "C:/Users/alice.carter/git/UCFR-metabolism"
-working_dir <- paste0(base_dir, '/code/light/NLDAS')
+working_dir <- paste0(base_dir, '/code/data_download_prep/light/NLDAS')
 
 # for multiple sites
 #Read in a table with initial site information
@@ -30,7 +31,7 @@ sites <- sitedat %>%
          epsg_crs = rep(4269, nrow(sitedat))) %>%
   data.frame()
 
-#Download NLDAS data at NC_NHC
+#Download NLDAS data at UCFR
 NLDAS_DL_bulk(
   save_dir = working_dir,
   site_locs = sites
@@ -69,7 +70,7 @@ NLDAS_data <- sitedat %>% filter(!is.na(sitecode)) %>%
     select(sitecode, Site_ID) %>%
     full_join(NLDAS_data)
 setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
-write_csv(NLDAS_data, 'data/sw_radiation_all_sites')
+write_csv(NLDAS_data, 'data/site_data/sw_radiation_all_sites.csv')
 
 # Download and process MODIS LAI ####
 #Make a table for the MODIS request
@@ -79,7 +80,7 @@ request_sites <- sites[, c("Site_ID", "Lat", "Lon")] %>%
 #Export your sites as a .csv for the AppEEARS request
 write.table(
   request_sites,
-  "DWS_sites.csv",
+  "code/data_download_prep/light/MODIS/UCFR_sites.csv",
   sep = ",",
   row.names = FALSE,
   quote = FALSE,
@@ -88,9 +89,9 @@ write.table(
 
 # Save the zip file downloaded from AppEEARS
 # Unpack the data after downloading
-working_dir <- paste0(base_dir, "/MODIS")
+working_dir <- "C:/Users/alice.carter/git/UCFR-metabolism/code/data_download_prep/light/MODIS"
 
-MOD_unpack <- AppEEARS_unpack_QC(
+MOD_unpack <- StreamLightUtils::AppEEARS_unpack_QC(
   zip_file = "dws-nwis-sites.zip",
   zip_dir = working_dir,
   request_sites[, "Site_ID"]
@@ -224,5 +225,5 @@ dat %>% filter(site %in% focal_sites) %>%
 ggplot(aes(date, LAI, col = site)) +
   geom_point()
 
-write_csv(dat, 'daily_modeled_light_all_sites.csv')
+write_csv(dat, 'data/site_data/daily_modeled_light_all_sites.csv')
 

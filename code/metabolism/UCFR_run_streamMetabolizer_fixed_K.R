@@ -38,7 +38,7 @@ PL_daily <- PL %>%
     select(-discharge.daily)
 PL_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=PL,
                        data_daily = PL_daily)
-saveRDS(PL_fit, 'data/metab_fits/PL_knorm_mle_bdr_0.rds')
+saveRDS(PL_fit, 'data/metabolism/metab_fits/PL_knorm_mle_bdr_0.rds')
 
 DL_daily <- DL %>%
     mutate(date = as.Date(solar.time)) %>%
@@ -49,7 +49,7 @@ DL_daily <- DL %>%
     select(-discharge.daily)
 DL_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=DL,
                        data_daily = DL_daily)
-saveRDS(DL_fit, 'data/metab_fits/DL_knorm_mle_bdr_0.rds')
+saveRDS(DL_fit, 'data/metabolism/metab_fits/DL_knorm_mle_bdr_0.rds')
 
 GR_daily <- GR %>%
     mutate(date = as.Date(solar.time)) %>%
@@ -60,7 +60,7 @@ GR_daily <- GR %>%
     select(-discharge.daily)
 GR_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=GR,
                        data_daily = GR_daily)
-saveRDS(GR_fit, 'data/metab_fits/GR_knorm_mle_bdr_0.rds')
+saveRDS(GR_fit, 'data/metabolism/metab_fits/GR_knorm_mle_bdr_0.rds')
 
 GC_daily <- GC %>%
     mutate(date = as.Date(solar.time)) %>%
@@ -71,7 +71,7 @@ GC_daily <- GC %>%
     select(-discharge.daily)
 GC_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=GC,
                        data_daily = GC_daily)
-saveRDS(GC_fit, 'data/metab_fits/GC_knorm_mle_bdr_0.rds')
+saveRDS(GC_fit, 'data/metabolism/metab_fits/GC_knorm_mle_bdr_0.rds')
 
 BM_daily <- BM %>%
     mutate(date = as.Date(solar.time)) %>%
@@ -82,7 +82,7 @@ BM_daily <- BM %>%
     select(-discharge.daily)
 BM_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=BM,
                        data_daily = BM_daily)
-saveRDS(BM_fit, 'data/metab_fits/BM_knorm_mle_bdr_0.rds')
+saveRDS(BM_fit, 'data/metabolism/metab_fits/BM_knorm_mle_bdr_0.rds')
 
 
 BN_daily <- BN %>%
@@ -94,4 +94,4 @@ BN_daily <- BN %>%
     select(-discharge.daily)
 BN_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=BN,
                        data_daily = BN_daily)
-saveRDS(BN_fit, 'data/metab_fits/BN_knorm_mle_bdr_0.rds')
+saveRDS(BN_fit, 'data/metabolism/metab_fits/BN_knorm_mle_bdr_0.rds')

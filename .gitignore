@@ -1,6 +1,8 @@
 figures
-data/metab_fits
+data/metabolism/metab_fits
 data/prepared_data/cleaned_data
-code/light/NLDAS
-code/light/MODIS
+code/download_prep_data/light/NLDAS
+code/download_prep_data/light/MODIS
 .Rproj.user
+todo_ucfr.txt
+.xlsx

@@ -53,4 +53,4 @@ air_pres_temp <- temp.dl.unlist %>%
 attr(air_pres_temp$datetime_MST, 'tzone') <- 'MST'
 air_pres_temp$datetime_UTC <- with_tz(air_pres_temp$datetime_MST, 'UTC')
 air_pres_temp <- select(air_pres_temp, -datetime_MST)
-write_csv(air_pres_temp, 'data/air_pressure_temp.csv')
+write_csv(air_pres_temp, 'data/site_data/air_pressure_temp.csv')

@@ -21,11 +21,6 @@ met <- met %>%
                              TRUE ~ .))) %>%
     select(-DO_fit)
 
-dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')
-dd <- left_join(dat, met, by = c('site', 'date')) %>%
-    select(-msgs.fit, -warnings, ends_with('Rhat') )
-write_csv(dd, 'data/metab_for_results.csv')
-
 light <- read_csv('data/sw_radiation_all_sites') %>%
     group_by(sitecode, date) %>%
     summarize(light = sum(SW)) %>%
@@ -73,95 +68,95 @@ bm <- bm_class %>%
 write_csv(bm, 'data/biomass_data/epil_fila_compiled_dataset.csv')
 
 # Fit HGAMS to biomass data
-fit_hgam <- function(variable , data, k = 6){
-
-    data <- rename(data, x = !!variable)
-    modGS <- gam(x ~ s(doy, sp = k, bs = 'fs') +
-                     s(doy, site, sp = k, bs = "fs"),
-                 data = data, method = "REML")
-
-    newdata <- data.frame()
-    for(s in unique(data$site)){
-        nd <- data.frame(doy = seq(min(data$doy), max(data$doy)),
-                         site = s)
-        newdata <- bind_rows(newdata, nd)
-    }
-    pg <- predict.gam(modGS, se.fit = T, newdata = newdata)
-    newdata[[paste0(variable, '_mean')]] <- unname(c(pg$fit))
-    newdata[[paste0(variable, '_se')]] <- unname(c(pg$se.fit))
-
-    return(newdata)
-}
-
-bm_2020 <- filter(bm, year == 2020)
-bm_2021 <- filter(bm, year == 2021)
-
-k = 8
-gam_2020 <- fit_hgam('epilitheon_gm2', bm_2020, k)
-gam_2020 <- fit_hgam('epilitheon_chla.mgm2', bm_2020, k) %>%
-    full_join(gam_2020, by = c('doy', 'site'))
-gam_2020 <- fit_hgam('filamentous_gm2', bm_2020, k)%>%
-    full_join(gam_2020, by = c('doy', 'site'))
-gam_2020 <- fit_hgam('filamentous_chla.mgm2', bm_2020, k)%>%
-    full_join(gam_2020, by = c('doy', 'site'))
-gam_2020 <- fit_hgam('phicocyanin.mg.m2', bm_2020, k)%>%
-    full_join(gam_2020, by = c('doy', 'site'))
-gam_2021 <- fit_hgam('epilitheon_gm2', bm_2021, k)
-gam_2021 <- fit_hgam('epilitheon_chla.mgm2', bm_2021, k)%>%
-    full_join(gam_2021, by = c('doy', 'site'))
-gam_2021 <- fit_hgam('filamentous_gm2', bm_2021, k)%>%
-    full_join(gam_2021, by = c('doy', 'site'))
-gam_2021 <- fit_hgam('filamentous_chla.mgm2', bm_2021, k)%>%
-    full_join(gam_2021, by = c('doy', 'site'))
-gam_2021 <- fit_hgam('phicocyanin.mg.m2', bm_2021, k)%>%
-    full_join(gam_2021, by = c('doy', 'site'))
-gam_2020$year <- 2020
-gam_2021$year <- 2021
-
-bm_gams <- bind_rows(gam_2020,gam_2021)
-
-write_csv(bm_gams, 'data/biomass_data/gam_fits_biomass_2.csv')
-bm_gams <- read_csv('data/biomass_data/gam_fits_biomass_2.csv')
-
-# Plot biomass data:
-ggplot(bm_gams, aes(doy, epilitheon_gm2_mean, col = site)) +
-    geom_line() +
-    geom_point(data = bm, aes(doy, epilitheon_gm2, col = site))+
-    facet_grid(site~year, scales = 'free')
-
-
-
-bm_class <- bm %>%
-    # rename(phicocyanin_mgm2 = phicocyanin.mg.m2)
-    # rename_with(function(x) {str_match(x, '^([^\\.]+)')[, 2]}, ends_with('_mean')) %>%
-    pivot_longer(any_of(ends_with('gm2')),
-                 names_to = c('biomass_type', 'meas'),
-                 names_sep = '_',
-                 values_to = 'value') %>%
-    pivot_wider(id_cols = c('date', 'doy', 'site', 'sample', 'biomass_type'),
-                values_from = 'value',
-                names_from = 'meas')%>%
-    rename(biomass.gm2 = gm2) %>%
-    mutate(year = substr(date, 1,4))
-
-png('figures/biomass_categories_by_site.png', width = 10, height = 6,
-    units = 'in', res = 300)
-    bm_class %>%
-    ggplot(aes(doy, biomass.gm2, col = factor(year))) +
-        geom_line() +
-        facet_grid(biomass_type~site, scale = 'free') +
-        theme_bw()
-dev.off()
-png('figures/biomass_categories_by_site.png', width = 10, height = 6,
-    units = 'in', res = 300)
-    bm_class %>%
-    ggplot( aes(doy, chla.mgm2, col = factor(year))) +
-        geom_point() +
-        geom_smooth(se = FALSE)+
-        scale_y_log10()+
-        facet_grid(biomass_type~site, scale = 'free') +
-        theme_bw()
-dev.off()
+# fit_hgam <- function(variable , data, k = 6){
+#
+#     data <- rename(data, x = !!variable)
+#     modGS <- gam(x ~ s(doy, sp = k, bs = 'fs') +
+#                      s(doy, site, sp = k, bs = "fs"),
+#                  data = data, method = "REML")
+#
+#     newdata <- data.frame()
+#     for(s in unique(data$site)){
+#         nd <- data.frame(doy = seq(min(data$doy), max(data$doy)),
+#                          site = s)
+#         newdata <- bind_rows(newdata, nd)
+#     }
+#     pg <- predict.gam(modGS, se.fit = T, newdata = newdata)
+#     newdata[[paste0(variable, '_mean')]] <- unname(c(pg$fit))
+#     newdata[[paste0(variable, '_se')]] <- unname(c(pg$se.fit))
+#
+#     return(newdata)
+# }
+#
+# bm_2020 <- filter(bm, year == 2020)
+# bm_2021 <- filter(bm, year == 2021)
+#
+# k = 8
+# gam_2020 <- fit_hgam('epilitheon_gm2', bm_2020, k)
+# gam_2020 <- fit_hgam('epilitheon_chla.mgm2', bm_2020, k) %>%
+#     full_join(gam_2020, by = c('doy', 'site'))
+# gam_2020 <- fit_hgam('filamentous_gm2', bm_2020, k)%>%
+#     full_join(gam_2020, by = c('doy', 'site'))
+# gam_2020 <- fit_hgam('filamentous_chla.mgm2', bm_2020, k)%>%
+#     full_join(gam_2020, by = c('doy', 'site'))
+# gam_2020 <- fit_hgam('phicocyanin.mg.m2', bm_2020, k)%>%
+#     full_join(gam_2020, by = c('doy', 'site'))
+# gam_2021 <- fit_hgam('epilitheon_gm2', bm_2021, k)
+# gam_2021 <- fit_hgam('epilitheon_chla.mgm2', bm_2021, k)%>%
+#     full_join(gam_2021, by = c('doy', 'site'))
+# gam_2021 <- fit_hgam('filamentous_gm2', bm_2021, k)%>%
+#     full_join(gam_2021, by = c('doy', 'site'))
+# gam_2021 <- fit_hgam('filamentous_chla.mgm2', bm_2021, k)%>%
+#     full_join(gam_2021, by = c('doy', 'site'))
+# gam_2021 <- fit_hgam('phicocyanin.mg.m2', bm_2021, k)%>%
+#     full_join(gam_2021, by = c('doy', 'site'))
+# gam_2020$year <- 2020
+# gam_2021$year <- 2021
+#
+# bm_gams <- bind_rows(gam_2020,gam_2021)
+#
+# write_csv(bm_gams, 'data/biomass_data/gam_fits_biomass_2.csv')
+# bm_gams <- read_csv('data/biomass_data/gam_fits_biomass_2.csv')
+#
+# # Plot biomass data:
+# ggplot(bm_gams, aes(doy, epilitheon_gm2_mean, col = site)) +
+#     geom_line() +
+#     geom_point(data = bm, aes(doy, epilitheon_gm2, col = site))+
+#     facet_grid(site~year, scales = 'free')
+#
+#
+#
+# bm_class <- bm %>%
+#     # rename(phicocyanin_mgm2 = phicocyanin.mg.m2)
+#     # rename_with(function(x) {str_match(x, '^([^\\.]+)')[, 2]}, ends_with('_mean')) %>%
+#     pivot_longer(any_of(ends_with('gm2')),
+#                  names_to = c('biomass_type', 'meas'),
+#                  names_sep = '_',
+#                  values_to = 'value') %>%
+#     pivot_wider(id_cols = c('date', 'doy', 'site', 'sample', 'biomass_type'),
+#                 values_from = 'value',
+#                 names_from = 'meas')%>%
+#     rename(biomass.gm2 = gm2) %>%
+#     mutate(year = substr(date, 1,4))
+#
+# png('figures/biomass_categories_by_site.png', width = 10, height = 6,
+#     units = 'in', res = 300)
+#     bm_class %>%
+#     ggplot(aes(doy, biomass.gm2, col = factor(year))) +
+#         geom_line() +
+#         facet_grid(biomass_type~site, scale = 'free') +
+#         theme_bw()
+# dev.off()
+# png('figures/biomass_categories_by_site.png', width = 10, height = 6,
+#     units = 'in', res = 300)
+#     bm_class %>%
+#     ggplot( aes(doy, chla.mgm2, col = factor(year))) +
+#         geom_point() +
+#         geom_smooth(se = FALSE)+
+#         scale_y_log10()+
+#         facet_grid(biomass_type~site, scale = 'free') +
+#         theme_bw()
+# dev.off()
 
 # Biomass and Metabolism ####
 biomass <- read_csv('data/biomass_data/biomass_working_data_summary.csv') %>%

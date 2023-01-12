@@ -9,9 +9,9 @@ library(lubridate)
 
 ##Load depth data
 setwd("C:/Users/alice.carter/git/UCFR-metabolism")
-site_dat <- read_csv('data/site_data.csv')%>%
+site_dat <- read_csv('data/site_data/site_data.csv')%>%
     filter(!is.na(sitecode))
-UCFR_depth<- read_csv("data/UCFR_depth_summary.csv")
+UCFR_depth<- read_csv("data/site_data/UCFR_depth_summary.csv")
 UCFR_depth$date <- as.Date(UCFR_depth$date, format="%m-%d-%Y")
 start.20<-as.Date("2020-07-13")
 end.21<-as.Date("2021-11-01")
@@ -43,7 +43,7 @@ for (i in 1:6){
 daily.q <- do.call(rbind.data.frame, dailyflow)
 
 daily.q.sub <- filter(daily.q, date >= start.20  & date <= end.21)
-write_csv(daily.q.sub, 'discharge_UCFRsites_2020.csv')
+write_csv(daily.q.sub, 'data/site_data/discharge_UCFRsites_2020.csv')
 
 ## Join discharge with depth and width data (by date)
 data.sub <- left_join(daily.q.sub, UCFR_depth)
@@ -138,7 +138,7 @@ png('figures/depth_discharge_relationships.png')
 dev.off()
 
 fits$formula = 'log(d) = a + b * log(q)'
-write_csv(fits, 'data/depth_discharge_relationships_allsites.csv')
+write_csv(fits, 'data/site_data/depth_discharge_relationships_allsites.csv')
 
 # ####Individual analysis ####
 # data.GR<-subset(data, site=="GR")

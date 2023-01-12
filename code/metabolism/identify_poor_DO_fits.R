@@ -7,7 +7,7 @@ library(lubridate)
 library(streamMetabolizer)
 source('code/metabolism/functions_examine_SM_output.R')
 
-site_dat <- read_csv('data/site_data.csv') %>%
+site_dat <- read_csv('data/site_data/site_data.csv') %>%
     mutate(site = factor(sitecode,
                          levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
     filter(!is.na(sitecode)) %>%
@@ -15,7 +15,7 @@ site_dat <- read_csv('data/site_data.csv') %>%
 
 all_bad_days <- data.frame()
 # Perkins ####
-fit <- readRDS('data/metab_fits/initial runs/PL_knorm_oipi_1000iter.rds')
+fit <- readRDS('data/metabolism/metab_fits/initial runs/PL_knorm_oipi_1000iter.rds')
 dat <- read_csv('data/prepared_data/PL2020_2021.csv')
 # examine DO fit for bad days
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
@@ -26,7 +26,7 @@ all_bad_days = data.frame(site = rep('PL', length(bad_days)),
     bind_rows(all_bad_days)
 
 # Deer Lodge ####
-fit <- readRDS('data/metab_fits/initial runs/DL_knorm_oipi_1000iter.rds')
+fit <- readRDS('data/metabolism/metab_fits/initial runs/DL_knorm_oipi_1000iter.rds')
 dat <- read_csv('data/prepared_data/DL2020_2021.csv')
 # examine DO fit for bad days
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
@@ -36,7 +36,7 @@ all_bad_days = data.frame(site = rep('DL', length(bad_days)),
     bind_rows(all_bad_days)
 
 # Garrison 2020####
-fit <- readRDS('data/metab_fits/initial runs/GR_knorm_oipi_1000iter.rds')
+fit <- readRDS('data/metabolism/metab_fits/initial runs/GR_knorm_oipi_1000iter.rds')
 dat <- read_csv('data/prepared_data/GR2020_2021.csv')
 # examine DO fit for bad days
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
@@ -48,7 +48,7 @@ all_bad_days = data.frame(site = rep('GR', length(bad_days)),
     bind_rows(all_bad_days)
 
 # Gold Creek 2020####
-fit <- readRDS('data/metab_fits/initial runs/GC_knorm_oipi_1000iter.rds')
+fit <- readRDS('data/metabolism/metab_fits/initial runs/GC_knorm_oipi_1000iter.rds')
 dat <- read_csv('data/prepared_data/GC2020_2021.csv')
 # examine DO fit for bad days
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
@@ -61,7 +61,7 @@ all_bad_days = data.frame(site = rep('GC', length(bad_days)),
     bind_rows(all_bad_days)
 
 # BearMouth 2020####
-fit <- readRDS('data/metab_fits/initial runs/BM_knorm_oipi_1000iter.rds')
+fit <- readRDS('data/metabolism/metab_fits/initial runs/BM_knorm_oipi_1000iter.rds')
 dat <- read_csv('data/prepared_data/BM2020_2021.csv')
 # examine DO fit for bad days
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
@@ -72,7 +72,7 @@ all_bad_days = data.frame(site = rep('BM', length(bad_days)),
     bind_rows(all_bad_days)
 
 # Bonita 2020####
-fit <- readRDS('data/metab_fits/initial runs/BN_knorm_oipi_1000iter.rds')
+fit <- readRDS('data/metabolism/metab_fits/initial runs/BN_knorm_oipi_1000iter.rds')
 dat <- read_csv('data/prepared_data/BN2020_2021.csv')
 # examine DO fit for bad days
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
@@ -82,4 +82,4 @@ all_bad_days = data.frame(site = rep('BN', length(bad_days)),
                           bad_days = bad_days) %>%
     bind_rows(all_bad_days)
 
-write_csv(all_bad_days, 'data/days_with_poor_DO_fits_initial_run.csv')
+write_csv(all_bad_days, 'data/metabolism/days_with_poor_DO_fits_initial_run.csv')

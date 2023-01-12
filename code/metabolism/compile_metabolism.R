@@ -7,7 +7,7 @@ library(lubridate)
 library(streamMetabolizer)
 source('code/metabolism/functions_examine_SM_output.R')
 
-site_dat <- read_csv('data/site_data.csv') %>%
+site_dat <- read_csv('data/site_data/site_data.csv') %>%
     mutate(site = factor(sitecode,
                          levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
     filter(!is.na(sitecode)) %>%
@@ -16,7 +16,7 @@ site_dat <- read_csv('data/site_data.csv') %>%
 # all_bad_days <- data.frame()
 compiled_metab <- data.frame()
 # Perkins ####
-fit <- readRDS('data/metab_fits/PL_knorm_oipi_2000iter_bdr_005.rds')
+fit <- readRDS('data/metabolism/metab_fits/PL_knorm_oipi_2000iter_bdr_005.rds')
 dat <- read_csv('data/prepared_data/PL2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
@@ -43,7 +43,7 @@ compiled_metab <- bind_rows(compiled_metab, met)
 
 
 # Deer Lodge ####
-fit <- readRDS('data/metab_fits/DL_knorm_oipi_2000iter_bdr_05.rds')
+fit <- readRDS('data/metabolism/metab_fits/DL_knorm_oipi_2000iter_bdr_05.rds')
 dat <- read_csv('data/prepared_data/DL2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
@@ -68,7 +68,7 @@ get_fit(fit)$KQ_overall %>% glimpse()
 compiled_metab <- bind_rows(compiled_metab, met)
 
 # Garrison 2020####
-fit <- readRDS('data/metab_fits/GR_knorm_oipi_2000iter_bdr_01.rds')
+fit <- readRDS('data/metabolism/metab_fits/GR_knorm_oipi_2000iter_bdr_01.rds')
 dat <- read_csv('data/prepared_data/GR2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
@@ -94,7 +94,7 @@ compiled_metab <- bind_rows(compiled_metab, met)
 
 
 # Gold Creek 2020####
-fit <- readRDS('data/metab_fits/GC_knorm_oipi_2000iter_bdr_005.rds')
+fit <- readRDS('data/metabolism/metab_fits/GC_knorm_oipi_2000iter_bdr_005.rds')
 dat <- read_csv('data/prepared_data/GC2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
@@ -122,7 +122,7 @@ compiled_metab <- bind_rows(compiled_metab, met)
 
 
 # BearMouth 2020####
-fit <- readRDS('data/metab_fits/BM_knorm_oipi_2000iter_bdr_05.rds')
+fit <- readRDS('data/metabolism/metab_fits/BM_knorm_oipi_2000iter_bdr_05.rds')
 dat <- read_csv('data/prepared_data/BM2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
@@ -148,7 +148,7 @@ compiled_metab <- bind_rows(compiled_metab, met)
 
 
 # Bonita 2020####
-fit <- readRDS('data/metab_fits/BN_knorm_oipi_2000iter_bdr_005.rds')
+fit <- readRDS('data/metabolism/metab_fits/BN_knorm_oipi_2000iter_bdr_005.rds')
 dat <- read_csv('data/prepared_data/BN2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
@@ -179,51 +179,17 @@ compiled_metab <- compiled_metab %>%
     left_join(select(site_dat, site, distance_dwnstrm_km))
 
 
-write_csv(compiled_metab, 'data/metabolism_compiled_all_sites_2000iter_bdr_kss005.csv')
+write_csv(compiled_metab, 'data/metabolism/metabolism_compiled_all_sites_2000iter_bdr_kss005.csv')
 # write_csv(all_bad_days, 'data/days_with_poor_DO_fits.csv')
-# png('figures/model_fits/QxK_across_sites.png', width = 8, height = 6.5,
-png('figures/model_fits/Rhat_across_sites_normal_pool.png', width = 8, height = 6.5,
-    res = 300, units = 'in')
+met <- compiled_metab %>%
+    select(-errors) %>%
+    mutate(across(starts_with(c('GPP', 'ER', 'K600')),
+                  ~case_when((!is.na(DO_fit) & DO_fit == 'bad') ~ NA_real_,
+                             TRUE ~ .))) %>%
+    select(-DO_fit)
 
-    par(mfrow = c(2,3),
-        mar = c(1,1,0,1),
-        oma = c(4,4,3,0))
-    fit <- readRDS('data/metab_fits/PL_knorm_oipi_2000iter_bdr.rds')
-    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-    plot_Rhats(fit)
-    mtext('PL', 3, line = -2.5, adj = 0.9)
-    rm(fit)
-    fit <- readRDS('data/metab_fits/DL_knorm_oipi.rds')
-    plot_Rhats(fit)
-    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-    mtext('DL', 3, line = -2.5, adj = 0.9)
-    rm(fit)
-    fit <- readRDS('data/metab_fits/GR_knorm_oipi.rds')
-    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-    plot_Rhats(fit)
-    mtext('GR', 3, line = -2.5, adj = 0.9)
-    rm(fit)
-    fit <- readRDS('data/metab_fits/GC_knorm_oipi.rds')
-    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-    plot_Rhats(fit)
-    mtext('GC', 3, line = -2.5, adj = 0.9)
-    rm(fit)
-    fit <- readRDS('data/metab_fits/BM_knorm_oipi.rds')
-    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-    plot_Rhats(fit)
-    mtext('BM', 3, line = -2.5, adj = 0.9)
-    rm(fit)
-    fit <- readRDS('data/metab_fits/BN_knorm_oipi.rds')
-    # plot_KxQ_bins(fit, labs = FALSE, legend = FALSE)
-    plot_Rhats(fit)
-    mtext('BN', 3, line = -2.5, adj = 0.9)
+dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')
+dd <- left_join(dat, met, by = c('site', 'date')) %>%
+    select(-msgs.fit, -warnings, ends_with('Rhat') )
 
-    par(mfrow = c(1,1), oma = c(0,0,2.5,0), new = T)
-    # mtext(expression(paste("log discharge (m"^"3"~"s"^"-1"*")")), 1, adj = .55)
-    # mtext(expression(paste("K600 (d"^"-1"*")")), 2, line = 0)
-    mtext('Date', 1, adj = .55)
-    mtext('Rhat', 2, line = 0)
-    # legend('top', legend = c("prior", "posterior", "data"),
-    #        col = c( "brown3", "brown3", "grey25"), xpd = NA, inset = c(0, -0.12),
-    #        pch = c(1, 19, 20), bty = 'n', ncol = 3)
-dev.off()
+write_csv(dd, 'data/metabolism/metab_for_results.csv')

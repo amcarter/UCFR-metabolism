@@ -78,7 +78,7 @@ extract_model_params <- function(fit, bmv = 'fila + epil', units = 'gm2'){
 }
 
 # prep data ####
-dd <- read_csv('data/biomass_metab_model_data.csv')
+dd <- read_csv('data/metab_fits/biomass_metab_model_data.csv')
 dd <- dd %>%
     mutate(across(starts_with(c('epil','fila', 'light', 'K600')), ~scale(.)[,1]),
            across(starts_with(c('epil','fila', 'light', 'K600')), ~ . - min(., na.rm = T)),
