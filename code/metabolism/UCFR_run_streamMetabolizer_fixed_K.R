@@ -95,3 +95,97 @@ BN_daily <- BN %>%
 BN_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=BN,
                        data_daily = BN_daily)
 saveRDS(BN_fit, 'data/metabolism/metab_fits/BN_knorm_mle_bdr_0.rds')
+
+
+
+# Compile metabolism estimates
+source('code/metabolism/functions_examine_SM_output.R')
+
+site_dat <- read_csv('data/site_data/site_data.csv') %>%
+    mutate(site = factor(sitecode,
+                         levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+    filter(!is.na(sitecode)) %>%
+    rename(distance_dwnstrm_km = 'Distance downstream (km)')
+
+# all_bad_days <- data.frame()
+compiled_metab <- data.frame()
+# Perkins ####
+fit <- readRDS('data/metabolism/metab_fits/PL_knorm_mle_bdr_0.rds')
+dat <- read_csv('data/prepared_data/PL2020_2021.csv')
+# examine DO fit for bad days
+plot_metab_preds(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
+met <- extract_metab(fit, sitecode = 'PL', mle = TRUE)#, bad_days = bad_days)
+compiled_metab <- bind_rows(compiled_metab, met)
+
+# Deer Lodge ####
+fit <- readRDS('data/metabolism/metab_fits/DL_knorm_mle_bdr_0.rds')
+dat <- read_csv('data/prepared_data/DL2020_2021.csv')
+# examine DO fit for bad days
+plot_metab_preds(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
+met <- extract_metab(fit, sitecode = 'DL', mle = TRUE)#, bad_days)
+compiled_metab <- bind_rows(compiled_metab, met)
+
+# Garrison 2020####
+fit <- readRDS('data/metabolism/metab_fits/GR_knorm_mle_bdr_0.rds')
+dat <- read_csv('data/prepared_data/GR2020_2021.csv')
+# examine DO fit for bad days
+plot_metab_preds(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
+met <- extract_metab(fit, sitecode = 'GR', mle = TRUE)#, bad_days)
+compiled_metab <- bind_rows(compiled_metab, met)
+
+
+# Gold Creek 2020####
+fit <- readRDS('data/metabolism/metab_fits/GC_knorm_mle_bdr_0.rds')
+dat <- read_csv('data/prepared_data/GC2020_2021.csv')
+# examine DO fit for bad days
+plot_metab_preds(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
+met <- extract_metab(fit, sitecode = 'GC', mle = TRUE)
+compiled_metab <- bind_rows(compiled_metab, met)
+
+# BearMouth 2020####
+fit <- readRDS('data/metabolism/metab_fits/BM_knorm_mle_bdr_0.rds')
+dat <- read_csv('data/prepared_data/BM2020_2021.csv')
+# examine DO fit for bad days
+plot_metab_preds(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
+met <- extract_metab(fit, sitecode = 'BM', mle = TRUE)#, bad_days)
+compiled_metab <- bind_rows(compiled_metab, met)
+
+
+# Bonita 2020####
+fit <- readRDS('data/metabolism/metab_fits/BN_knorm_mle_bdr_0.rds')
+dat <- read_csv('data/prepared_data/BN2020_2021.csv')
+# examine DO fit for bad days
+plot_metab_preds(fit)
+plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
+met <- extract_metab(fit, sitecode = 'BN', mle = TRUE)#, bad_days)
+compiled_metab <- bind_rows(compiled_metab, met)
+
+
+compiled_metab <- compiled_metab %>%
+    mutate(year = factor(year(date)),
+           doy = as.numeric(format(date, '%j')),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+    left_join(select(site_dat, site, distance_dwnstrm_km))
+
+
+write_csv(compiled_metab, 'data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv')
+# write_csv(all_bad_days, 'data/days_with_poor_DO_fits.csv')
+
+met <- compiled_metab %>%
+    select(-errors) %>%
+    mutate(across(starts_with(c('GPP', 'ER', 'K600')),
+                  ~case_when((!is.na(DO_fit) & DO_fit == 'bad') ~ NA_real_,
+                             TRUE ~ .))) %>%
+    select(-DO_fit)
+
+dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')
+dd <- left_join(dat, met, by = c('site', 'date')) %>%
+    select(-msgs.fit, -warnings, ends_with('Rhat') )
+
+write_csv(dd, 'data/metabolism/metab_for_results.csv')
+

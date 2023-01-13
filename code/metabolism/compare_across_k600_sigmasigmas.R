@@ -2,7 +2,7 @@
 
 library(tidyverse)
 
-files <- grep('\\.rds$', list.files('data/metab_fits'), value = TRUE)
+files <- grep('\\.rds$', list.files('data/metabolism/metab_fits'), value = TRUE)
 
 COMP_MET <- data.frame()
 KCOR <- data.frame()
@@ -12,7 +12,7 @@ for(site in c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')){
     sitefiles <- grep(paste0('^', site), files, value = TRUE)
 
     for(f in sitefiles){
-        fit <- readRDS(paste0('data/metab_fits/', f))
+        fit <- readRDS(paste0('data/metabolism/metab_fits/', f))
         K600_sigsig <- paste0('0.', str_match(f, '_([0-9]+)\\.rds$')[,2])
         if(K600_sigsig == '0.0'){
                 met <- fit@fit %>%

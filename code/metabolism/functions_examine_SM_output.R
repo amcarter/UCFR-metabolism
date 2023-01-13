@@ -13,7 +13,20 @@ library(streamMetabolizer)
 
 # Extract data from fit ####
 # get metabolism and K600 fit data with Rhats and CIs
-extract_metab <- function(fit, sitecode = NA, bad_days = NULL){ # bad days option allows for flagging bad DO fits
+extract_metab <- function(fit, sitecode = NA, bad_days = NULL, mle = FALSE){ # bad days option allows for flagging bad DO fits
+    if(mle){
+        met <- fit@fit %>%
+            select(date,
+                   GPP = GPP.daily, GPP.sd = GPP.daily.sd,
+                   ER = ER.daily, ER.sd = ER.daily.sd) %>%
+            mutate(GPP.lower = GPP - 1.96*GPP.sd,
+                   GPP.upper = GPP + 1.96*GPP.sd,
+                   ER.lower = ER - 1.96*ER.sd,
+                   ER.upper = ER + 1.96*ER.sd)
+        met <- fit@data_daily %>% rename(K600 = K600.daily) %>%
+            left_join(met, by = 'date')
+    } else{
+
     met <- fit@fit$daily %>%
         select(date,
                GPP = GPP_daily_50pct, GPP.lower = GPP_daily_2.5pct,
@@ -22,6 +35,7 @@ extract_metab <- function(fit, sitecode = NA, bad_days = NULL){ # bad days optio
                K600 = K600_daily_50pct, K600.lower = K600_daily_2.5pct,
                K600.upper = K600_daily_97.5pct, GPP_Rhat = GPP_daily_Rhat,
                ER_Rhat = ER_daily_Rhat, K600_Rhat = K600_daily_Rhat)
+    }
 
     m <- predict_metab(fit) %>%
         select(date, msgs.fit, warnings, errors)

@@ -98,20 +98,21 @@ extract_model_chains <- function(fit, bmv = 'fila + epil', units = 'gm2'){
         data.frame()
     ss <- ss %>%
         select(phi, starts_with('gamma')) %>%
-        select(-gamma.1, -gamma.2) %>%
+        select(-gamma.1) %>%
         mutate(across(starts_with('gamma'),
                       ~ ./(1-phi))) %>%
         pivot_longer(cols = everything(), names_to = 'parameter',
                      values_to = 'chains') %>%
         mutate(biomass_vars = bmv,
                units = units,
-               parameter = case_when(parameter == 'gamma.3' ~ 'gamma_light',
-                                 parameter == 'gamma.4' &
-                                     biomass_vars %in% c('fila', 'fila_epil') ~ 'gamma_fila',
-                                 parameter == 'gamma.4' &
-                                     biomass_vars == 'epil' ~ 'gamma_epil',
-                                 parameter == 'gamma.5' ~ 'gamma_epil',
-                                 TRUE ~ parameter))
+               parameter = case_when(parameter == 'gamma.2' ~ 'gamma_k600',
+                                     parameter == 'gamma.3' ~ 'gamma_light',
+                                     parameter == 'gamma.4' &
+                                        biomass_vars %in% c('fila', 'fila_epil') ~ 'gamma_fila',
+                                     parameter == 'gamma.4' &
+                                        biomass_vars == 'epil' ~ 'gamma_epil',
+                                     parameter == 'gamma.5' ~ 'gamma_epil',
+                                     TRUE ~ parameter))
 
 
     return(ss)
@@ -326,9 +327,18 @@ mod_ests <- mod_ests %>%
                                      biomass_vars == 'epil' ~ 'gamma_epil',
                                  parameter == 'gamma5' ~ 'gamma_epil',
                                  TRUE ~ parameter))
+write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_logbm.csv')
+write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_logbm.csv')
 write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters.csv')
 write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot.csv')
+write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_logbm_fixedK.csv')
+write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_logbm_fixedK.csv')
+write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_fixedK.csv')
+write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_fixedK.csv')
 # write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_logGPP.csv')
+
+mod_ests <- read_csv( 'data/model_fits/hierarchical_model_parameters_logbm.csv')
+chains <- read_csv('data/model_fits/hierarchical_model_posterior_distributions_for_plot_logbm.csv')
 
 mod_ests %>%
     filter(!grepl('^beta', parameter) ,

@@ -173,6 +173,20 @@ png('figures/biomass_logGAMs_diagnostics.png', width = 7.5, height = 7.5,
     gam.check(fg2_fila_chla_log)
     mtext(expression(paste('fila. chla mg',m^-2)), 2, line = 45)
 dev.off()
+png('figures/biomass_GAMs_diagnostics.png', width = 7.5, height = 7.5,
+    units = 'in', res = 300)
+    par(mfrow = c(4,4),
+        mar = c(3,4,2,2),
+        oma = c(0,3,1,0))
+    gam.check(fg2)
+    mtext(expression(paste('biofilm g',m^-2)), 2, line = 45)
+    gam.check(fg2_fila)
+    mtext(expression(paste('fila. g',m^-2)), 2, line = 45)
+    gam.check(fg2_chla)
+    mtext(expression(paste('biofilm chla mg',m^-2)), 2, line = 45)
+    gam.check(fg2_fila_chla)
+    mtext(expression(paste('fila. chla mg',m^-2)), 2, line = 45)
+dev.off()
 
 # plot GAMS
 ddd <- s_preds %>%
