@@ -1,16 +1,14 @@
 # compile data for running metabolism-biomass models
 library(tidyverse)
+library(lubridate)
 
+# met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv')# %>%
 met <- read_csv('data/metabolism/metabolism_compiled_all_sites_2000iter_bdr_kss005.csv') %>%
     mutate(across(starts_with(c('GPP', 'ER', 'K600'), ignore.case = FALSE),
                   ~case_when(DO_fit == 'bad' ~ NA_real_,
-                             TRUE ~ .)))
-light <- read_csv('data/site_data/sw_radiation_all_sites.csv') %>%
-    group_by(sitecode, date) %>%
-    summarize(light = sum(SW)) %>%
-    ungroup() %>%
-    rename(site = sitecode) %>%
-    mutate(light_rel = light/max(light))
+                            TRUE ~ .)))
+light <- read_csv('data/site_data/daily_modeled_light_all_sites.csv') %>%
+    mutate(light_rel = PAR_surface/max(PAR_surface))
 
 q <- read_csv('data/site_data/discharge_UCFRsites_2020.csv')
 

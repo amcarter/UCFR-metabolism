@@ -16,7 +16,7 @@ rle2 <- function(x){ # function for breaking site years to restart AR model
 }
 
 # functions to interact with model output: ####
-fit_biomass_model <- function(dd, biomass, model){
+fit_biomass_model <- function(dd, biomass, model, K600 = TRUE){
 
     new_ts <- rep(0, nrow(dd))
     new_ts[rle2(paste0(dd$year, dd$site))$starts] <- 1
@@ -32,6 +32,18 @@ fit_biomass_model <- function(dd, biomass, model){
         P_sd = dd$GPP_sd,
         new_ts = new_ts
     )
+    if(!K600){
+    datlist <- list(
+        N = nrow(dd), K = ncol(biomass),
+        S = length(sites), ss = as.numeric(dd$site),
+        light = dd$light,
+        biomass = biomass,
+        P = dd$GPP,
+        P_sd = dd$GPP_sd,
+        new_ts = new_ts
+    )
+
+    }
 
     fit <- sampling(
         model,
@@ -105,6 +117,29 @@ extract_model_chains <- function(fit, bmv = 'fila + epil', units = 'gm2'){
                      values_to = 'chains') %>%
         mutate(biomass_vars = bmv,
                units = units,
+               parameter = case_when(parameter == 'gamma.2' ~ 'gamma_light',
+                                     parameter == 'gamma.3' &
+                                        biomass_vars %in% c('fila', 'fila_epil') ~ 'gamma_fila',
+                                     parameter == 'gamma.3' &
+                                        biomass_vars == 'epil' ~ 'gamma_epil',
+                                     parameter == 'gamma.4' ~ 'gamma_epil',
+                                     TRUE ~ parameter))
+
+
+    return(ss)
+}
+extract_model_chains_K600 <- function(fit, bmv = 'fila + epil', units = 'gm2'){
+    ss <- rstan::extract(fit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma')) %>%
+        data.frame()
+    ss <- ss %>%
+        select(phi, starts_with('gamma')) %>%
+        select(-gamma.1) %>%
+        mutate(across(starts_with('gamma'),
+                      ~ ./(1-phi))) %>%
+        pivot_longer(cols = everything(), names_to = 'parameter',
+                     values_to = 'chains') %>%
+        mutate(biomass_vars = bmv,
+               units = units,
                parameter = case_when(parameter == 'gamma.2' ~ 'gamma_k600',
                                      parameter == 'gamma.3' ~ 'gamma_light',
                                      parameter == 'gamma.4' &
@@ -117,38 +152,6 @@ extract_model_chains <- function(fit, bmv = 'fila + epil', units = 'gm2'){
 
     return(ss)
 }
-
-
-# prep data ####
-dd <- read_csv('data/model_fits/biomass_metab_model_data.csv')
-dd <- dd %>%
-    mutate(across(starts_with(c('epil','fila', 'light', 'K600')), ~scale(.)[,1]),
-           across(starts_with(c('epil','fila', 'light', 'K600')), ~ . - min(., na.rm = T)),
-    # mutate(across(starts_with(c('epil','fila')), ~scale(.)[,1]),
-           across(where(is.numeric), zoo::na.approx, na.rm = FALSE),
-           year = lubridate::year(date),
-           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
-    filter(!is.na(GPP), !is.na(epil_gm2_fit), !is.na(fila_gm2_fit),
-           !is.na(light))
-
-sites <- unique(dd$site)
-P_mod <- stan_model("code/model/stan_code/GPP_biomass_model_ar1_hierarchical.stan")
-P_mod_nb <- stan_model("code/model/stan_code/GPP_NObiomass_model_ar1_hierarchical.stan")
-# P_mod <- stan_model("code/model/stan_code/logGPP_biomass_model_ar1_hierarchical.stan")
-# P_mod_nb <- stan_model("code/model/stan_code/logGPP_NObiomass_model_ar1_hierarchical.stan")
-
-# run on real data: ####
-
-biomass = matrix(dd$fila_chla_mgm2_fit, ncol = 1)
-dfit <- fit_biomass_model(dd, biomass, P_mod)
-
-print(dfit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma'))
-plot(dfit, pars = c('phi', 'gamma[2]', 'gamma[3]', 'gamma[4]', 'sigma', 'tau'),
-     show_density = TRUE)
-plot(dfit, pars = c('gamma[1]', 'beta'), show_density = TRUE)
-
-# shinystan::launch_shinystan(dfit)
-preds <- get_model_preds(dfit, dd)
 calculate_r2_adj <- function(preds, npar = 13){
 
     N = nrow(preds)
@@ -166,6 +169,37 @@ calculate_rmse <- function(preds){
 
     return(rmse)
 }
+
+
+# prep data ####
+dd <- read_csv('data/model_fits/biomass_metab_model_data.csv')
+par(mfrow = c(3,3))
+hist(dd$GPP)
+hist(dd$ER)
+hist(dd$fila_chla_mgm2_fit)
+hist(dd$fila_gm2_fit)
+hist(dd$epil_chla_mgm2_fit)
+hist(dd$epil_gm2_fit)
+hist(dd$light)
+hist(dd$K600)
+dev.off()
+
+# manually scale so that the se's are correct
+dd<- dd %>%
+    mutate(across(starts_with('GPP'), ~log(.))) %>%
+    mutate(across(starts_with(c('epil','fila', 'light', 'K600')), ~scale(.)[,1]),
+           across(starts_with(c('epil','fila', 'light', 'K600')), ~ . - min(., na.rm = T)),
+    # mutate(across(starts_with(c('epil','fila')), ~scale(.)[,1]),
+           across(where(is.numeric), zoo::na.approx, na.rm = FALSE),
+           year = lubridate::year(date),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+    filter(!is.na(GPP), !is.na(epil_gm2_fit), !is.na(fila_gm2_fit),
+           !is.na(light))
+
+sites <- unique(dd$site)
+P_mod <- stan_model("code/model/stan_code/GPP_biomass_model_ar1_hierarchical.stan")
+P_mod_nb <- stan_model("code/model/stan_code/GPP_NObiomass_model_ar1_hierarchical.stan")
+
 # rstan::loo(dfit)
 
 # run different model combinations: ####
@@ -181,48 +215,9 @@ ests <- extract_model_params(fit, 'fila', 'chla_mgm2', phi_corrected = TRUE)
 ests$rmse = calculate_rmse(preds)
 ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
-cc <- extract_model_chains(fit, 'fila', 'chla_mgm2')
+cc <- extract_model_chains_K600(fit, 'fila', 'chla_mgm2')
 chains <- bind_rows(chains, cc)
-#
-# library(brms)
-# N = length(LakeHuron)
-# df <- data.frame(
-#     y = as.numeric(LakeHuron),
-#     year = as.numeric(time(LakeHuron)),
-#     time = 1:N
-# )
-# dd$time <- seq(1:nrow(dd))
-# fit <- brm(
-#     GPP ~ ar(time, p = 1) + light + fila_chla_mgm2_fit + K600,
-#     data = dd,
-#     # prior = prior(normal(0, 0.5), class = "ar"),
-#     control = list(adapt_delta = 0.9),
-#     chains = 4
-# )
-# preds <- posterior_predict(fit)
-# preds <- cbind(
-#     Estimate = colMeans(preds),
-#     Q5 = apply(preds, 2, quantile, probs = 0.05),
-#     Q95 = apply(preds, 2, quantile, probs = 0.95)
-# )
-#
-#
-# ggplot(cbind(dd, preds), aes(x = date, y = Estimate)) +
-#     geom_smooth(aes(ymin = Q5, ymax = Q95), stat = "identity", size = 0.5) +
-#     geom_point(aes(y = GPP)) +
-#     labs(
-#         y = "Water Level (ft)",
-#         x = "Year",
-#         title = "Water Level in Lake Huron (1875-1972)",
-#         subtitle = "Mean (blue) and 90% predictive intervals (gray) vs. observed data (black)"
-#     )
-#
-# L <- 20
-#
-# loo_cv <- loo(log_lik(fit)[, (L + 1):N])
-# print(loo_cv)
-#
-# stancode(fit)
+
 # epil
 biomass <- matrix(dd$epil_chla_mgm2_fit, ncol = 1)
 fit <- fit_biomass_model(dd, biomass, P_mod)
@@ -232,7 +227,7 @@ ests <- extract_model_params(fit, 'epil', 'chla_mgm2', phi_corrected = TRUE)
 ests$rmse = calculate_rmse(preds)
 ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
-cc <- extract_model_chains(fit, 'epil', 'chla_mgm2')
+cc <- extract_model_chains_K600(fit, 'epil', 'chla_mgm2')
 chains <- bind_rows(chains, cc)
 
 # fila + epil
@@ -244,7 +239,7 @@ ests <- extract_model_params(fit, 'fila_epil', 'chla_mgm2', phi_corrected = TRUE
 ests$rmse = calculate_rmse(preds)
 ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
-cc <- extract_model_chains(fit, 'fila_epil', 'chla_mgm2')
+cc <- extract_model_chains_K600(fit, 'fila_epil', 'chla_mgm2')
 chains <- bind_rows(chains, cc)
 
 # biomass:
@@ -257,7 +252,7 @@ ests <- extract_model_params(fit, 'fila', 'gm2', phi_corrected = TRUE)
 ests$rmse = calculate_rmse(preds)
 ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
-cc <- extract_model_chains(fit, 'fila', 'gm2')
+cc <- extract_model_chains_K600(fit, 'fila', 'gm2')
 chains <- bind_rows(chains, cc)
 
 # epil
@@ -269,7 +264,7 @@ ests <- extract_model_params(fit, 'epil', 'gm2', phi_corrected = TRUE)
 ests$rmse = calculate_rmse(preds)
 ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
-cc <- extract_model_chains(fit, 'epil', 'gm2')
+cc <- extract_model_chains_K600(fit, 'epil', 'gm2')
 chains <- bind_rows(chains, cc)
 
 # fila + epil
@@ -281,7 +276,7 @@ ests <- extract_model_params(fit, 'fila_epil', 'gm2', phi_corrected = TRUE)
 ests$rmse = calculate_rmse(preds)
 ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
-cc <- extract_model_chains(fit, 'fila_epil', 'gm2')
+cc <- extract_model_chains_K600(fit, 'fila_epil', 'gm2')
 chains <- bind_rows(chains, cc)
 
 
@@ -308,7 +303,7 @@ ests <- extract_model_params(fit, NA, NA, phi_corrected = TRUE)
 ests$rmse = calculate_rmse(preds)
 ests$r2_adj = calculate_r2_adj(preds, npar = nrow(ests))
 mod_ests <- bind_rows(mod_ests, ests)
-cc <- extract_model_chains(fit, NA, NA)
+cc <- extract_model_chains_K600(fit, NA, NA)
 chains <- bind_rows(chains, cc)
 
 # compare parameter estimates across models
@@ -327,14 +322,11 @@ mod_ests <- mod_ests %>%
                                      biomass_vars == 'epil' ~ 'gamma_epil',
                                  parameter == 'gamma5' ~ 'gamma_epil',
                                  TRUE ~ parameter))
-write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_logbm.csv')
-write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_logbm.csv')
-write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters.csv')
-write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot.csv')
-write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_logbm_fixedK.csv')
-write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_logbm_fixedK.csv')
-write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_fixedK.csv')
-write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_fixedK.csv')
+beepr::beep()
+
+write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_loggpp_logbm.csv')
+write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_loggpp_logbm.csv')
+# write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_fixedK.csv')
 # write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_logGPP.csv')
 
 mod_ests <- read_csv( 'data/model_fits/hierarchical_model_parameters_logbm.csv')

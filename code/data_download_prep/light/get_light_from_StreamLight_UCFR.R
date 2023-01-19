@@ -14,10 +14,11 @@ setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
 
 source('code/data_download_prep/light/modified_streamLight_functions.R')
 sitedat <- read_csv('data/site_data/site_data.csv') %>%
-  dplyr::rename(Lat = Latitude, Lon = Longitude) %>%
-  mutate(startDate = as.Date('2020-08-01'),
-         endDate = as.Date('2021-11-30'),
-         Site_ID = paste0('nwis_', nwis_code))
+    filter(!is.na(sitecode))%>%
+    dplyr::rename(Lat = Latitude, Lon = Longitude) %>%
+    mutate(startDate = as.Date('2020-07-01'),
+           endDate = as.Date('2021-11-30'),
+           Site_ID = paste0('nwis_', nwis_code))
 # Download and Process NLDAS data for incoming radiation ####
 # Set the download location (add your own directory)
 base_dir <- "C:/Users/alice.carter/git/UCFR-metabolism"
@@ -26,7 +27,7 @@ working_dir <- paste0(base_dir, '/code/data_download_prep/light/NLDAS')
 # for multiple sites
 #Read in a table with initial site information
 sites <- sitedat %>%
-  select(Site_ID, Lat, Lon, startDate) %>%
+  select(Site_ID = sitecode, Lat, Lon, startDate) %>%
   mutate(startDate = as.character(date(startDate)),
          epsg_crs = rep(4269, nrow(sitedat))) %>%
   data.frame()
@@ -56,26 +57,12 @@ ggplot(NLDAS_data, aes(DOY, SW, col = sitecode)) +
     geom_line() +
     facet_wrap(.~Year, scales = 'free')
 
-# for the missing site, use the average SW ratiation from the other four sites
-NLDAS_data <- NLDAS_data %>%
-    pivot_wider(id_cols = c('date', 'Hour'),
-                names_from = 'sitecode', values_from = 'SW') %>%
-    mutate(nwis_12331800 = (nwis_12323800 + nwis_12324200 +
-                                nwis_12324400 + nwis_12324680)/4) %>%
-    pivot_longer(cols = starts_with('nwis'),
-                 names_to = 'Site_ID',
-                 values_to = 'SW')
-
-NLDAS_data <- sitedat %>% filter(!is.na(sitecode)) %>%
-    select(sitecode, Site_ID) %>%
-    full_join(NLDAS_data)
 setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
 write_csv(NLDAS_data, 'data/site_data/sw_radiation_all_sites.csv')
 
 # Download and process MODIS LAI ####
 #Make a table for the MODIS request
-request_sites <- sites[, c("Site_ID", "Lat", "Lon")] %>%
-    filter(Site_ID != 'nwis_NA')
+request_sites <- sites[, c("Site_ID", "Lat", "Lon")]
 
 #Export your sites as a .csv for the AppEEARS request
 write.table(
@@ -90,9 +77,11 @@ write.table(
 # Save the zip file downloaded from AppEEARS
 # Unpack the data after downloading
 working_dir <- "C:/Users/alice.carter/git/UCFR-metabolism/code/data_download_prep/light/MODIS"
+setwd(working_dir)
 
-MOD_unpack <- StreamLightUtils::AppEEARS_unpack_QC(
-  zip_file = "dws-nwis-sites.zip",
+# do this manually because this function doesn't seem to work
+MOD_unpack <- AppEEARS_unpack_QC_2(
+  zip_file = "ucfr-sites.zip",
   zip_dir = working_dir,
   request_sites[, "Site_ID"]
 )
@@ -100,7 +89,7 @@ MOD_unpack <- StreamLightUtils::AppEEARS_unpack_QC(
 
 # Process the downloaded data
 png('LAI_focal_sites.png')
-par(mfrow = c(2,2))
+par(mfrow = c(2,3))
 MOD_processed <- AppEEARS_proc2(
   unpacked_LAI = MOD_unpack,
   fit_method = "Gu",
@@ -109,35 +98,37 @@ MOD_processed <- AppEEARS_proc2(
 dev.off()
 
 # Make an input datafile for streamlight ####
-working_dir <- paste0(base_dir, "/drivers")
+working_dir <- paste0(base_dir, "/code/data_download_prep/light/drivers")
 make_driver(sites, NLDAS_processed, MOD_processed,
-            TRUE, working_dir)
+            write_output = TRUE, working_dir)
 
 # add parameters to site file ####
-site_parm <- sitedat %>%
-  select(Site_ID, Lat, Lon, datum)
+site_parm <- sites %>%
+  select(Site_ID , Lat, Lon)
 
 # Calculate site azimuth using Google Maps. The angle I am using is the
 # line that connects the sensor location with the point 1000 m upstream.
+# angle is in degrees from north
 n = nrow(site_parm)
 site_parm <- site_parm %>%
   mutate(Width = rep(20, n),
          epsg_code = rep(4269, n),
-         Azimuth = rep(0, n),
-         WL = rep(1, n),
-         BH = rep(0.1, n),
-         BS = rep(100, n),
-         TH = rep(20, n),
+         datum = rep('NAD83', n),
+         Azimuth = c(0, 170, 135, 105, 95, 107),
+         WL = rep(1, n), # water level
+         BH = rep(0.2, n), # bank height
+         BS = rep(100, n), # bankslope
+         TH = rep(2, n), # tree height (m)
          x = rep(1, n),
-         overhang = rep(2, n),
-         overhang_height = rep(15, n)) %>%
+         overhang = rep(1, n),
+         overhang_height = rep(5, n)) %>%
   data.frame()
 
 # get canopy data:
 # extract_height(Site_ID = sites[,'Site_ID'], Lat = sites[,'Lat'],
 #                Lon = sites[,'Lon'], site_crs = sites[,'epsg_code'])
 # that didn't work
-# from streampulse field measurements:D
+# from intuition, trees ~ 10 m tall, covering only 10-20% of stream length = 2m
 
 
 # running streamlight ####
@@ -188,8 +179,7 @@ lapply(
 )
 
 #Take a look at the output
-focal_sites
-predicted <- readRDS(paste(working_dir, '/nwis_01466500_predicted.rds', sep = ''))
+predicted <- readRDS(paste(working_dir, '/BN_predicted.rds', sep = ''))
 
 predicted %>%
   mutate(date = as.Date(local_time)) %>%
@@ -221,9 +211,9 @@ for(site in site_parm[,'Site_ID']){
 
   dat <- bind_rows(dat, ss)
 }
-dat %>% filter(site %in% focal_sites) %>%
+dat %>%
 ggplot(aes(date, LAI, col = site)) +
   geom_point()
 
-write_csv(dat, 'data/site_data/daily_modeled_light_all_sites.csv')
+write_csv(dat, 'C:/Users/alice.carter/git/UCFR-metabolism/data/site_data/daily_modeled_light_all_sites.csv')
 
