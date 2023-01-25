@@ -1,14 +1,10 @@
 UCFR todo:
 
 DATA ANALYSIS
-- evaluate metabolism fit (and make SI plots)
-    - look at K600 over time
-    - compare 2020 and 2021 fits (K/Q)
-    - rerun with removed days if necessary
 - fit biomass x chl a relationship with standardized axis regression
 - Compare cumulative GPP to biomass (maybe...)
 -make plot of metabolism for publication
-
+- clean CR data and assess why it wasn't included in biomass/metab model
 
 FIT MODELS
 - code in stan to include biomass sampler

@@ -2,7 +2,7 @@ data {
     int<lower=0> N;        // total number of observations
     vector[N] biomass;     // algal biomass at each timestep
     vector[N] light;       // light at each timestep
-    vector[N] K600;
+    // vector[N] K600;
     vector[N] P;           // productivity (response)
     int<lower=1> S;             // number of groups (sites)
     int<lower=1,upper=S> ss[N]; // site for each observation
@@ -12,7 +12,7 @@ data {
 parameters {
     real<lower=0> alpha;// initial slope
     real<lower=0> Pmax;        // max photosynthetic rate per unit biomass
-    real<lower=0> beta;        // parameter for K600
+    // real<lower=0> beta;        // parameter for K600
     vector<lower=0>[S] alpha_s;
     vector<lower=0>[S] Pmax_s;
     real<lower=0> sigma;       // sd of individual observations
@@ -39,7 +39,7 @@ model {
 
     //likelihood
     for(i in 1:N){
-        P[i] ~ normal(Pmax_s[ss[i]] * biomass[i] * tanh((alpha_s[ss[i]] * light[i])/Pmax_s[ss[i]]) + beta * K600[i], sigma);
+        P[i] ~ normal(Pmax_s[ss[i]] * biomass[i] * tanh((alpha_s[ss[i]] * light[i])/Pmax_s[ss[i]]), sigma);
     }
 
     // P ~ normal(mu, P_sd);
@@ -50,7 +50,7 @@ generated quantities {
     vector[N] mu;
 
     for(i in 1:N){
-        mu[i] = Pmax_s[ss[i]] * biomass[i] * tanh((alpha_s[ss[i]] * light[i])/Pmax_s[ss[i]]) + beta * K600[i];
+        mu[i] = Pmax_s[ss[i]] * biomass[i] * tanh((alpha_s[ss[i]] * light[i])/Pmax_s[ss[i]]) ;
         y_tilde[i] = normal_rng(mu[i], sigma);
     }
 

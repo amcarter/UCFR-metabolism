@@ -2,11 +2,11 @@
 library(tidyverse)
 library(lubridate)
 
-# met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv')# %>%
-met <- read_csv('data/metabolism/metabolism_compiled_all_sites_2000iter_bdr_kss005.csv') %>%
-    mutate(across(starts_with(c('GPP', 'ER', 'K600'), ignore.case = FALSE),
-                  ~case_when(DO_fit == 'bad' ~ NA_real_,
-                            TRUE ~ .)))
+met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv')# %>%
+# met <- read_csv('data/metabolism/metabolism_compiled_all_sites_2000iter_bdr_kss005.csv') %>%
+#     mutate(across(starts_with(c('GPP', 'ER', 'K600'), ignore.case = FALSE),
+#                   ~case_when(DO_fit == 'bad' ~ NA_real_,
+#                             TRUE ~ .)))
 light <- read_csv('data/site_data/daily_modeled_light_all_sites.csv') %>%
     mutate(light_rel = PAR_surface/max(PAR_surface))
 
@@ -17,6 +17,7 @@ met <- left_join(met, light, by = c('site', 'date')) %>%
     left_join(q, by = c('site', 'date'))
 
 biomass <- read_csv('data/biomass_data/log_gam_fits_biomass.csv')
+biomass <- read_csv('data/biomass_data/gamma_gam_fits_biomass.csv')
 
 met <- left_join(met, biomass, by = c('site', 'date'))
 

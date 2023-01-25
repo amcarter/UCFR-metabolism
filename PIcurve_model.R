@@ -4,6 +4,19 @@ library(tidyverse)
 
 
 # functions ####
+rle2 <- function(x){ # function for breaking site years to restart AR model
+
+    r <- rle(x)
+    ends <- cumsum(r$lengths)
+
+    r <- tibble(values = r$values,
+                starts = c(1, ends[-length(ends)] + 1),
+                stops = ends,
+                lengths = r$lengths)
+
+    return(r)
+}
+
 calculate_r2_adj <- function(preds, npar = 13){
 
     N = nrow(preds)
@@ -31,11 +44,11 @@ get_model_preds <- function(fit, dat){
 }
 
 # data ####
-dd <- read_csv('data/biomass_metab_model_data.csv')
+dd <- read_csv('data/model_fits/biomass_metab_model_data.csv')
 dd <- dd %>%
     mutate(#across(starts_with(c('epil','fila', 'light', 'K600')), ~scale(.)[,1]),
            # across(starts_with(c('epil','fila', 'light', 'K600')), ~ . - min(., na.rm = T)),
-           # mutate(across(starts_with(c('epil','fila')), ~scale(.)[,1]),
+           across(starts_with(c('epil','fila')), ~exp(.)),
            across(where(is.numeric), zoo::na.approx, na.rm = FALSE),
            year = lubridate::year(date),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
@@ -46,17 +59,19 @@ dd <- dd %>%
 GPP = dd$GPP
 sites <- unique(dd$site)
 
-PImod <- stan_model('code/model/stan_code/PIcurve_model.stan')
+PImod <- stan_model('code/model/stan_code/PIcurve_model_2.stan')
 
-
+new_ts <- rep(0, nrow(dd))
+new_ts[rle2(paste0(dd$year, dd$site))$starts] <- 1
 datlist <- list(
     N = nrow(dd),
     S = length(sites),
     ss = as.numeric(dd$site),
     light = dd$light,
-    K600 = dd$K600,
-    biomass = dd$epil_chla_mgm2_fit + dd$fila_chla_mgm2_fit,
-    P = dd$GPP#, P_sd = dd$GPP_sd
+    epil = dd$epil_chla_mgm2_fit,
+    fila = dd$fila_chla_mgm2_fit,
+    P = dd$GPP, P_sd = dd$GPP_sd,
+    new_ts = new_ts
 )
 
 fit <- sampling(
@@ -65,13 +80,16 @@ fit <- sampling(
     # chains = 1
 )
 
-plot(fit, pars = c('Pmax', 'alpha','beta', 'sigma','tau_Pmax', 'tau_a'))
-print(fit, pars = c('Pmax', 'tau_Pmax', 'Pmax_s', 'tau_a', 'alpha', 'alpha_s'))
+plot(fit, pars = c('phi', 'Pmax_fila', 'Pmax_epil', 'alpha_fila', 'alpha_epil',
+                   'sigma','tau_Pmax', 'tau_a'))
+print(fit, pars = c('phi', 'Pmax_fila', 'Pmax_epil', 'alpha_fila', 'alpha_epil',
+                   'sigma','tau_Pmax', 'tau_a'))
+
 shinystan::launch_shinystan(fit)
 
 preds <- get_model_preds(fit, dd)
-print(fit)
-calculate_r2_adj(preds, 18)
+
+calculate_r2_adj(preds, 32)
 calculate_rmse(preds)
 
 plot_model_fit <- function(preds, dat, mod = 'fila_epil_chla'){
@@ -105,7 +123,7 @@ datlist <- list(
     S = length(sites),
     ss = as.numeric(dd$site),
     light = dd$light,
-    K600 = dd$K600,
+    # K600 = dd$K600,
     biomass = dd$epil_chla_mgm2_fit + dd$fila_chla_mgm2_fit,
     P = dd$GPP, P_sd = dd$GPP_sd
 )
@@ -126,7 +144,7 @@ datlist <- list(
     S = length(sites),
     ss = as.numeric(dd$site),
     light = dd$light,
-    K600 = dd$K600,
+    # K600 = dd$K600,
     biomass = dd$epil_chla_mgm2_fit + dd$fila_chla_mgm2_fit,
     P = dd$GPP, P_sd = dd$GPP_sd
 )
@@ -148,7 +166,7 @@ datlist <- list(
     S = length(sites),
     ss = as.numeric(dd$site),
     light = dd$light,
-    K600 = dd$K600,
+    # K600 = dd$K600,
     biomass = dd$epil_chla_mgm2_fit + dd$fila_chla_mgm2_fit,
     P = dd$GPP, P_sd = dd$GPP_sd
 )

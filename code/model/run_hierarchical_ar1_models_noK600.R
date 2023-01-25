@@ -152,6 +152,23 @@ extract_model_chains_K600 <- function(fit, bmv = 'fila + epil', units = 'gm2'){
 
     return(ss)
 }
+calculate_r2_adj <- function(preds, npar = 13){
+
+    N = nrow(preds)
+    r2 = 1 - sum((preds$GPP - preds$P_mod)^2)/
+        sum((preds$GPP - mean(preds$GPP))^2)
+
+    r2_adj = 1 - ((1-r2)*(N-1))/(N-npar-1)
+
+    return(r2_adj)
+}
+calculate_rmse <- function(preds){
+
+    N = nrow(preds)
+    rmse = sqrt((1/N) * sum((preds$GPP - preds$P_mod)^2))
+
+    return(rmse)
+}
 
 
 # prep data ####
@@ -171,8 +188,8 @@ dev.off()
 dd<- dd %>%
     mutate(across(starts_with('GPP'), ~log(.))) %>%
     mutate(across(starts_with(c('epil','fila', 'light', 'K600')), ~scale(.)[,1]),
-           across(starts_with(c('epil','fila', 'light', 'K600')), ~ . - min(., na.rm = T)),
-    # mutate(across(starts_with(c('epil','fila')), ~scale(.)[,1]),
+           # across(starts_with(c('epil','fila')), ~exp(.)),
+           # across(starts_with(c('epil','fila', 'light', 'K600')), ~ . - min(., na.rm = T)),
            across(where(is.numeric), zoo::na.approx, na.rm = FALSE),
            year = lubridate::year(date),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
@@ -185,33 +202,16 @@ P_mod_nb <- stan_model("code/model/stan_code/GPP_NObiomass_model_ar1_noK600_hier
 
 # run on real data: ####
 
-biomass = matrix(dd$fila_chla_mgm2_fit, ncol = 1)
-dfit <- fit_biomass_model(dd, biomass, P_mod)
-
-print(dfit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma'))
-plot(dfit, pars = c('phi', 'gamma[2]', 'gamma[3]', 'gamma[4]', 'sigma', 'tau'),
-     show_density = TRUE)
-plot(dfit, pars = c('gamma[1]', 'beta'), show_density = TRUE)
-
-# shinystan::launch_shinystan(dfit)
-preds <- get_model_preds(dfit, dd)
-calculate_r2_adj <- function(preds, npar = 13){
-
-    N = nrow(preds)
-    r2 = 1 - sum((preds$GPP - preds$P_mod)^2)/
-        sum((preds$GPP - mean(preds$GPP))^2)
-
-    r2_adj = 1 - ((1-r2)*(N-1))/(N-npar-1)
-
-    return(r2_adj)
-}
-calculate_rmse <- function(preds){
-
-    N = nrow(preds)
-    rmse = sqrt((1/N) * sum((preds$GPP - preds$P_mod)^2))
-
-    return(rmse)
-}
+# biomass = matrix(dd$fila_chla_mgm2_fit, ncol = 1)
+# dfit <- fit_biomass_model(dd, biomass, P_mod)
+#
+# print(dfit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma'))
+# plot(dfit, pars = c('phi', 'gamma[2]', 'gamma[3]', 'gamma[4]', 'sigma', 'tau'),
+#      show_density = TRUE)
+# plot(dfit, pars = c('gamma[1]', 'beta'), show_density = TRUE)
+#
+# # shinystan::launch_shinystan(dfit)
+# preds <- get_model_preds(dfit, dd)
 # rstan::loo(dfit)
 
 # run different model combinations: ####
@@ -333,10 +333,10 @@ mod_ests <- mod_ests %>%
                                      biomass_vars == 'epil' ~ 'gamma_epil',
                                  parameter == 'gamma4' ~ 'gamma_epil',
                                  TRUE ~ parameter))
-beepr::beep()
+beepr::beep(5)
 
-write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_loggpp_logbm_fixedK600.csv')
-write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_loggpp_logbm_fixedK600.csv')
+write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_loggpp_logbm_fixedK600_gamma.csv')
+write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_loggpp_logbm_fixedK600_gamma.csv')
 # write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_loggpp_logbm_noK600.csv')
 # write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_loggpp_logbm.csv')
 # write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters.csv')

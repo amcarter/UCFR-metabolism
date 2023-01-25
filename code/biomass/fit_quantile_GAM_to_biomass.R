@@ -2,7 +2,8 @@
 # 10/2022
 
 library(tidyverse)
-library(mgcv)
+library(qgam)
+library(MASS)
 
 biomass <- read_csv('data/biomass_data/biomass_working_data.csv') %>%
     mutate(site = case_when(site == 'BG' ~ 'BM',
@@ -14,21 +15,6 @@ biomass <- read_csv('data/biomass_data/biomass_working_data.csv') %>%
     filter(!is.na(site))
 
 glimpse(biomass)
-
-
-# look at the data
-biomass %>%
-    select(date, site, ends_with('.om.area.g.m2')) %>%
-    select(-cpom.om.area.g.m2)%>%
-    filter(!is.na(site))%>%
-    pivot_longer(cols = -c('date', 'site'), names_to = 'bm_category',
-                 values_to = 'g_m2') %>%
-    mutate(doy = format(date, "%j"),
-           year = as.factor(substr(date, 1,4))) %>%
-    ggplot(aes(doy, g_m2, col = year)) +
-    geom_point() +
-    facet_grid(site~bm_category, scales = 'free_y')
-
 
 # There is a lot of missing data for the epiphyton and macrophyte categories
 
@@ -55,52 +41,46 @@ s_preds <- mutate(s_preds,
                   site_year = as.factor(paste(site, year, sep = '_'))) %>%
     tibble()
 k_check <- data.frame()
+
+
 # try it for all sites
-fg2_gamma <- gam(epil.om.area.g.m2 ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML', family = Gamma(link = 'log'))
-fg2_log <- gam(log(epil.om.area.g.m2) ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML', family = 'gaussian')
+if( suppressWarnings(require(RhpcBLASctl)) ){ blas_set_num_threads(1) } # Optional
+
+fg2_log <- qgam(log(epil.om.area.g.m2) ~
+                s(doy + site_year,  k = 20, bs = 'fs'),
+            data = biomass,
+            qu = 0.5)
 # gam.check(fg2)
-AIC(fg2_gamma)
+
 AIC(fg2_log)
-gam.check(fg2_gamma)
 gam.check(fg2_log)
-kk <- k.check(fg2_gamma) %>% data.frame() %>%
+kk <- k.check(fg2_log) %>% data.frame() %>%
     mutate(model = 'biofilm AFDM',
-           smooth_par = c('s(doy)', 's(doy, site_year)')) %>%
+           smooth_par = c('s(doy, site_year)')) %>%
     relocate(model, smooth_par)
 rownames(kk) <- NULL
 k_check <- bind_rows(k_check, kk)
 pp <- mgcv::predict.gam(fg2_log, s_preds, se.fit = TRUE)
-pp <- mgcv::predict.gam(fg2_gamma, s_preds, se.fit = TRUE)
 
 s_preds <- mutate(s_preds,
                 epil_gm2_fit = c(pp$fit),
                 epil_gm2_se = c(pp$se.fit))
 
 # filamentous
-fg2_fila_gamma <- gam(fila.om.area.g.m2 ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML', family = Gamma(link = 'log'))
-fg2_fila_log <- gam(log(fila.om.area.g.m2) ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML', family = 'gaussian')
-# gam.check(fg2_fila)
-AIC(fg2_fila_gamma)
-AIC(fg2_fila_log)
+fg2_fila_log <- qgam(log(fila.om.area.g.m2) ~
+                         s(doy + site_year,  k = 20, bs = 'fs'),
+                     data = biomass,
+                     qu = 0.5)
 
-gam.check(fg2_fila_gamma)
+AIC(fg2_fila_log)
 gam.check(fg2_fila_log)
-kk <- k.check(fg2_fila_gamma) %>% data.frame() %>%
+kk <- k.check(fg2_fila_log) %>% data.frame() %>%
     mutate(model = 'filamentous AFDM',
-           smooth_par = c('s(doy)', 's(doy, site_year)')) %>%
+           smooth_par = c( 's(doy, site_year)')) %>%
     relocate(model, smooth_par)
 rownames(kk) <- NULL
 k_check <- bind_rows(k_check, kk)
 
-pp <- mgcv::predict.gam(fg2_fila_gamma, s_preds, se.fit = TRUE)
 pp <- mgcv::predict.gam(fg2_fila_log, s_preds, se.fit = TRUE)
 
 s_preds <- mutate(s_preds,
@@ -110,26 +90,20 @@ s_preds <- mutate(s_preds,
 
 # chlorophyll
 # try it for all sites
-fg2_chla_gamma <- gam(epil.chla.mg.m2.ritchie ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML', family = Gamma(link = 'log'))
-fg2_chla_log <- gam(log(epil.chla.mg.m2.ritchie) ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML', family = 'gaussian')
-# gam.check(fg2_chla)
-AIC(fg2_chla_gamma)
+fg2_chla_log <- qgam(log(epil.chla.mg.m2.ritchie) ~
+                          s(doy + site_year,  k = 20, bs = 'fs'),
+                      data = biomass,
+                      qu = 0.5)
 AIC(fg2_chla_log)
 
-gam.check(fg2_chla_gamma)
 gam.check(fg2_chla_log)
 kk <- k.check(fg2_chla_log) %>% data.frame() %>%
     mutate(model = 'biofilm chla',
-           smooth_par = c('s(doy)', 's(doy, site_year)')) %>%
+           smooth_par = c( 's(doy, site_year)')) %>%
     relocate(model, smooth_par)
 rownames(kk) <- NULL
 k_check <- bind_rows(k_check, kk)
 
-pp <- mgcv::predict.gam(fg2_chla_gamma, s_preds, se.fit = TRUE)
 pp <- mgcv::predict.gam(fg2_chla_log, s_preds, se.fit = TRUE)
 
 s_preds <- mutate(s_preds,
@@ -137,25 +111,20 @@ s_preds <- mutate(s_preds,
                 epil_chla_mgm2_se = pp$se.fit)
 
 # filamentous
-fg2_fila_chla_gamma <- gam(fila.chla.mg.m2.ritchie ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML', family = Gamma(link = 'log'))
-fg2_fila_chla_log <- gam(log(fila.chla.mg.m2.ritchie) ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML', family = 'gaussian')
-# gam.check(fg2_fila_chla)
-AIC(fg2_fila_chla_gamma)
+fg2_fila_chla_log <- qgam(log(fila.chla.mg.m2.ritchie) ~
+                          s(doy + site_year,  k = 20, bs = 'fs'),
+                      data = biomass,
+                      qu = 0.5)
+
 AIC(fg2_fila_chla_log)
-gam.check(fg2_fila_chla_gamma)
 gam.check(fg2_fila_chla_log)
-kk <- k.check(fg2_fila_chla_gamma) %>% data.frame() %>%
+kk <- k.check(fg2_fila_chla_log) %>% data.frame() %>%
     mutate(model = 'filamentous chla',
-           smooth_par = c('s(doy)', 's(doy, site_year)')) %>%
+           smooth_par = c( 's(doy, site_year)')) %>%
     relocate(model, smooth_par)
 rownames(kk) <- NULL
 k_check <- bind_rows(k_check, kk)
 
-pp <- mgcv::predict.gam(fg2_fila_chla_gamma, s_preds, se.fit = TRUE)
 pp <- mgcv::predict.gam(fg2_fila_chla_log, s_preds, se.fit = TRUE)
 
 s_preds <- mutate(s_preds,
@@ -196,8 +165,8 @@ dev.off()
 ddd <- s_preds %>%
     mutate(across(where(is.array), c),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
-    select(date, doy, year, site, starts_with(c('epil_chla', 'fila_chla'))) %>%
-    full_join(select(biomass, date, site, sample, epil.chla.mg.m2.ritchie,
+    dplyr::select(date, doy, year, site, starts_with(c('epil_chla', 'fila_chla'))) %>%
+    full_join(dplyr::select(biomass, date, site, sample, epil.chla.mg.m2.ritchie,
                      fila.chla.mg.m2.ritchie), by = c('date', 'site')) %>%
     rename(epil_chla_mgm2_meas = epil.chla.mg.m2.ritchie,
            fila_chla_mgm2_meas = fila.chla.mg.m2.ritchie) %>%
@@ -237,8 +206,8 @@ ddd <-
     s_preds %>%
     mutate(across(where(is.array), c),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
-    select(date, doy, year, site, starts_with(c('epil_gm2', 'fila_gm2'))) %>%
-    full_join(select(biomass, date, site, sample, epil.om.area.g.m2,
+    dplyr::select(date, doy, year, site, starts_with(c('epil_gm2', 'fila_gm2'))) %>%
+    full_join(dplyr::select(biomass, date, site, sample, epil.om.area.g.m2,
                      fila.om.area.g.m2), by = c('date', 'site')) %>%
     rename(epil_gm2_meas = epil.om.area.g.m2,
            fila_gm2_meas = fila.om.area.g.m2) %>%
@@ -281,7 +250,7 @@ mass <- ggplot(ddd, aes(date, fit, col = biomass_type)) +
 
 # dev.off()
 
-png('figures/biomass_gamma_gams_comb.png', width = 7.5, height = 5, units = 'in',
+png('figures/biomass_log_gams_comb.png', width = 7.5, height = 5, units = 'in',
     res = 300)
 ggpubr::ggarrange(mass, chl, nrow = 1, ncol = 2, common.legend = TRUE,
                   labels = c('a', 'b'))
@@ -293,5 +262,5 @@ s_preds <- select(s_preds, -site_year)
 # attributes(s_preds) <- NULL
 as_tibble(s_preds)
 qq = as_tibble(lapply(s_preds, c))
-write_csv(qq, 'data/biomass_data/gamma_gam_fits_biomass.csv')
-write_csv(k_check, 'data/biomass_data/gamma_gam_smoothness_parameter_checks.csv')
+write_csv(qq, 'data/biomass_data/log_gam_fits_biomass.csv')
+write_csv(k_check, 'data/biomass_data/log_gam_smoothness_parameter_checks.csv')

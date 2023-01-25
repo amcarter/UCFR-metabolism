@@ -182,18 +182,20 @@ hist(dd$epil_chla_mgm2_fit)
 hist(dd$epil_gm2_fit)
 hist(dd$light)
 hist(dd$K600)
+hist(log(dd$q.cms))
+
 dev.off()
 
 # manually scale so that the se's are correct
 dd<- dd %>%
-    mutate(across(starts_with('GPP'), ~log(.))) %>%
-    mutate(across(starts_with(c('epil','fila', 'light', 'K600')), ~scale(.)[,1]),
-           across(starts_with(c('epil','fila', 'light', 'K600')), ~ . - min(., na.rm = T)),
+    mutate(across(starts_with(c('GPP', 'q')), ~log(.))) %>%
+    mutate(across(starts_with(c('epil','fila', 'light', 'K600', 'q')), ~scale(.)[,1]),
+           across(starts_with(c('epil','fila', 'light', 'K600', 'q')), ~ . - min(., na.rm = T)),
     # mutate(across(starts_with(c('epil','fila')), ~scale(.)[,1]),
            across(where(is.numeric), zoo::na.approx, na.rm = FALSE),
            year = lubridate::year(date),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
-    filter(!is.na(GPP), !is.na(epil_gm2_fit), !is.na(fila_gm2_fit),
+    filter(!is.na(GPP), !is.na(epil_gm2_fit), !is.na(fila_gm2_fit),#!is.na(q.cms),
            !is.na(light))
 
 sites <- unique(dd$site)
@@ -201,7 +203,7 @@ P_mod <- stan_model("code/model/stan_code/GPP_biomass_model_ar1_hierarchical.sta
 P_mod_nb <- stan_model("code/model/stan_code/GPP_NObiomass_model_ar1_hierarchical.stan")
 
 # rstan::loo(dfit)
-
+# dd <- select(dd, -K600) %>% rename(K600 = q.cms)
 # run different model combinations: ####
 mod_ests <- data.frame()
 chains <- data.frame()
