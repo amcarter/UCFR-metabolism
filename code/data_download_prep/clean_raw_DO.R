@@ -126,6 +126,70 @@ dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
 
 write_csv(dat_clean, paste0('data/prepared_data/cleaned_data/cleaned_', ff))
 
+# Cattle Road ####
+ff <- grep('CR_2020', raw_files, value = TRUE)
+dat <- read_csv(paste0('data/raw_DO/', ff))
+
+dat %>% select(DO.obs) %>%
+    xts(order.by = dat$UTC) %>%
+    dygraph() %>%
+    dySeries('DO.obs', drawPoints = TRUE) %>%
+    dyRangeSelector()
+
+flag_points <- data.frame(MST = c(ymd_hms(c(
+    '2020-08-17 12:53:00', '2020-08-17 12:54:00',
+    '2020-09-14 12:06:00', '2020-09-14 12:07:00')),
+    seq(ymd_hms('2020-08-15 18:30:00'),
+        ymd_hms('2020-08-17 00:25:00'), by = 'min'),
+    seq(ymd_hms('2020-08-17 02:07:00'),
+        ymd_hms('2020-08-17 02:24:00'), by = 'min'),
+    seq(ymd_hms('2020-08-17 05:33:00'),
+        ymd_hms('2020-08-17 06:52:00'), by = 'min'),
+    seq(ymd_hms('2020-08-27 12:31:00'),
+        ymd_hms('2020-08-27 13:05:00'), by = 'min'),
+    seq(ymd_hms('2020-09-07 21:36:00'),
+        ymd_hms('2020-09-08 07:11:00'), by = 'min'),
+    seq(ymd_hms('2020-09-08 09:15:00'),
+        ymd_hms('2020-09-08 09:23:00'), by = 'min'),
+    seq(ymd_hms('2020-09-16 12:03:00'),
+        ymd_hms('2020-09-16 12:19:00'), by = 'min'),
+    seq(ymd_hms('2020-10-10 03:59:00'),
+        ymd_hms('2020-10-10 05:13:00'), by = 'min'),
+    seq(ymd_hms('2020-10-13 21:00:00'),
+        ymd_hms('2020-10-13 23:27:00'), by = 'min'),
+    seq(ymd_hms('2020-10-20 09:21:00'),
+        ymd_hms('2020-10-27 13:02:00'), by = 'min')),
+    flag = 'bad data')
+dt <- as.numeric(median(diff(dat$UTC)))
+
+dat_clean <- left_join(dat, flag_points) %>%
+    mutate(DO.raw = DO.obs,
+        DO.obs = case_when(flag == 'bad data' ~ NA_real_,
+                                   TRUE ~ DO.obs),
+        DO.obs = zoo::na.approx(DO.obs, maxgap = max_gap * 60/dt, x = UTC, na.rm = F))
+
+dat_clean %>%
+    select(DO.obs, DO.raw) %>%
+    xts(order.by = dat_clean$UTC) %>%
+    dygraph() %>%
+    dySeries('DO.raw') %>%
+    dySeries('DO.obs', drawPoints = TRUE, strokeWidth = 0) %>%
+    dyRangeSelector()
+# align samples to consistent intervals:
+
+dat_filled <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = 'min')) %>%
+    left_join(dat_clean) %>%
+    mutate(across(c(-UTC, -MST, -flag),
+                  function(x) zoo::na.approx(x, maxgap = max_gap * 60, x = UTC, na.rm = F)))
+
+dat_clean <- data.frame(UTC = seq(min(dat$UTC), max(dat$UTC), by = '5 min')) %>%
+    left_join(dat_filled, by = 'UTC') %>%
+    select(-DO.raw, -DO.sat, -flag, -MST, -Q)
+# plot(dat$UTC, dat$DO.obs, type = 'l')
+# points(dat_clean$UTC, dat_clean$DO.obs, pch = 20, col = 4)
+
+write_csv(dat_clean, paste0('data/prepared_data/cleaned_data/cleaned_', ff))
+
 # Gold Creek ####
 ff <- grep('GC_2020', raw_files, value = TRUE)
 dat <- read_csv(paste0('data/raw_DO/', ff))

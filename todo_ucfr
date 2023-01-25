@@ -1,12 +1,14 @@
 UCFR todo:
 
 DATA ANALYSIS
+- clean CR data and assess why it wasn't included in biomass/metab model
 - fit biomass x chl a relationship with standardized axis regression
 - Compare cumulative GPP to biomass (maybe...)
--make plot of metabolism for publication
-- clean CR data and assess why it wasn't included in biomass/metab model
 
 FIT MODELS
+- determine if gamma fit is better than linear
+- rerun model fits accordingly
+- recode models to all be timeseries hypotheses
 - code in stan to include biomass sampler
 - look at the residuals through time
 
