@@ -58,7 +58,7 @@ s_preds_lin <- s_preds_gamma <-
            site_year = as.factor(paste(site, year, sep = '_'))) %>%
     tibble()
 
-link_fn = 'identity' # gamma link function, log or inverse?
+link_fn = 'inverse' # gamma link function, log or inverse?
 par(mfrow = c(2,2))
 
 # try it for all sites
@@ -244,13 +244,11 @@ png('figures/biomass_linGAMs_diagnostics.png', width = 7.5, height = 7.5,
     mtext(expression(paste('fila. chla mg',m^-2)), 2, line = 45)
 dev.off()
 
-
-
-
 qq = as_tibble(lapply(s_preds_lin, c)) %>% select(-site_year)
 qq = as_tibble(lapply(s_preds_gamma, c)) %>% select(-site_year)
-write_csv(qq, 'data/biomass_data/idgamma_gam_fits_biomass.csv')
-write_csv(k_check_gamma, 'data/biomass_data/idgamma_gam_smoothness_parameter_checks.csv')
+
+write_csv(qq, 'data/biomass_data/invgamma_gam_fits_biomass.csv')
+write_csv(k_check_gamma, 'data/biomass_data/invgamma_gam_smoothness_parameter_checks.csv')
 
 # plot GAMS
 qq <- qq %>%
@@ -280,7 +278,7 @@ meas <- select(biomass, date, site, sample,
     mutate(year = lubridate::year(date))
 meas_chl <- filter(meas, units == 'chla_mgm2')
 meas_mass <- filter(meas, units == 'gm2')
-mm <- qq %>% filter(units == 'gm2') %>%
+mm <- qq2 %>% filter(units == 'gm2') %>%
     ggplot(aes(date, fit, col = biomass_type)) +
     geom_line()+
     geom_ribbon(aes(ymax = fit + se, ymin = fit - se,
@@ -293,23 +291,91 @@ mm <- qq %>% filter(units == 'gm2') %>%
     xlab('Date') +
     ylab(expression('Algal Standing Crop (AFDM g '~ m^-2*')')) +
     theme_bw()
-cc <- qq %>% filter(units == 'chla_mgm2') %>%
+cc <- qq2 %>% filter(units == 'chla_mgm2') %>%
     ggplot(aes(date, fit, col = biomass_type)) +
     geom_line()+
     geom_ribbon(aes(ymax = fit + se, ymin = fit - se,
                     fill = biomass_type), alpha = 0.4, color = NA)+
     geom_point(data = meas_chl, aes(date, meas, col = biomass_type))+
-    facet_grid(site~year, scales = 'free_x') +
+    facet_grid(site~year, scales = 'free') +
     scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
     scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
-    scale_y_log10(limits = c(0.3, 600))+
+    scale_y_log10(limits = c(0.1, 1000))+
     xlab('Date') +
     ylab(expression('Algal Standing Crop (mg chl a '~ m^-2*')')) +
     theme_bw()
 
-png('figures/biomass_idgamma_gams_comb.png', width = 7.5, height = 5, units = 'in',
+png('figures/biomass_linear_gams_comb.png', width = 7.5, height = 5, units = 'in',
     res = 300)
 
     ggpubr::ggarrange(mm, cc, nrow = 1, common.legend = TRUE,
                       labels = c('a', 'b'))
 dev.off()
+
+# trim estimates so that they aren't more than 2 weeks from an actual measurement
+qq %>%
+  mutate(fit = case_when(se > 2*fit & se >100 ~ NA_real_,
+                         fit < 0 ~ NA_real_,
+                         fit > 1000 ~ NA_real_,
+                         TRUE ~ fit),
+         se = case_when(is.na(fit) ~ NA_real_,
+                        TRUE ~ se))  %>%
+    ggplot(aes(date, fit, col = units)) +
+    geom_point()+
+    facet_grid(site~biomass_type)
+
+
+ndays = 0
+mega_dates <- data.frame()
+for(bt in c('epil', 'fila')){
+    u_dates <- data.frame()
+    for(u in c('gm2', 'chla_mgm2')){
+        dates  <- meas %>%
+            filter(biomass_type == bt, units == u)%>%
+            select(date, site)
+
+        cov_dates <- data.frame()
+        for(s in unique(meas$site)){
+            d <- filter(dates, site == s)
+            dd <- unique(d$date)
+            dlist <- vector()
+            for(i in 1:length(dd)){
+
+                dlist <- lubridate::as_date(c(dlist, seq((dd[i]-ndays),
+                                                         (dd[i] + ndays),
+                                                         by = 'day')))
+            }
+            cd = data.frame(date = unique(dlist)) %>%
+                mutate(site = s)
+            cov_dates <- bind_rows(cov_dates, cd)
+        }
+        cov_dates<- mutate(cov_dates, units = u)
+        u_dates <- bind_rows(u_dates, cov_dates)
+    }
+    u_dates <- mutate(u_dates, biomass_type = bt)
+    mega_dates <- bind_rows(mega_dates, u_dates)
+}
+
+mega_dates$coverage = 'good'
+st_end <- mega_dates %>%
+    mutate(year = factor(lubridate::year(date))) %>%
+    group_by(site, year, units, biomass_type) %>%
+    summarize(start = min(date),
+              end = max(date)) %>%
+    ungroup() %>%print(n = 48)
+
+# qq2 <-
+    left_join(qq, st_end, by = c('site','year', 'units', 'biomass_type')) %>%
+    mutate(coverage = case_when(date > start & date < end ~ 'good',
+                                TRUE ~ 'bad'),
+           fit = case_when(coverage == 'bad' ~ NA_real_,
+                           se > 2*fit ~ NA_real_,
+                           fit > 1000 ~ NA_real_,
+                           fit < 0 ~ NA_real_,
+                           TRUE ~ fit),
+           se = case_when(is.na(fit)~ NA_real_,
+                          TRUE ~ se)) %>%
+    ggplot(aes(date, fit, col = units)) + geom_line() +
+    geom_ribbon(aes(ymin = fit-se, ymax = fit+se, fill = units), alpha = 0.3)+
+    facet_grid(site~biomass_type)#, scales = 'free')
+write_csv(qq2, 'data/biomass_data/invgamma_gam_fits_biomass.csv')

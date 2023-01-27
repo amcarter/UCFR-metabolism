@@ -184,7 +184,7 @@ hist(dd$light)
 hist(dd$K600)
 dev.off()
 
-# manually scale so that the se's are correct
+# needs to be manually scaled so that the se's are correct
 dd<- dd %>%
     mutate(across(starts_with('GPP'), ~log(.))) %>%
     mutate(across(starts_with(c('epil','fila', 'light', 'K600')), ~scale(.)[,1]),
@@ -335,8 +335,8 @@ mod_ests <- mod_ests %>%
                                  TRUE ~ parameter))
 beepr::beep(5)
 
-write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_loggpp_logbm_fixedK600_gamma.csv')
-write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_loggpp_logbm_fixedK600_gamma.csv')
+write_csv(mod_ests, 'data/model_fits/log_hierarchical_model_parameters_loggpp_logbm_fixedK600_gamma.csv')
+write_csv(chains, 'data/model_fits/log_hierarchical_model_posterior_distributions_for_plot_loggpp_logbm_fixedK600_gamma.csv')
 # write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters_loggpp_logbm_noK600.csv')
 # write_csv(chains, 'data/model_fits/hierarchical_model_posterior_distributions_for_plot_loggpp_logbm.csv')
 # write_csv(mod_ests, 'data/model_fits/hierarchical_model_parameters.csv')
