@@ -52,10 +52,25 @@ lines(tt, fit$fitted)
 fit
 
 # Test autoARIMA ####
-dat <- dd %>% filter(site == 'GC')
+dat <- dd %>% filter(site == 'GC') %>%
+    mutate(year = lubridate::year(date),
+           doy = as.numeric(format(date, '%j')))
 X <- matrix(c(dat$light, dat$fila_chla_mgm2_fit), ncol = 2)
 fit <- Arima(xts(dat$GPP, order.by = dat$date),
              order = c(1,0,0), xreg = X)
+dat_ts <- ts(dat[,c("year","doy", "GPP","light", "fila_chla_mgm2_fit")],  start = c(2020, 196))
+fit <- auto.arima(dat[,'GPP'], xreg = dat_ts[,c('light', 'fila_chla_mgm2_fit')])
+
+traindat <- window(dat_ts, start = c(2020,196), end = c(2021, 237))
+testdat <- window(dat_ts, c(2021, 238), c(2021, 269))
+
+fit <- auto.arima(traindat[,"GPP"],
+                  xreg = traindat[,c('light', 'fila_chla_mgm2_fit')])
+summary(fit)
+
+fr <- forecast(fit, xreg = testdat[,c("light", 'fila_chla_mgm2_fit')])
+plot(fr)
+points(testdat[,'GPP'])
 
 forecast::checkresiduals(fit)
 plot(dat$date, dat$GPP)

@@ -1,7 +1,6 @@
 UCFR todo:
 
 DATA ANALYSIS
-- clean CR data and assess why it wasn't included in biomass/metab model
 - fit biomass x chl a relationship with standardized axis regression
 - Compare cumulative GPP to biomass (maybe...)
 
