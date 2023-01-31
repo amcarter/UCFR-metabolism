@@ -8,9 +8,9 @@ fit_linear <- read_csv('data/biomass_data/linear_gam_fits_biomass.csv') %>%
     mutate(fit = 'linear')
 k_linear <- read_csv('data/biomass_data/linear_gam_smoothness_parameter_checks.csv') %>%
     mutate(fit = 'linear')
-fit_log <- read_csv('data/biomass_data/loggamma_gam_fits_biomass.csv') %>%
+fit_log <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv') %>%
     mutate(fit = 'log')
-k_log <- read_csv('data/biomass_data/loggamma_gam_smoothness_parameter_checks.csv') %>%
+k_log <- read_csv('data/biomass_data/log_gamma_gam_smoothness_parameter_checks.csv') %>%
     mutate(fit = 'log')
 fit_inv <- read_csv('data/biomass_data/invgamma_gam_fits_biomass.csv') %>%
     mutate(fit = 'inverse')
@@ -21,8 +21,8 @@ fit_idgam <- read_csv('data/biomass_data/idgamma_gam_fits_biomass.csv') %>%
 k_idgam <- read_csv('data/biomass_data/idgamma_gam_smoothness_parameter_checks.csv') %>%
     mutate(fit = 'identity')
 
+fit <- bind_rows(fit_linear, fit_log)
 colnames(fit)
-fit <- bind_rows(fit_linear, fit_log, fit_inv, fit_idgam)
 k <- bind_rows(k_linear, k_log, k_inv, k_idgam)
 
 k %>% filter(k. < 2*edf | p.value < 0.05)

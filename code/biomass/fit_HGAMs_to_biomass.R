@@ -58,7 +58,7 @@ s_preds_lin <- s_preds_gamma <-
            site_year = as.factor(paste(site, year, sep = '_'))) %>%
     tibble()
 
-link_fn = 'inverse' # gamma link function, log or inverse?
+link_fn = 'log' # gamma link function, log or inverse?
 par(mfrow = c(2,2))
 
 # try it for all sites
@@ -82,7 +82,7 @@ pp_gamma <- mgcv::predict.gam(fg2_gamma, s_preds_gamma, type = 'response',
 
 s_preds_lin <- mutate(s_preds_lin,
                       epil_gm2_fit = c(pp_lin$fit),
-                      epil_gm2_se = c(pp_gamma$se.fit))
+                      epil_gm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
                         epil_gm2_fit = c(pp_gamma$fit),
                         epil_gm2_se = c(pp_gamma$se.fit))
@@ -97,7 +97,7 @@ fg2_fila <- gam(fila.om.area.g.m2 ~ s(doy) +
                     s(doy, site_year, bs = 'fs'),
                 data = biomass, method = 'REML', family = 'gaussian')
 
-gam.check(fg2_fila)
+AIC(fg2_fila)
 AIC(fg2_fila_gamma)
 
 gam.check(fg2_fila)
@@ -110,7 +110,7 @@ pp_gamma <- mgcv::predict.gam(fg2_fila_gamma, type = 'response',
 
 s_preds_lin <- mutate(s_preds_lin,
                       fila_gm2_fit = c(pp_lin$fit),
-                      fila_gm2_se = c(pp_gamma$se.fit))
+                      fila_gm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
                         fila_gm2_fit = c(pp_gamma$fit),
                         fila_gm2_se = c(pp_gamma$se.fit))
@@ -137,7 +137,7 @@ pp_lin <- mgcv::predict.gam(fg2_chla, s_preds_lin, se.fit = TRUE)
 
 s_preds_lin <- mutate(s_preds_lin,
                       epil_chla_mgm2_fit = c(pp_lin$fit),
-                      epil_chla_mgm2_se = c(pp_gamma$se.fit))
+                      epil_chla_mgm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
                         epil_chla_mgm2_fit = c(pp_gamma$fit),
                         epil_chla_mgm2_se = c(pp_gamma$se.fit))
@@ -163,7 +163,7 @@ pp_lin <- mgcv::predict.gam(fg2_fila_chla, s_preds_lin, se.fit = TRUE)
 
 s_preds_lin <- mutate(s_preds_lin,
                       fila_chla_mgm2_fit = c(pp_lin$fit),
-                      fila_chla_mgm2_se = c(pp_gamma$se.fit))
+                      fila_chla_mgm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
                         fila_chla_mgm2_fit = c(pp_gamma$fit),
                         fila_chla_mgm2_se = c(pp_gamma$se.fit))
@@ -245,10 +245,12 @@ png('figures/biomass_linGAMs_diagnostics.png', width = 7.5, height = 7.5,
 dev.off()
 
 qq = as_tibble(lapply(s_preds_lin, c)) %>% select(-site_year)
-qq = as_tibble(lapply(s_preds_gamma, c)) %>% select(-site_year)
+write_csv(qq, 'data/biomass_data/linear_gam_fits_biomass.csv')
+write_csv(k_check, 'data/biomass_data/linear_gam_smoothness_parameter_checks.csv')
 
-write_csv(qq, 'data/biomass_data/invgamma_gam_fits_biomass.csv')
-write_csv(k_check_gamma, 'data/biomass_data/invgamma_gam_smoothness_parameter_checks.csv')
+qq = as_tibble(lapply(s_preds_gamma, c)) %>% select(-site_year)
+write_csv(qq, 'data/biomass_data/log_gamma_gam_fits_biomass.csv')
+write_csv(k_check_gamma, 'data/biomass_data/log_gamma_gam_smoothness_parameter_checks.csv')
 
 # plot GAMS
 qq <- qq %>%
@@ -278,39 +280,51 @@ meas <- select(biomass, date, site, sample,
     mutate(year = lubridate::year(date))
 meas_chl <- filter(meas, units == 'chla_mgm2')
 meas_mass <- filter(meas, units == 'gm2')
-mm <- qq2 %>% filter(units == 'gm2') %>%
+x = 10
+mm <- qq %>% filter(units == 'gm2') %>%
+    mutate(fit = fit + x,
+           fit_high = fit + se,
+           fit_low = fit - se,
+           fit_low = case_when(fit_low < 0.3 ~ 0.3,
+                               TRUE ~ fit_low)) %>%
     ggplot(aes(date, fit, col = biomass_type)) +
     geom_line()+
-    geom_ribbon(aes(ymax = fit + se, ymin = fit - se,
+    geom_ribbon(aes(ymax = fit_high, ymin = fit_low,
                     fill = biomass_type), alpha = 0.4, color = NA)+
     geom_point(data = meas_mass, aes(date, meas, col = biomass_type))+
     facet_grid(site~year, scales = 'free_x') +
     scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
     scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
-    scale_y_log10(limits = c(0.3, 1000))+
+    scale_y_log10(limits = c(0.3, 600))+
     xlab('Date') +
     ylab(expression('Algal Standing Crop (AFDM g '~ m^-2*')')) +
     theme_bw()
-cc <- qq2 %>% filter(units == 'chla_mgm2') %>%
+cc <- qq %>%
+    mutate(fit = fit + x,
+           fit_high = fit + se,
+           fit_low = fit - se,
+           fit_low = case_when(fit_low < 0.3 ~ 0.3,
+                               TRUE ~ fit_low)) %>%
+    filter(units == 'chla_mgm2') %>%
     ggplot(aes(date, fit, col = biomass_type)) +
     geom_line()+
-    geom_ribbon(aes(ymax = fit + se, ymin = fit - se,
+    geom_ribbon(aes(ymax = fit_high, ymin = fit_low,
                     fill = biomass_type), alpha = 0.4, color = NA)+
     geom_point(data = meas_chl, aes(date, meas, col = biomass_type))+
-    facet_grid(site~year, scales = 'free') +
+    facet_grid(site~year, scales = 'free_x') +
     scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
     scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
-    scale_y_log10(limits = c(0.1, 1000))+
+    scale_y_log10(limits = c(0.3, 1000))+
     xlab('Date') +
     ylab(expression('Algal Standing Crop (mg chl a '~ m^-2*')')) +
     theme_bw()
 
-png('figures/biomass_linear_gams_comb.png', width = 7.5, height = 5, units = 'in',
-    res = 300)
+# png('figures/biomass_log_gamma_gams_comb.png', width = 7.5, height = 5, units = 'in',
+#     res = 300)
 
     ggpubr::ggarrange(mm, cc, nrow = 1, common.legend = TRUE,
                       labels = c('a', 'b'))
-dev.off()
+# dev.off()
 
 # trim estimates so that they aren't more than 2 weeks from an actual measurement
 qq %>%

@@ -25,7 +25,7 @@ abline(0,1)
 plot(dd$fila_gm2_fit, dd$fila_chla_mgm2_fit)
 
 
-chains <- read_csv('data/model_fits/invg_hierarchical_model_posterior_distributions_for_plot_loggpp_logbm_fixedK600_gamma.csv')
+chains <- read_csv('data/model_fits/hmodel_GPP_bm_logGAM_post_dists_for_plot.csv')
 chains <- data.frame(parameter = c(rep('gamma_fila',2),
                                    rep('gamma_epil',2)),
                      chains = rep(0,4),
@@ -33,7 +33,7 @@ chains <- data.frame(parameter = c(rep('gamma_fila',2),
                      units = rep(NA_character_,4)) %>%
     bind_rows(chains)
 
-inv_K <- chains %>%
+nl <- chains %>%
     # filter(parameter != 'gamma_k600')%>%
     filter(biomass_vars == 'fila_epil' | is.na(biomass_vars)) %>%
     mutate(model = case_when(units == 'chla_mgm2' ~ 'c Algal chl a',
@@ -51,14 +51,79 @@ inv_K <- chains %>%
                 scale = 'width', adjust =4, width = .5) +
     # facet_grid(biomass_vars~model)+
     scale_fill_viridis(discrete=T, option = "G", name="") +
-    ggtitle('Inverse gamma GAM fits')+
+    ggtitle('GPP=f(bm)')+
     ylab("Parameter Estimate") +
+    xlab("") +
+    # ylim(-0.1,0.8)+
+    # ylim(-0.5,5)+
+    theme_bw()
+chains <- read_csv('data/model_fits/hmodel_GPP_bm_linGAM_post_dists_for_plot.csv')
+chains <- data.frame(parameter = c(rep('gamma_fila',2),
+                                   rep('gamma_epil',2)),
+                     chains = rep(0,4),
+                     biomass_vars = rep(NA_character_,4),
+                     units = rep(NA_character_,4)) %>%
+    bind_rows(chains)
+
+nllin <- chains %>%
+    # filter(parameter != 'gamma_k600')%>%
+    filter(biomass_vars == 'fila_epil' | is.na(biomass_vars)) %>%
+    mutate(model = case_when(units == 'chla_mgm2' ~ 'c Algal chl a',
+                             units == 'gm2' ~ 'b Algal mass',
+                             TRUE ~ 'a No biomass')) %>%
+    mutate(parameter = case_when(parameter == "gamma_light" ~ 'light',
+                                 parameter == "gamma_epil" ~"epil",
+                                 parameter == "gamma_fila" ~ "fila",
+                                 TRUE ~ parameter),
+           parameter = factor(parameter,
+                              levels=c("phi", "light",
+                                       "fila", "epil"))) %>%
+    ggplot(aes(fill = model, y = chains, x = parameter)) +
+    geom_violin(position=position_dodge(0.7), alpha=0.5,
+                scale = 'width', adjust =4, width = .5) +
+    # facet_grid(biomass_vars~model)+
+    scale_fill_viridis(discrete=T, option = "G", name="") +
+    ggtitle('GPP=f(bm)')+
+    ylab("Parameter Estimate") +
+    xlab("") +
+    # ylim(-0.1,0.8)+
+    # ylim(-0.5,5)+
+    theme_bw()
+
+chains <- read_csv('data/model_fits/hmodel_logGPP_bm_linGAM_post_dists_for_plot.csv')
+chains <- data.frame(parameter = c(rep('gamma_fila',2),
+                                   rep('gamma_epil',2)),
+                     chains = rep(0,4),
+                     biomass_vars = rep(NA_character_,4),
+                     units = rep(NA_character_,4)) %>%
+    bind_rows(chains)
+
+log_plin <- chains %>%
+    # filter(parameter != 'gamma_k600')%>%
+    filter(biomass_vars == 'fila_epil' | is.na(biomass_vars)) %>%
+    mutate(model = case_when(units == 'chla_mgm2' ~ 'c Algal chl a',
+                             units == 'gm2' ~ 'b Algal mass',
+                             TRUE ~ 'a No biomass')) %>%
+    mutate(parameter = case_when(parameter == "gamma_light" ~ 'light',
+                                 parameter == "gamma_epil" ~"epil",
+                                 parameter == "gamma_fila" ~ "fila",
+                                 TRUE ~ parameter),
+           parameter = factor(parameter,
+                              levels=c("phi", "light",
+                                       "fila", "epil"))) %>%
+    ggplot(aes(fill = model, y = chains, x = parameter)) +
+    geom_violin(position=position_dodge(0.7), alpha=0.5,
+                scale = 'width', adjust =4, width = .5) +
+    # facet_grid(biomass_vars~model)+
+    scale_fill_viridis(discrete=T, option = "G", name="") +
+    ylab("") +
+    ggtitle('log(GPP) = f(bm)')+
     xlab("") +
     ylim(-0.1,0.8)+
     # ylim(-0.5,5)+
     theme_bw()
 
-chains <- read_csv('data/model_fits/log_hierarchical_model_posterior_distributions_for_plot_loggpp_logbm_fixedK600_gamma.csv')
+chains <- read_csv('data/model_fits/hmodel_logGPP_logbm_linGAM_post_dists_for_plot.csv')
 chains <- data.frame(parameter = c(rep('gamma_fila',2),
                                    rep('gamma_epil',2)),
                      chains = rep(0,4),
@@ -66,7 +131,7 @@ chains <- data.frame(parameter = c(rep('gamma_fila',2),
                      units = rep(NA_character_,4)) %>%
     bind_rows(chains)
 
-log_K <- chains %>%
+loglog_plin <- chains %>%
     # filter(parameter != 'gamma_k600')%>%
     filter(biomass_vars == 'fila_epil' | is.na(biomass_vars)) %>%
     mutate(model = case_when(units == 'chla_mgm2' ~ 'c Algal chl a',
@@ -84,14 +149,45 @@ log_K <- chains %>%
                 scale = 'width', adjust =4, width = .5) +
     # facet_grid(biomass_vars~model)+
     scale_fill_viridis(discrete=T, option = "G", name="") +
-    ylab("Parameter Estimate") +
-    ggtitle('Log GAM fits')+
+    ylab("") +
+    ggtitle("log(GPP) = fn(log(bm))")+
+    ylim(-0.1,0.8)+
+    xlab("") +
+    theme_bw()
+chains <- read_csv('data/model_fits/hmodel_logGPP_bm_logGAM_post_dists_for_plot.csv')
+chains <- data.frame(parameter = c(rep('gamma_fila',2),
+                                   rep('gamma_epil',2)),
+                     chains = rep(0,4),
+                     biomass_vars = rep(NA_character_,4),
+                     units = rep(NA_character_,4)) %>%
+    bind_rows(chains)
+
+log_p <- chains %>%
+    # filter(parameter != 'gamma_k600')%>%
+    filter(biomass_vars == 'fila_epil' | is.na(biomass_vars)) %>%
+    mutate(model = case_when(units == 'chla_mgm2' ~ 'c Algal chl a',
+                             units == 'gm2' ~ 'b Algal mass',
+                             TRUE ~ 'a No biomass')) %>%
+    mutate(parameter = case_when(parameter == "gamma_light" ~ 'light',
+                                 parameter == "gamma_epil" ~"epil",
+                                 parameter == "gamma_fila" ~ "fila",
+                                 TRUE ~ parameter),
+           parameter = factor(parameter,
+                              levels=c("phi", "light",
+                                       "fila", "epil"))) %>%
+    ggplot(aes(fill = model, y = chains, x = parameter)) +
+    geom_violin(position=position_dodge(0.7), alpha=0.5,
+                scale = 'width', adjust =4, width = .5) +
+    # facet_grid(biomass_vars~model)+
+    scale_fill_viridis(discrete=T, option = "G", name="") +
+    ylab("") +
+    ggtitle('log(GPP) = f(bm)')+
     xlab("") +
     ylim(-0.1,0.8)+
     # ylim(-0.5,5)+
     theme_bw()
 
-chains <- read_csv('data/model_fits/lin_hierarchical_model_posterior_distributions_for_plot_loggpp_logbm_fixedK600_gamma.csv')
+chains <- read_csv('data/model_fits/hmodel_logGPP_logbm_logGAM_post_dists_for_plot.csv')
 chains <- data.frame(parameter = c(rep('gamma_fila',2),
                                    rep('gamma_epil',2)),
                      chains = rep(0,4),
@@ -99,7 +195,7 @@ chains <- data.frame(parameter = c(rep('gamma_fila',2),
                      units = rep(NA_character_,4)) %>%
     bind_rows(chains)
 
-lin_K <- chains %>%
+loglog_p <- chains %>%
     # filter(parameter != 'gamma_k600')%>%
     filter(biomass_vars == 'fila_epil' | is.na(biomass_vars)) %>%
     mutate(model = case_when(units == 'chla_mgm2' ~ 'c Algal chl a',
@@ -117,10 +213,11 @@ lin_K <- chains %>%
                 scale = 'width', adjust =4, width = .5) +
     # facet_grid(biomass_vars~model)+
     scale_fill_viridis(discrete=T, option = "G", name="") +
-    ylab("Parameter Estimate") +
-    ggtitle('Linear GAM fits')+
+    ylab("") +
+    ggtitle("log(GPP) = fn(log(bm))")+
     ylim(-0.1,0.8)+
     xlab("") +
     theme_bw()
 
-ggpubr::ggarrange(log_K, inv_K, lin_K, ncol = 3, common.legend = TRUE)
+ggpubr::ggarrange(nllin, log_plin, loglog_plin, nl, log_p, loglog_p, ncol = 3, nrow = 2,
+                  common.legend = TRUE)

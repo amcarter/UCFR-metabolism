@@ -16,15 +16,10 @@ q <- read_csv('data/site_data/discharge_UCFRsites_2020.csv')
 met <- left_join(met, light, by = c('site', 'date')) %>%
     left_join(q, by = c('site', 'date'))
 
-biomass <- read_csv('data/biomass_data/loggamma_gam_fits_biomass.csv')
-biomass <- read_csv('data/biomass_data/invgamma_gam_fits_biomass.csv') %>%
-    mutate(fila_chla_mgm2_fit = case_when(fila_chla_mgm2_se > 2* fila_chla_mgm2_fit ~NA_real_,
-                                          fila_chla_mgm2_fit < 0 ~ NA_real_,
-                                          fila_chla_mgm2_fit > 1000 ~ NA_real_,
-                                          TRUE ~ fila_chla_mgm2_fit),
-           fila_chla_mgm2_se = case_when(is.na(fila_chla_mgm2_fit)~ NA_real_,
-                                         TRUE ~ fila_chla_mgm2_se))
-
+# biomass <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv')
+biomass <- read_csv('data/biomass_data/linear_gam_fits_biomass.csv') %>%
+    mutate(across(starts_with(c('fila', 'epil')), ~case_when(. < 0 ~ 0,
+                                                             TRUE ~ .)))
 
 met <- left_join(met, biomass, by = c('site', 'date'))
 

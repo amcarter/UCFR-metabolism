@@ -123,7 +123,7 @@ Metabolism estimates from Stream Metabolizer
 
 **2. compare_biomass_and_metab.R**- an exploratory comparison of raw biomass data with metabolism estimates.
 
-**3. fit_GAM_to_biomass.R** - fit hierarchical GAMs to biomass datasets using mcgv package. Also generates plots of fitted biomass data.
+**3. fit_HGAM_to_biomass.R** - fit hierarchical GAMs to biomass datasets using mcgv package. Compares across different model fits. Also generates plots of fitted biomass data.
 
 <!--model-->
 ### Model
