@@ -20,42 +20,72 @@ rle2 <- function(x){ # function for breaking site years to restart AR model
 }
 
 # functions to interact with model output: ####
-fit_biomass_model <- function(dd, biomass, model, K600 = TRUE){
+fit_biomass_model <- function(model, dat, X, log_GPP = TRUE, iter = 2000){
 
-    new_ts <- rep(0, nrow(dd))
-    new_ts[rle2(paste0(dd$year, dd$site))$starts] <- 1
-    dd$GPP_sd <- (dd$GPP.upper - dd$GPP.lower)/3.92
+    if(!log_GPP){
+        dat <- mutate(dat,
+                      log_GPP = GPP,
+                      log_GPP_sd = GPP_sd)
+    }
 
     datlist <- list(
-        N = nrow(dd), K = ncol(biomass),
-        S = length(sites), ss = as.numeric(dd$site),
-        K600 = dd$K600,
-        light = dd$light,
-        biomass = biomass,
-        P = dd$GPP,
-        P_sd = dd$GPP_sd,
-        new_ts = new_ts
+        N = nrow(X), K = ncol(X),
+        S = length(unique(dat$site)),
+        ss = as.numeric(dat$site),
+        X = X, P = dat$log_GPP, P_sd = dat$log_GPP_sd
     )
-    if(!K600){
-        datlist <- list(
-            N = nrow(dd), K = ncol(biomass),
-            S = length(sites), ss = as.numeric(dd$site),
-            light = dd$light,
-            biomass = biomass,
-            P = dd$GPP,
-            P_sd = dd$GPP_sd,
-            new_ts = new_ts
-        )
 
+    if(model@model_name == 'ar1_lmod'){
+        new_ts <- rep(0, nrow(dat))
+        new_ts[rle2(paste0(dat$year, dat$site))$starts] <- 1
+        datlist <- c(datlist, list(new_ts = new_ts))
     }
 
     fit <- sampling(
         model,
-        data = datlist
+        datlist,
+        chains = 4,
+        iter = iter
     )
 
     return(fit)
 }
+# fit_biomass_model <- function(dd, biomass, model, K600 = TRUE){
+#
+#     new_ts <- rep(0, nrow(dd))
+#     new_ts[rle2(paste0(dd$year, dd$site))$starts] <- 1
+#     dd$GPP_sd <- (dd$GPP.upper - dd$GPP.lower)/3.92
+#
+#     datlist <- list(
+#         N = nrow(dd), K = ncol(biomass),
+#         S = length(sites), ss = as.numeric(dd$site),
+#         K600 = dd$K600,
+#         light = dd$light,
+#         biomass = biomass,
+#         P = dd$GPP,
+#         P_sd = dd$GPP_sd,
+#         new_ts = new_ts
+#     )
+#     if(!K600){
+#         datlist <- list(
+#             N = nrow(dd), K = ncol(biomass),
+#             S = length(sites), ss = as.numeric(dd$site),
+#             light = dd$light,
+#             biomass = biomass,
+#             P = dd$GPP,
+#             P_sd = dd$GPP_sd,
+#             new_ts = new_ts
+#         )
+#
+#     }
+#
+#     fit <- sampling(
+#         model,
+#         data = datlist
+#     )
+#
+#     return(fit)
+# }
 
 get_model_preds <- function(fit, dat){
     preds <- rstan::summary(fit, pars = 'y_tilde')$summary %>%
@@ -66,99 +96,92 @@ get_model_preds <- function(fit, dat){
     return(preds)
 }
 
-plot_model_fit <- function(preds, dat, mod = 'fila_epil_chla'){
-    preds_poly <- data.frame(date = c(dat$date, rev(dat$date)),
-                             site = c(dat$site, rev(dat$site)),
-                             y = c(preds$P_mod_lower, rev(preds$P_mod_upper))) %>%
-        left_join(dat, by = c('site', 'date'))
+plot_model_fit <- function(preds, log_ests = TRUE, mod = NA,
+                           scales = 'free_x', write = FALSE){
+    if(log_ests){
+        preds <- mutate(preds,
+                        across(starts_with('P_mod'), ~exp(.)))
+    }
 
     p <- ggplot(preds, aes(date, GPP)) +
         geom_point(size = 0.8) +
         geom_errorbar(aes(ymin = GPP.lower, ymax = GPP.upper), linewidth = 0.3) +
         geom_line(aes(y = P_mod), col = 'steelblue', linewidth = 0.75) +
-        geom_polygon(data = preds_poly, aes(date, y),
-                     fill = alpha('steelblue', 0.3),
-                     col = alpha('steelblue', 0.3))+
-        facet_grid(site~year, scales = 'free') +
+        geom_ribbon(aes(ymin = P_mod_lower, ymax = P_mod_upper),
+                     fill = alpha('steelblue', 0.3), col = NA)+
+        facet_grid(site~year, scales = scales) +
         ylab(expression(paste('GPP (g ', O[2], ' ', m^-2, d^-1, ')')))+
         xlab('')+
         theme_bw()
 
+    if(write){
     ggsave(paste0('figures/biomass_models/hierarchical_biomass_model_fit_',mod,'.png'),
            plot = p, width = 6, height = 7, units = 'in', dpi = 300)
+    }else{
+        return(p)
+    }
 }
 
-extract_model_params <- function(fit, bmv = 'fila + epil', units = 'gm2',
+extract_model_params <- function(fit, X, dd,
+                                 pars = c('phi', 'gamma','beta', 'tau', 'sigma'),
+                                 extract.chains = FALSE,
                                  phi_corrected = FALSE){
-    ss <- summary(fit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma'))$summary %>%
-        data.frame()
-    ss$biomass_vars = bmv
-    ss$units = units
+    avail_pars <- fit@model_pars
+    if(!("phi" %in% avail_pars)){
+        pars = grep('phi', pars, value = T, invert = T)
+    }
+
+    ss <- summary(fit, pars = pars)$summary %>%
+        data.frame() %>%
+        select(mean, se_mean, sd, X_2.5 = X2.5., X_50 = X50., X_97.5 = X97.5.)
     ss$parameter = row.names(ss)
     row.names(ss) <- NULL
 
-    w <- which(ss$parameter != 'phi')
-
     if(phi_corrected){
-        ss <- mutate(ss,
-                     across(c('mean', 'se_mean', 'sd', starts_with('X')),
-                            ~case_when(parameter != 'phi' ~ ./(1-ss$mean[1]),
-                                       TRUE ~ .)))
+        ss <- ss %>%
+            mutate(across(-parameter,
+                          ~case_when(parameter != 'phi' ~
+                                     ./(1-ss$mean[which(ss$parameter == 'phi')[1]]),
+                                     TRUE ~ .)))
+    }
+
+    # rename parameters
+    ss$parameter <- sub('^beta\\[([0-9]+)\\]$', 'beta_\\1', ss$parameter)
+    ss$parameter[grepl('gamma', ss$parameter)] <- paste0('gamma_', c('intercept', colnames(X)))
+
+    ss$biomass_vars = paste(colnames(X), collapse = ' + ')
+    ss$model <- fit@model_name
+    ss$r2_adj = calculate_r2_adj(fit, dd)
+    ss$rmse = calculate_rmse(fit, dd)
+
+    if(extract.chains){
+        cc <- rstan::extract(fit, pars = pars) %>% data.frame()
+        colnames(cc) <- sub('^beta\\.([0-9]+)$', 'beta_\\1', colnames(cc))
+        colnames(cc)[grepl('gamma', colnames(cc))] <- paste0('gamma_', c('intercept', colnames(X)))
+        if(phi_corrected){
+            cc <- mutate(cc,across(-phi,
+                                   ~./(1-ss$mean[which(ss$parameter == 'phi')[1]])))
+        }
+        cc <- pivot_longer(cc, cols = everything(),
+                           names_to = 'parameter',
+                           values_to = 'chains') %>%
+            mutate(biomass_vars = paste(colnames(X), collapse = ' + '),
+                   model = fit@model_name)
+
+        return(list(ests = ss,
+                    chains = cc))
     }
 
     return(ss)
 }
 
-extract_model_chains <- function(fit, bmv = 'fila + epil', units = 'gm2'){
-    ss <- rstan::extract(fit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma')) %>%
-        data.frame()
-    ss <- ss %>%
-        select(phi, starts_with('gamma')) %>%
-        select(-gamma.1) %>%
-        mutate(across(starts_with('gamma'),
-                      ~ ./(1-phi))) %>%
-        pivot_longer(cols = everything(), names_to = 'parameter',
-                     values_to = 'chains') %>%
-        mutate(biomass_vars = bmv,
-               units = units,
-               parameter = case_when(parameter == 'gamma.2' ~ 'gamma_light',
-                                     parameter == 'gamma.3' &
-                                         biomass_vars %in% c('fila', 'fila_epil') ~ 'gamma_fila',
-                                     parameter == 'gamma.3' &
-                                         biomass_vars == 'epil' ~ 'gamma_epil',
-                                     parameter == 'gamma.4' ~ 'gamma_epil',
-                                     TRUE ~ parameter))
 
-
-    return(ss)
-}
-extract_model_chains_K600 <- function(fit, bmv = 'fila + epil', units = 'gm2'){
-    ss <- rstan::extract(fit, pars = c('phi', 'gamma', 'beta', 'tau', 'sigma')) %>%
-        data.frame()
-    ss <- ss %>%
-        select(phi, starts_with('gamma')) %>%
-        select(-gamma.1) %>%
-        mutate(across(starts_with('gamma'),
-                      ~ ./(1-phi))) %>%
-        pivot_longer(cols = everything(), names_to = 'parameter',
-                     values_to = 'chains') %>%
-        mutate(biomass_vars = bmv,
-               units = units,
-               parameter = case_when(parameter == 'gamma.2' ~ 'gamma_k600',
-                                     parameter == 'gamma.3' ~ 'gamma_light',
-                                     parameter == 'gamma.4' &
-                                         biomass_vars %in% c('fila', 'fila_epil') ~ 'gamma_fila',
-                                     parameter == 'gamma.4' &
-                                         biomass_vars == 'epil' ~ 'gamma_epil',
-                                     parameter == 'gamma.5' ~ 'gamma_epil',
-                                     TRUE ~ parameter))
-
-
-    return(ss)
-}
-calculate_r2_adj <- function(preds, npar = 13){
-
+calculate_r2_adj <- function(fit, dd, log = TRUE){
+    preds <- get_model_preds(fit, dd)
+    npar <- length(grep('mu|y_tilde|lp',
+                        row.names(summary(fit)$summary), invert = T))
     N = nrow(preds)
+    if(log) preds$P_mod <- exp(preds$P_mod)
     r2 = 1 - sum((preds$GPP - preds$P_mod)^2)/
         sum((preds$GPP - mean(preds$GPP))^2)
 
@@ -166,7 +189,10 @@ calculate_r2_adj <- function(preds, npar = 13){
 
     return(r2_adj)
 }
-calculate_rmse <- function(preds){
+
+calculate_rmse <- function(fit = NULL, dd = NULL, preds = NULL, log = TRUE){
+    if(is.null(preds)) preds <- get_model_preds(fit, dd)
+    if(log) preds$P_mod <- exp(preds$P_mod)
 
     N = nrow(preds)
     rmse = sqrt((1/N) * sum((preds$GPP - preds$P_mod)^2))
