@@ -194,17 +194,18 @@ predicted %>%
 
 # Combine the outputs into one file
 dat <- data.frame()
-for(site in site_parm[,'Site_ID']){
+for(site in as.character(site_parm[,'Site_ID'])){
   fl <- list.files(working_dir)
   if(!paste(site, "_driver.rds", sep = "") %in% fl) next
 
   pred <- readRDS(paste(working_dir, '/', site, '_predicted.rds', sep = ''))
   ss <- pred %>%
-  select(local_time, LAI, PAR_inc, PAR_surface) %>%
+  dplyr::select(local_time, LAI, PAR_inc, PAR_surface) %>%
   mutate(date = as.Date(local_time, tz = 'EST'),
          site = site) %>%
   group_by(site, date) %>%
-  summarize(LAI = mean(LAI, na.rm = T),
+  summarize(light_hrs = length(which(PAR_inc>0)),
+            LAI = mean(LAI, na.rm = T),
             PAR_inc = sum(PAR_inc),
             PAR_surface = sum(PAR_surface)) %>%
   ungroup()

@@ -1,6 +1,8 @@
 # Compare across metabolism fits with varying K600 sigma sigma
 
 library(tidyverse)
+source('code/UCFR_helpers.R')
+source('code/metabolism/functions_examine_SM_output.R')
 
 files <- grep('\\.rds$', list.files('data/metabolism/metab_fits'), value = TRUE)
 
@@ -47,7 +49,7 @@ for(site in c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')){
 
 a <- COMP_MET %>%
     mutate(doy = as.numeric(format(date, "%j")),
-           year = year(date)) %>%
+           year = lubridate::year(date)) %>%
     ggplot(aes(date, GPP, col = K600_sigsig))+
     geom_line(linewidth = 0.5) +
     facet_grid(site~year, scales = 'free_x') +
@@ -68,3 +70,34 @@ png('figures/SI/metab_change_with_K600_sigsig.png', width = 10, height = 7,
     units = 'in', res = 300)
     ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE, widths = c(3, 1), align = 'v')
 dev.off()
+
+
+COMP_MET %>%
+    mutate(year = lubridate::year(date)) %>%
+    tibble() %>%
+    group_by(site, year) %>%
+    summarize(GPP = sum(GPP, na.rm = T),
+              ER = sum(ER, na.rm = T)) %>%
+    mutate(NEP = GPP + ER,
+           PR = -GPP/ER)
+
+
+# Comparison to Qipei's metabolism fit for Garrison
+GR <- read_csv('GR_metab.csv')
+GR <-  GR %>% select(date, GPP_CO2 = GPP.daily, ER_CO2 = ER.daily, K600_CO2 = K600.daily) %>%
+     left_join(filter(COMP_MET, site == 'GR'), by = 'date')
+GR %>%
+    rename(GPP_O2 = GPP, ER_O2 = ER) %>%
+    select(-starts_with('K')) %>%
+    pivot_longer(starts_with(c('ER', 'GPP')), names_to = c('met', 'gas'),
+                 values_to = 'gm2', names_sep = '_') %>%
+    pivot_wider(names_from = met, values_from = gm2)
+ggplot(GR, aes(date)) +
+    geom_line(aes(y = GPP, lty = K600_sigsig)) +
+    geom_line(aes(y = ER, lty = K600_sigsig)) +
+    geom_line(aes(y = GPP_CO2), col = 'brown') +
+    geom_line(aes(y = ER_CO2), col = 'brown') +
+    geom_hline(yintercept = 0)+
+    ylab('metabolism')+
+    theme_classic()
+hist(GR$K600_CO2)

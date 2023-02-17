@@ -11,7 +11,7 @@ data {
     int<lower=1,upper=S> ss[N]; // site for each observation
     matrix[N,K] X;              // model matrix with covariates
     vector[N] P;                // productivity (response)
-    vector[N] P_sd;             // sd on GPP
+    // vector[N] P_sd;             // sd on GPP
 }
 
 parameters {
@@ -19,7 +19,16 @@ parameters {
     vector[S] beta;             // site level intercepts
     real<lower=0> tau;          // variation in site intercepts
     real<lower=0> sigma;        // process error
+}
+
+transformed parameters{
+
     vector[N] mu;               // true process mean
+    // vector[N] sigma_daily;      // model process error plus observation error
+
+    mu = beta[ss] + X * gamma[2:K+1];
+    // sigma_daily = sigma + P_sd;
+
 }
 
 model {
@@ -32,18 +41,19 @@ model {
         beta[s] ~ normal(gamma[1], tau);
     }
 
-    mu ~ normal(beta[ss] + X * gamma[2:K+1], sigma);
+    // mu ~ normal(beta[ss] + X * gamma[2:K+1], sigma);
 
-    P ~ normal(mu, P_sd);
+    P ~ normal(mu, sigma);
 }
 
 generated quantities {
-    vector[N] mu_tilde; //linear predictor
     vector[N] y_tilde;
+    vector[N] log_lik;
 
-    for(n in 1:N){
-        mu_tilde[n] = normal_rng(beta[ss[n]] + X[n,] * gamma[2:K+1], sigma);
-        y_tilde[n] = normal_rng(mu_tilde[n], P_sd[n]);
+    for (n in 1:N) {
+        log_lik[n] = normal_lpdf(P[n] | mu[n], sigma);
+        y_tilde[n] = normal_rng(mu[n], sigma);
     }
+
 
 }

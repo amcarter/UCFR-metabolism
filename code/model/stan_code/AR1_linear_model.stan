@@ -11,7 +11,7 @@ data {
     int<lower=1,upper=S> ss[N]; // site for each observation
     matrix[N,K] X;              // model matrix with covariates
     vector[N] P;                // productivity (response)
-    vector[N] P_sd;             // sd on GPP
+    // vector[N] P_sd;             // sd on GPP
     int new_ts[N];              // vector of 0/1 indicating new site years
 }
 
@@ -21,7 +21,22 @@ parameters {
     vector[S] beta;             // site level intercepts
     real<lower=0> tau;          // variation in site intercepts
     real<lower=0> sigma;        // process error
-    vector[N] mu;               // true process mean
+}
+
+transformed parameters {
+    vector[N] mu;
+    // vector[N] sigma_daily;
+
+    for(n in 1:N){
+        if(new_ts[n] == 1){
+            mu[n] = P[n];
+        }
+        else{
+            mu[n] = beta[ss[n]] + X[n,] * gamma[2:K+1] + phi * P[n-1];
+        }
+    }
+
+    // sigma_daily = sigma + P_sd;
 }
 
 model {
@@ -35,31 +50,17 @@ model {
         beta[s] ~ normal(gamma[1], tau);
     }
 
-    for(n in 1:N){
-        if(new_ts[n] == 1){
-            mu[n] ~ normal(P[n], sigma);
-        }
-        else{
-            mu[n] ~ normal(beta[ss[n]] + X[n,] * gamma[2:K+1] + phi * mu[n-1], sigma);
-        }
-    }
-
-    P ~ normal(mu, P_sd);
+    P ~ normal(mu, sigma);
 }
 
 generated quantities {
-    vector[N] mu_tilde; //linear predictor
+
     vector[N] y_tilde;
+    vector[N] log_lik;
 
-    for(n in 1:N){
-        if(new_ts[n] == 1){
-            mu_tilde[n] = normal_rng(P[n], sigma);
-        }
-        else{
-            mu_tilde[n] = normal_rng(beta[ss[n]] + X[n,] * gamma[2:K+1] + phi * mu_tilde[n-1], sigma);
-        }
-
-        y_tilde[n] = normal_rng(mu_tilde[n], P_sd[n]);
+    for(n in 1:N) {
+        y_tilde[n] = normal_rng(mu[n], sigma);
+        log_lik[n] = normal_lpdf(P[n] | mu[n], sigma);
     }
 
 }
