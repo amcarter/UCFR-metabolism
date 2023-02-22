@@ -81,7 +81,8 @@ master_X <- select(dd, light, epil_afdm = log_epil_gm2_fit,
 model_combinations <- list(1, c(1,2), c(1,3), c(1,2,3),
                            c(1,4), c(1,5), c(1,4,5),
                            c(1,2,6), c(1,3,7), c(1,2,3,6,7),
-                           c(1,4,8), c(1,5,9), c(1,4,5,8,9))
+                           c(1,4,8), c(1,5,9), c(1,4,5,8,9),
+                           6,7,8,9, c(6,7), c(8,9))
 
 # fit linear models ####
 mod_ests <- data.frame()
@@ -117,7 +118,7 @@ mod_ests <- data.frame()
 chains <- data.frame()
 mod_comp <- data.frame()
 
-for(i in 1:length(model_combinations)){
+for(i in 14:length(model_combinations)){
     print(paste('model', i, 'of', length(model_combinations), sep = ' '))
     X <- master_X[,model_combinations[[i]]]
     fit <- fit_biomass_model(ar1_lmod_ss, dd, X = as.matrix(X))
@@ -125,7 +126,7 @@ for(i in 1:length(model_combinations)){
     p <- plot_model_fit(preds) +
         ggtitle(paste0('ar1_lmod: ', paste(colnames(X), collapse = ' + ')))
     print(p)
-    ggsave(paste('figures/biomass_models/conditioned_preds/ar1_lmod_ss',
+    ggsave(paste('figures/biomass_models/unconditioned_preds/ar1_lmod_ss',
               paste(colnames(X),collapse = '_'),'.png'), p,
         width = 5, height = 7, units = 'in')
 

@@ -1,5 +1,6 @@
 figures
 data/metabolism/metab_fits
+data/model_fits
 data/prepared_data/cleaned_data
 code/download_prep_data/light/NLDAS
 code/download_prep_data/light/MODIS

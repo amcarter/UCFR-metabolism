@@ -69,18 +69,18 @@ model {
 }
 
 generated quantities {
-    vector[N] y_tilde;
-    vector[N] mu_tilde;
+    // vector[N] y_tilde;
+    // vector[N] mu_tilde;
     vector[N] log_lik;
 
     for(i in 1:N){
-        if(new_ts[i] == 1){
-            mu_tilde[i] = normal_rng(P[i], sigma);
-        }
-        else{
-            mu_tilde[i] = normal_rng(beta_s[ss[i]] + mu[i-1] * phi + rates[i,] * X[i,]', sigma);
-        }
-        y_tilde[i] = normal_rng(mu_tilde[i], P_sd);
+        // if(new_ts[i] == 1){
+        //     mu_tilde[i] = normal_rng(P[i], sigma);
+        // }
+        // else{
+        //     mu_tilde[i] = normal_rng(beta_s[ss[i]] + mu[i-1] * phi + rates[i,] * X[i,]', sigma);
+        // }
+        // y_tilde[i] = normal_rng(mu[i], P_sd);
         log_lik[i] = normal_lpdf(P[i] | mu[i], P_sd);
     }
 

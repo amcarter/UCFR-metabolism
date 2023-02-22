@@ -69,7 +69,7 @@ generated quantities {
             mu_tilde[n] = normal_rng(P[n], sigma);
         }
         else{
-            mu_tilde[n] = normal_rng(beta[ss[n]] + X[n,] * gamma[2:K+1] + phi * mu[n-1], sigma);
+            mu_tilde[n] = normal_rng(beta[ss[n]] + X[n,] * gamma[2:K+1] + phi * mu_tilde[n-1], sigma);
         }
         y_tilde[n] = normal_rng(mu_tilde[n], P_sd);
         log_lik[n] = normal_lpdf(P[n] | mu[n], P_sd);

@@ -1,3 +1,5 @@
+library(tidyverse)
+library(viridis)
 # linear no interaction
 beta0 <- -2
 beta1 <- 2.7
@@ -83,22 +85,28 @@ D <- ggplot(PI_4, aes(light, GPP, col = biomass, group = factor(biomass))) +
     theme_bw()
 
 
+
+
 ggpubr::ggarrange(A,BB,C,D, common.legend = TRUE, ncol = 2, nrow = 2)
 
-PI_1$model = 'linear model'
-PI_2$model = 'linear model with interaction'
-PI_3$model = 'linear model only interaction'
-PI_4$model = 'PI curve'
+PI_1$model = '1. Linear model'
+PI_2$model = '2. Linear model with interaction'
+PI_3$model = '3. Linear model only interaction'
+PI_4$model = '4. PI curve'
 
 PI <- bind_rows(PI_1, PI_2, PI_3, PI_4) %>%
     mutate(model = factor(model,
-                          levels = c('linear model',
-                                     'linear model with interaction',
-                                     'linear model only interaction',
-                                     'PI curve')))
-
-ggplot(PI, aes(light, GPP, col = biomass, group = factor(biomass))) +
+                          levels = c('1. Linear model',
+                                     '2. Linear model with interaction',
+                                     '3. Linear model only interaction',
+                                     '4. PI curve')))
+png('figures/model_examples.png', width = 5.5, height = 4, units = 'in', res = 300)
+PI %>% rename(Biomass = biomass) %>%
+ggplot( aes(light, GPP, col = Biomass, group = factor(Biomass))) +
     geom_line(size = 1.5) +
     scale_color_viridis(option = 'D') +
     facet_wrap(.~model, ncol = 2)+
-    theme_bw()
+    theme_bw()+
+    ylab(expression(paste('Productivity (g ',O[2],  m^-2, d^-1, ')')))+
+    xlab('Relative light')
+dev.off()
