@@ -39,8 +39,46 @@ best_mods_by_cat <- mod_metrics %>%
 
 write_csv(best_mods_by_cat, 'data/model_fits/best_models_by_category.csv')
 
-best_mods <- mod_metrics %>% arrange(rmse) %>%
-    slice(1:6)
+best_mods <- best_mods_by_cat[c(1,2,5,8),]
+best_chains <- chains %>%
+    right_join(best_mods[,1:2])
+
+best_chains <- data.frame(parameter = c(rep('gamma_fila_chla',2),
+                               rep('gamma_epil_chla',2)),
+                 chains = rep(0,4),
+                 covariates = rep("light",4),
+                 model = rep('baseline', 4)) %>%
+    bind_rows(best_chains) %>%
+    filter(!grepl('^beta', parameter))
+
+interaction_chains
+best_chains %>% tibble() %>%
+    filter(model == 'linear model with interaction') %>%
+    pivot_wider(names_from = parameter, values_from = chains)
+
+best_chains %>%
+    filter(grepl('^gamma', parameter)|parameter == 'phi',
+           parameter != 'gamma_intercept',
+           model != 'PI curve model',
+           !is.na(parameter))%>%
+    mutate(parameter = case_when(parameter == "gamma_light" ~ 'light',
+                                 parameter == "gamma_epil_chla" ~"epil",
+                                 parameter == "gamma_fila_chla" ~ "fila",
+                                 TRUE ~ parameter),
+           parameter = factor(parameter,
+                              levels=c("phi", "light",
+                                       "fila", "epil"))) %>%
+    ggplot(aes(fill = model, y = chains, x = parameter)) +
+    geom_violin(position=position_dodge(0.7), alpha=0.5,
+                scale = 'width', adjust =4, width = .5) +
+    # facet_grid(biomass_vars~model)+
+    scale_fill_viridis(discrete=T, option = "G", name="") +
+    ggtitle('GPP=f(bm)')+
+    ylab("Parameter Estimate") +
+    xlab("") +
+    # ylim(-0.1,0.8)+
+    # ylim(-0.5,5)+
+    theme_bw()
 
 
 mod_ests %>% filter(parameter == "phi") %>%
@@ -173,11 +211,11 @@ dd %>%
                tanh(pi_ests$mean[2] * light/pi_ests$mean[4]) + frac_epil,
            frac_AR = pi_ests$mean[5] * c(exp(2), dd$GPP[1:(nrow(dd) - 1)]) + frac_fila,
            frac_err = rnorm(nrow(dd), 0, pi_ests$mean[14]*(1-pi_ests$mean[5]))+ frac_AR) %>%
-    select(date, site, GPP, starts_with('frac'))  %>%
-    mutate(frac_err = frac_err - frac_AR,
-           frac_AR = frac_AR - frac_fila,
-           frac_fila = frac_fila - frac_epil) %>%
-    summarize(across(c(-date, -site, -GPP), .fns = c(mean, sd), na.rm = T))
+    select(date, site, year, GPP, starts_with('frac'))  %>%
+    # mutate(frac_err = frac_err - frac_AR,
+    #        frac_AR = frac_AR - frac_fila,
+    #        frac_fila = frac_fila - frac_epil) %>%
+    # summarize(across(c(-date, -site, -GPP), .fns = c(mean, sd), na.rm = T))
     ggplot(aes(date, GPP)) +
     geom_line() +
     geom_line(aes(y = frac_epil), col = '#1B9EC9', size = 1 ) +

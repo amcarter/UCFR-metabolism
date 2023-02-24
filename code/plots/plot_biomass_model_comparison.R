@@ -3,38 +3,45 @@
 library(tidyverse)
 library(viridis)
 
-mod_ests <- read_csv( 'data/model_fits/hierarchical_model_parameters_fixedK.csv')
-mod_ests <- read_csv( 'data/model_fits/hierarchical_model_parameters_loggpp_logbm_noK600.csv')
-mod_ests <- read_csv( 'data/model_fits/hierarchical_model_parameters.csv')
-chains <- read_csv('data/model_fits/hierarchical_model_posterior_distributions_for_plot_loggpp_logbm.csv')
+mod_ests <- read_csv('data/model_fits/ar_PIcurve_parameter_ests.csv')
+mod_ests <- read_csv('data/model_fits/ar1_linear_model_parameter_ests_ss.csv') %>%
+    bind_rows(mod_ests)
+chains <- read_csv('data/model_fits/ar_PIcurve_chains.csv')
+chains <- read_csv('data/model_fits/ar1_linear_model_chains_ss.csv') %>%
+    bind_rows(chains)
+mod_metrics <- read_csv('data/model_fits/ar_PIcurve_model_metrics_unconditioned.csv')
+mod_metrics <- read_csv('data/model_fits/ar1_linear_model_metrics_ss_uncond.csv') %>%
+    bind_rows(mod_metrics)
+
+best_mods_by_cat <- mod_metrics %>%
+    group_by(model)%>%
+    filter(r2adj > max(r2adj) - 0.012) %>%
+    mutate(across(c('r2adj', 'rmse'), round, digits = 2),
+           across(starts_with(c('loo', 'waic')), round, digits = 0))
+
 
 mod_ests %>%
     filter(!grepl('^beta', parameter) ,
-           parameter != 'intercept') %>%
+           parameter != 'gamma_intercept') %>%
     ggplot( aes(parameter, mean, fill = units, col = units))+
-    geom_boxplot(aes(ymin = X2.5., lower = X25., middle = X50.,
-                     upper = X75., ymax = X97.5.)) +
+    geom_boxplot(aes(ymin = X_2.5,  middle = X_50,
+                      ymax = X_97.5)) +
     # ylim(0,2) +
     facet_wrap(.~biomass_vars)
 
 
-mod_ests %>% filter(parameter %in% c('gamma_epil', 'gamma_fila'))
-
-plot(dd$epil_gm2_fit, dd$epil_chla_mgm2_fit)
-abline(0,1)
-plot(dd$fila_gm2_fit, dd$fila_chla_mgm2_fit)
+mod_ests %>% filter(parameter %in% c('gamma_epil_chla', 'gamma_fila_chla'))
 
 
-chains <- read_csv('data/model_fits/hmodel_GPP_bm_logGAM_post_dists_for_plot.csv')
-chains <- data.frame(parameter = c(rep('gamma_fila',2),
-                                   rep('gamma_epil',2)),
+ch <- data.frame(parameter = c(rep('gamma_fila_chla',2),
+                                   rep('gamma_epil_chla',2)),
                      chains = rep(0,4),
-                     biomass_vars = rep(NA_character_,4),
-                     units = rep(NA_character_,4)) %>%
+                     biomass_vars = rep("light",4)) %>%
     bind_rows(chains)
 
 nl <- chains %>%
-    # filter(parameter != 'gamma_k600')%>%
+    filter(grepl('^gamma', parameter)|parameter == 'phi',
+           parameter != 'gamma_intercept')%>%
     filter(biomass_vars == 'fila_epil' | is.na(biomass_vars)) %>%
     mutate(model = case_when(units == 'chla_mgm2' ~ 'c Algal chl a',
                              units == 'gm2' ~ 'b Algal mass',
