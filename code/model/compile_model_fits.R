@@ -4,6 +4,29 @@
 
 library(tidyverse)
 
+dd <- read_csv('data/model_fits/biomass_metab_model_data.csv')
+
+dd <- dd %>%
+    mutate(year = lubridate::year(date),
+           month = lubridate::month(date),
+           across(starts_with(c('epil', 'fila')), ~ log(.+ 0.1),
+                  .names = 'log_{.col}'),
+           across(starts_with(c('GPP')), ~ log(.), .names = 'log_{.col}'),
+           GPP_sd = (GPP.upper - GPP.lower)/3.92,
+           log_GPP_sd = (log_GPP.upper - log_GPP.lower)/3.92) %>%
+    mutate(across(contains(c('epil','fila', 'light')), ~ scale(.)[,1])) %>%
+    group_by(site, year) %>%
+    mutate(
+        across(where(is.numeric), zoo::na.approx, na.rm = FALSE),
+        site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+    filter(!is.na(GPP), !is.na(epil_gm2_fit), !is.na(fila_gm2_fit),
+           !is.na(light)) %>%
+    ungroup()
+
+dd <- dd %>% select(site, GPP, log_GPP, light, epil_chla_mgm2_fit, log_epil_chla_mgm2_fit,
+              fila_chla_mgm2_fit, log_fila_chla_mgm2_fit)
+
+
 mod_ests <- read_csv('data/model_fits/ar_PIcurve_parameter_ests.csv')
 mod_ests <- read_csv('data/model_fits/ar1_linear_model_parameter_ests_ss.csv') %>%
     bind_rows(mod_ests)
@@ -22,10 +45,6 @@ mod_metrics <- mod_metrics %>%
     arrange(model, rmse) %>% print(n = 30)
 
 
-mod_ests <- mod_ests %>% select(-r2_adj, -rmse, -model) %>%
-    rename(covariates = biomass_vars) %>%
-    left_join(mod_metrics, by = 'covariates')
-
 chains <- chains %>%
     select(-model) %>%
     rename(covariates = biomass_vars) %>%
@@ -39,7 +58,7 @@ best_mods_by_cat <- mod_metrics %>%
 
 write_csv(best_mods_by_cat, 'data/model_fits/best_models_by_category.csv')
 
-best_mods <- best_mods_by_cat[c(1,2,5,8),]
+best_mods <- best_mods_by_cat[c(1,2,4,5,8),]
 best_chains <- chains %>%
     right_join(best_mods[,1:2])
 
@@ -51,7 +70,26 @@ best_chains <- data.frame(parameter = c(rep('gamma_fila_chla',2),
     bind_rows(best_chains) %>%
     filter(!grepl('^beta', parameter))
 
-interaction_chains
+best_coeffs <- mod_ests %>% select(-r2_adj, -rmse, -model) %>%
+    rename(covariates = biomass_vars) %>%
+    left_join(best_mods_by_cat[c(1,2,4, 5,8),], by = 'covariates')
+
+mod_ests <- mod_ests %>% select(-r2_adj, -rmse, -model) %>%
+    rename(covariates = biomass_vars) %>%
+    left_join(mod_metrics, by = 'covariates')
+
+baseline <- filter(best_chains, covariates == 'light' & model == 'baseline')
+linear <- filter(best_chains, model == 'linear model')
+linear_i <- filter(best_chains, model == 'linear model with interaction')
+pi_curve <- filter(best_chains, model == 'PI curve model')
+
+linear %>% group_by(parameter) %>% summarize(mean = mean(chains))
+
+phi <- baseline$chains[baseline$parameter == 'phi']
+g_light <- baseline$chains[baseline$parameter == 'gamma_light']
+mean(phi)
+mean(g_light * mean(dd$light))/mean(dd$log_GPP)
+
 best_chains %>% tibble() %>%
     filter(model == 'linear model with interaction') %>%
     pivot_wider(names_from = parameter, values_from = chains)
@@ -124,17 +162,18 @@ mod_ests %>% filter(grepl('^Pmax*', parameter )) %>%
 
 write_csv(a, 'data/model_fits/gamma_estimates')
 
-best_ests <- left_join(best_mods_by_cat[,1:2], mod_ests, by = c('model', 'covariates'))
+best_ests <- left_join(best_mods_by_cat[c(1,2,4,5,8),1:2],
+                       mod_ests, by = c('model', 'covariates'))
 
 models <- unique(best_ests$model)
 
 # linear model ####
+baseline_ests <- best_ests %>% filter(model == models[1]) %>%
+    data.frame()
 lin_ests <- best_ests %>% filter(model == models[2]) %>%
-    slice(1:13) %>%
     data.frame()
 lini_ests <- best_ests %>% filter(model == models[4]) %>%
-    data.frame()%>%
-    slice(1:15)
+    data.frame()
 linio_ests <- best_ests %>% filter(model == models[3]) %>%
     data.frame()
 pi_ests <- best_ests %>% filter(model == models[5]) %>%
@@ -151,12 +190,16 @@ exp(mean(lin_ests$mean[5] * dd$log_fila_chla_mgm2_fit, na.rm = T))
 exp(mean(lin_ests$X_2.5[5] * dd$log_fila_chla_mgm2_fit, na.rm = T))
 exp(mean(lin_ests$X_97.5[5] * dd$log_fila_chla_mgm2_fit, na.rm = T))
 exp(mean(lin_ests$mean[2])) * 0.00026
+
+lin_ests
+
 dd %>%
     mutate(frac_epil = exp(lin_ests$mean[4]*(1-lin_ests$mean[1]) * log_epil_chla_mgm2_fit),
            frac_fila = exp(lin_ests$mean[5]*(1-lin_ests$mean[1]) * log_fila_chla_mgm2_fit) + frac_epil,
            frac_light = exp(lin_ests$mean[3]*(1-lin_ests$mean[1]) * light) + frac_fila,
-           frac_AR = exp(lin_ests$mean[1] * c(2, dd$log_GPP[1:(nrow(dd) - 1)])) + frac_light,
-           frac_err = exp(rnorm(nrow(dd), 0, lin_ests$mean[13]*(1-lin_ests$mean[1])))+ frac_AR) %>%
+           frac_AR = exp(lin_ests$mean[1] * c(dd$log_GPP[1], dd$log_GPP[1:(nrow(dd) - 1)])) + frac_light,
+           frac_err = rnorm(nrow(dd), 0, lin_ests$mean[13]*(1-lin_ests$mean[1]))+ frac_AR,
+           GPP = GPP - exp(lin_ests$mean[2]*(1-lin_ests$mean[1]))) %>%
     ggplot(aes(date, GPP)) +
     geom_line() +
     geom_line(aes(y = frac_epil), col = '#1B9EC9', size = 1) +
@@ -234,5 +277,102 @@ mod_metrics %>% filter(grepl('epil', covariates)& grepl('fila', covariates)) %>%
     summarize(across(.cols = c(r2adj, rmse), .fns = c(mean, sd), na.rm = T))
 mod_metrics %>% filter(grepl('chl', covariates)) %>%
     summarize(across(.cols = c(r2adj, rmse), .fns = c(mean, sd), na.rm = T))
-mean(dd$GPP)
-best_ests$model)
+
+baseline_chains <- filter(best_chains, model == models[1])
+lin_chains <- filter(best_chains, model == models[2])
+linio_chains <- filter(best_chains, model == models[3])
+lini_chains <- filter(best_chains, model == models[4])
+pi_chains <- filter(best_chains, model == models[5])
+
+
+hist(baseline_chains$chains[baseline_chains$parameter == 'phi'] +
+         baseline_chains$chains[baseline_chains$parameter == 'gamma_light']
+         )
+baseline_chains  <- filter(baseline_chains, parameter == 'phi') %>%
+    mutate(frac_AR = chains,
+           frac_light = 1-chains) %>%
+    dplyr::select(starts_with('frac'), model)
+
+lin <- filter(lin_chains, parameter == 'phi') %>%
+    select(model, frac_AR = chains)
+
+light <- lin_chains$chains[lin_chains$parameter == 'gamma_light']
+fila <- lin_chains$chains[lin_chains$parameter == 'gamma_fila_chla']
+epil <- lin_chains$chains[lin_chains$parameter == 'gamma_epil_chla']
+lin$frac_light = (1-lin$frac_AR) * light/(light + fila+ epil)
+lin$frac_epil = (1-lin$frac_AR) * epil/(light + fila+ epil)
+lin$frac_fila = (1-lin$frac_AR) * fila/(light + fila+ epil)
+
+
+lini <- filter(lini_chains, parameter == 'phi') %>%
+    select(model, frac_AR = chains)
+
+light <- lini_chains$chains[lini_chains$parameter == 'gamma_light']
+fila <- lini_chains$chains[lini_chains$parameter == 'gamma_fila_chla'] +
+    lini_chains$chains[lini_chains$parameter == 'gamma_light_fila_chla']
+epil <- lini_chains$chains[lini_chains$parameter == 'gamma_epil_chla']+
+    lini_chains$chains[lini_chains$parameter == 'gamma_light_epil_chla']
+lini$frac_light = (1-lini$frac_AR) * light/(light + fila+ epil)
+lini$frac_epil = (1-lini$frac_AR) * epil/(light + fila+ epil)
+lini$frac_fila = (1-lini$frac_AR) * fila/(light + fila+ epil)
+
+linio <- filter(linio_chains, parameter == 'phi') %>%
+    select(model, frac_AR = chains)
+
+fila <- linio_chains$chains[linio_chains$parameter == 'gamma_light_fila_chla']
+linio$frac_epil = (1-linio$frac_AR) * epil/(fila+ epil)
+linio$frac_fila = (1-linio$frac_AR)
+
+pic <- filter(pi_chains, parameter == 'phi') %>%
+    select(model, frac_AR = chains)
+
+epil = mean(dd$epil_chla_mgm2_fit - min(dd$epil_chla_mgm2_fit)) *
+    pi_chains$chains[pi_chains$parameter == 'Pmax_epil_chla'] *
+    (1-pi_chains$chains[pi_chains$parameter == 'phi']) *
+    tanh(pi_chains$chains[pi_chains$parameter == 'alpha_epil_chla'] *
+             mean(dd$light - min(dd$light))/
+             pi_chains$chains[pi_chains$parameter == 'Pmax_epil_chla'])
+fila = mean(dd$fila_chla_mgm2_fit - min(dd$fila_chla_mgm2_fit)) *
+    pi_chains$chains[pi_chains$parameter == 'Pmax_fila_chla'] *
+    (1-pi_chains$chains[pi_chains$parameter == 'phi']) *
+    tanh(pi_chains$chains[pi_chains$parameter == 'alpha_fila_chla'] *
+             mean(dd$light - min(dd$light))/
+             pi_chains$chains[pi_chains$parameter == 'Pmax_fila_chla'])
+
+pic$frac_epil = (1-pic$frac_AR) * epil/(fila+ epil)
+pic$frac_fila = (1-pic$frac_AR) * fila/(fila+ epil)
+
+
+
+
+bind_rows(baseline_chains, lin, lini, linio, pic) %>%
+    pivot_longer(cols = starts_with('frac'), names_to = 'component',
+                 names_pattern = 'frac_([A-Za-z]+)', values_to = 'fraction') %>%
+    mutate(model = factor(model, levels = c('baseline', 'linear model', 'linear model with interaction', 'linear model interaction only', 'PI curve model')),
+           component = factor(component, levels = c('AR', 'light', 'epil', 'fila'))) %>%
+    ggplot(aes(fill = model, x = component, y = fraction)) +
+    geom_violin(position=position_dodge(0.7), alpha=0.5,
+                scale = 'width', adjust =4, width = .5) +
+    # facet_grid(biomass_vars~model)+
+    scale_fill_viridis(discrete=T, option = "G", name="") +
+    ggtitle('')+
+    ylab("Fraction of modeled GPP") +
+    xlab("") +
+    # ylim(-0.1,0.8)+
+    # ylim(-0.5,5)+
+    theme_bw()
+
+
+dd %>%
+    mutate(across(starts_with(c('epil', 'fila', 'light')), .fns  = ~. - min(.))) %>%
+    mutate(frac_epil = epil_chla_mgm2_fit * pi_ests$mean[3] *(1-pi_ests$mean[5]) *
+               tanh(pi_ests$mean[1] * light/pi_ests$mean[3]),
+           frac_fila = fila_chla_mgm2_fit * pi_ests$mean[4] *(1-pi_ests$mean[5])*
+               tanh(pi_ests$mean[2] * light/pi_ests$mean[4]) + frac_epil,
+           frac_AR = pi_ests$mean[5] * c(exp(2), dd$GPP[1:(nrow(dd) - 1)]) + frac_fila,
+           frac_err = rnorm(nrow(dd), 0, pi_ests$mean[14]*(1-pi_ests$mean[5]))+ frac_AR) %>%
+    select(date, site, year, GPP, starts_with('frac'))  %>%
+    mutate(frac_err = frac_err - frac_AR,
+           frac_AR = frac_AR - frac_fila,
+           frac_fila = frac_fila - frac_epil) %>%
+    summarize(across(c(-date, -site, -GPP), .fns = c(mean, sd), na.rm = T))

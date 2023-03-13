@@ -4,17 +4,22 @@ library(rstan)
 options(mc.cores = parallel::detectCores())
 library(loo)
 library(tidyverse)
+library(viridis)
 
 # read in helper functions
 source('code/UCFR_helpers.R')
 
 # prep data ####
-dd <- read_csv('data/model_fits/biomass_metab_model_data.csv')
+dat <- read_csv('data/model_fits/biomass_metab_model_data.csv')
 
-dd <- dd %>%
+dat <- mutate(dat,
+              biomass = epil_chla_mgm2_fit + fila_chla_mgm2_fit,
+              log_biomass = log(epil_chla_mgm2_fit + 0.1) +
+                  log(fila_chla_mgm2_fit + 0.1))
+dd <- dat %>%
     mutate(year = lubridate::year(date),
            month = lubridate::month(date),
-           across(starts_with(c('epil', 'fila')), ~ log(.+ 0.1),
+           across(starts_with(c('epil', 'fila', 'light')), ~ log(.+ 0.1),
                   .names = 'log_{.col}'),
            across(starts_with(c('GPP')), ~ log(.), .names = 'log_{.col}'),
            GPP_sd = (GPP.upper - GPP.lower)/3.92,
@@ -24,7 +29,7 @@ dd <- dd %>%
            mutate(
                across(where(is.numeric), zoo::na.approx, na.rm = FALSE),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
-    filter(!is.na(GPP), !is.na(epil_gm2_fit), !is.na(fila_gm2_fit),
+    filter(!is.na(GPP), !is.na(epil_chla_mgm2_fit), !is.na(fila_gm2_fit),
            !is.na(light)) %>%
     ungroup()
 
@@ -44,7 +49,7 @@ ar1_PIcurve_ss <- stan_model("code/model/stan_code/ar_PIcurve_model_ss.stan",
                       model_name = 'PI_curve')
 
 # run on real data: ####
-X <- matrix(c(dd$light,
+X <- matrix(c(dd$log_light,
               dd$log_epil_gm2_fit, dd$log_fila_gm2_fit,
               dd$log_epil_chla_mgm2_fit, dd$log_fila_chla_mgm2_fit),
             ncol = 5)
@@ -59,19 +64,20 @@ datlist <- list(
 )
 
 fit <- sampling(
-    lmod,
+    ar1_lmod_ss,
     data = datlist
 )
 
 preds <- get_model_preds(fit, dd_train)
+
 plot_model_fit(preds)
 
 # Compile set of linear model runs: ####
-master_X <- select(dd, light, epil_afdm = log_epil_gm2_fit,
-                   fila_afdm = log_fila_gm2_fit,
+master_X <- select(dd, log_light, #epil_afdm = log_epil_gm2_fit,
+                   # fila_afdm = log_fila_gm2_fit,
                    epil_chla = log_epil_chla_mgm2_fit,
                    fila_chla = log_fila_chla_mgm2_fit) %>%
-    mutate(across(-light, .fn = ~light * ., .names = 'light_{.col}'))
+    mutate(across(-log_light, .fn = ~log_light * ., .names = 'log_light_{.col}'))
 # master_X <- select(dd, light, epil_afdm = epil_gm2_fit,
 #                    fila_afdm = fila_gm2_fit,
 #                    epil_chla = epil_chla_mgm2_fit,
@@ -83,6 +89,9 @@ model_combinations <- list(1, c(1,2), c(1,3), c(1,2,3),
                            c(1,2,6), c(1,3,7), c(1,2,3,6,7),
                            c(1,4,8), c(1,5,9), c(1,4,5,8,9),
                            6,7,8,9, c(6,7), c(8,9))
+model_combinations <- list(1, c(1,2), c(1,3), c(1,2,3),
+                           c(1,2,4), c(1,3,5), c(1,2,3,4,5),
+                           4, 5, c(4,5))
 
 # fit linear models ####
 mod_ests <- data.frame()
@@ -96,6 +105,7 @@ for(i in 1:length(model_combinations)){
     preds <- get_model_preds(fit, dd)
     plot_model_fit(preds) +
         ggtitle(paste0('lmod: ', paste(colnames(X), collapse = ' + ')))
+
     ests <- extract_model_params(fit, X, dd, extract.chains = TRUE)
     comp <- calculate_model_metrics(fit, X, dd, 'lmod')
 
@@ -118,7 +128,7 @@ mod_ests <- data.frame()
 chains <- data.frame()
 mod_comp <- data.frame()
 
-for(i in 14:length(model_combinations)){
+for(i in 1:length(model_combinations)){
     print(paste('model', i, 'of', length(model_combinations), sep = ' '))
     X <- master_X[,model_combinations[[i]]]
     fit <- fit_biomass_model(ar1_lmod_ss, dd, X = as.matrix(X))
@@ -132,6 +142,24 @@ for(i in 14:length(model_combinations)){
 
     ests <- extract_model_params(fit, X, dd, phi_corrected = T,
                                  extract.chains = TRUE)
+    # beta0 <- 0
+    # beta1 <- ests$ests$mean[3]
+    # beta2 <- ests$ests$mean[4]+ests$ests$mean[5]
+    # biomass = seq(min(dat$log_biomass, na.rm = T), max(dat$log_biomass, na.rm = T),
+    #               length.out = 5)
+    # PI_1 <- data.frame()
+    #
+    # for(B in biomass){
+    #     df <- data.frame(light = seq(0,1, by = 0.01),
+    #                      biomass = B)
+    #
+    #     df$GPP = beta0 + beta1 * df$light + beta2 * B
+    #
+    #     PI_1 <- bind_rows(PI_1, df)
+    # }
+
+    preds <- mutate(preds, P_delta = P_mod - ests$ests$mean[1] *
+                   c(preds$P_mod[1], preds$P_mod[1:(nrow(preds)-1)]))
 
     comp <- calculate_model_metrics(fit, X, dd, 'ar1_lmod')
 
@@ -148,6 +176,9 @@ write_csv(mod_comp, 'data/model_fits/ar1_linear_model_metrics_ss_cond.csv')
 
 mod_ests %>% distinct(biomass_vars, .keep_all = TRUE) %>%
     arrange(r2_adj)
+
+linmod_ests %>% filter(biomass_vars == 'light + epil_chla + fila_chla') %>%
+    select(parameter, mean)
 mod_comp %>% arrange(waic)
 plot(mod_comp$waic, mod_comp$rmse)
 

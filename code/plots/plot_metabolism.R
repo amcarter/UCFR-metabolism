@@ -4,7 +4,9 @@ library(tidyverse)
 library(lubridate)
 source('code/metabolism/functions_examine_SM_output.R')
 
-met <- read_csv('data/metabolism_compiled_all_sites_2000iter_bdr_kss05.csv') %>%
+met <- read_csv('data/metabolism/metabolism_compiled_all_sites.csv') %>%
+# met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv') %>%
+# metabolism_compiled_all_sites_2000iter_bdr_kss05.csv') %>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
 
 good_met <- met %>%
@@ -30,28 +32,58 @@ good_met <- met %>%
 # write_csv(dat, 'data/prepared_data/compiled_prepared_data.csv')
 dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')%>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
+bmet <- read_csv('data/model_fits/biomass_metab_model_data.csv')
 
+    bmet %>%
+        mutate(NEP = ER + GPP,
+               doy = as.numeric(format(date, '%j')),
+               bmass = fila_chla_mgm2_fit+ epil_chla_mgm2_fit,
+               site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+        ggplot(aes(GPP, ER, col = site)) +
+        geom_point() +
+        # facet_grid(site~year) +
+        # facet_grid(site~year, scales = 'free') +
+        theme_bw() +
+        # scale_color_viridis(option = 'D') +
+        geom_abline(slope = -1, intercept = 0, col = 'grey50')
+        ylab(expression(paste('ER (g ', O[2], m^-2, d^-1, ')')))
+    bmet %>%
+        mutate(NEP = ER + GPP,
+               doy = as.numeric(format(date, '%j')),
+               bmass = fila_chla_mgm2_fit+ epil_chla_mgm2_fit,
+               site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+        ggplot(aes(log(light), log(GPP), col = bmass)) +
+        geom_point() +
+        # facet_grid(site~year) +
+        facet_grid(site~year, scales = 'free') +
+        theme_bw() +
+        # scale_color_viridis(option = 'D') +
+        # geom_abline(slope = -1, intercept = 0, col = 'grey50')
+        ylab(expression(paste('ER (g ', O[2], m^-2, d^-1, ')')))
+
+
+lme4::lmer(log(GPP) ~log(light) + (1|site), bmet) %>% summary()
 
 png('figures/metabolism_across_sites.png', width = 5, height = 6,
     res = 300, units = 'in')
     met %>%
-        mutate(NEP = ER + GPP,
-               date = as.Date(paste0('2021-', doy), format = '%Y-%j')) %>%
+        mutate(NEP = ER + GPP) %>%
         filter(is.na(DO_fit) | DO_fit != 'bad') %>%
-        ggplot(aes(date, GPP)) +
-        geom_line(col = '#007828') +
-        geom_point(col = '#007828', size = 0.7) +
-        geom_errorbar(aes(ymin = GPP.lower, ymax = GPP.upper),
-                      col = '#007828') +
-        # geom_point() +
-        geom_line(aes(y = ER), col = '#A84F06') +
-        geom_point(aes(y = ER), col = '#A84F06', size = 0.7) +
-        geom_errorbar(aes(ymin = ER.lower, ymax = ER.upper),
-                      col = '#A84F06') +
+        ggplot(aes(date, GPP, group = c(site))) +
+        geom_hline(yintercept = 0, size = 0.5, col = 'grey70')+
+        # geom_line(col = '#007828') +
+        # geom_point(col = '#007828', size = 0.7) +
+        # geom_errorbar(aes(ymin = GPP.lower, ym,ax = GPP.upper),
+        #               col = '#007828') +
+        # # geom_point() +
+        # geom_line(aes(y = ER), col = '#A84F06') +
+        geom_line(aes(y = NEP), col = 'black') +
+        # geom_point(aes(y = ER), col = '#A84F06', size = 0.7) +
+        # geom_errorbar(aes(ymin = ER.lower, ymax = ER.upper),
+        #               col = '#A84F06') +
         # geom_line(aes(y = NEP), lty = 2) +
-        geom_hline(yintercept = 0, size = 0.5, col = 'grey50')+
         # geom_point(aes(y = ER)) +
-        facet_grid(site~year, scales = 'free_x') +
+        # facet_grid(site~year, scales = 'free_x') +
         theme_bw() +
         # ylim(-24,24)+
         ylab(expression(paste('Metabolism (g ', O[2], m^-2, d^-1, ')'))) +

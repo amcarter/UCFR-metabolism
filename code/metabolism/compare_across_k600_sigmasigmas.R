@@ -57,7 +57,17 @@ a <- COMP_MET %>%
     theme(strip.background.y = element_blank(),
           strip.text.y = element_blank())+
     scale_color_discrete('Prior for K600 sigma sigma')
-b <- ggplot(KCOR, aes(K600_sigsig, r2_gpp, fill = K600_sigsig)) +
+b <- COMP_MET %>% tibble() %>%
+    mutate(doy = as.numeric(format(date, "%j")),
+           year = lubridate::year(date)) %>%
+    ggplot(aes(K600, ER, col = K600_sigsig))+
+    geom_point(size = 0.5) +
+    facet_grid(site~year, scales = 'free_x') +
+    theme_bw()+
+    theme(strip.background.y = element_blank(),
+          strip.text.y = element_blank())+
+    scale_color_discrete('Prior for K600 sigma sigma')
+c <- ggplot(KCOR, aes(K600_sigsig, r2_gpp, fill = K600_sigsig)) +
     geom_bar(stat = 'identity', width = 0.5) +
     geom_bar(aes(y = r2_er), stat = 'identity', width = 0.5) +
     geom_hline(yintercept = 0)+
@@ -66,9 +76,10 @@ b <- ggplot(KCOR, aes(K600_sigsig, r2_gpp, fill = K600_sigsig)) +
     ggtitle('')+
     theme_bw()
 
-png('figures/SI/metab_change_with_K600_sigsig.png', width = 10, height = 7,
-    units = 'in', res = 300)
-    ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE, widths = c(3, 1), align = 'v')
+# png('figures/SI/metab_change_with_K600_sigsig.png', width = 10, height = 7,
+#     units = 'in', res = 300)
+    ggpubr::ggarrange(a,b, c, nrow = 1, common.legend = TRUE,
+                      widths = c(3,2, 1))#, align = 'v')
 dev.off()
 
 
@@ -84,6 +95,10 @@ COMP_MET %>%
 
 # Comparison to Qipei's metabolism fit for Garrison
 GR <- read_csv('GR_metab.csv')
+
+GR2 <-  GR %>% select(date, GPP = GPP.daily, ER = ER.daily, K600 = K600.daily) %>%
+    mutate(met = 'qipei') %>%
+    bind_rows(filter(COMP_MET, site == 'GR'))
 GR <-  GR %>% select(date, GPP_CO2 = GPP.daily, ER_CO2 = ER.daily, K600_CO2 = K600.daily) %>%
      left_join(filter(COMP_MET, site == 'GR'), by = 'date')
 GR %>%
@@ -100,4 +115,16 @@ ggplot(GR, aes(date)) +
     geom_hline(yintercept = 0)+
     ylab('metabolism')+
     theme_classic()
+er <- GR2 %>% mutate(year = factor(lubridate::year(date))) %>%
+ggplot(aes(K600, ER, col = year)) +
+    geom_point() +
+    facet_wrap(.~met, scales = 'free')+
+    theme_bw()
+gpp <- GR2 %>% mutate(year = factor(lubridate::year(date))) %>%
+ggplot(aes(K600, GPP, col = year)) +
+    geom_point() +
+    facet_wrap(.~met, scales = 'free')+
+    theme_bw()
+
+ggpubr::ggarrange(gpp, er, ncol = 1, common.legend = T)
 hist(GR$K600_CO2)

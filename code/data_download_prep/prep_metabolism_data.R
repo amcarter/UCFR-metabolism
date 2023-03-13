@@ -14,11 +14,11 @@ library(dataRetrieval)
 library(zoo)
 
 ##set working directory
-site_dat <- read_csv('data/site_data.csv') %>%
+site_dat <- read_csv('data/site_data/site_data.csv') %>%
     filter(!is.na(sitecode)) %>%
     mutate(filecode = c('PERKINS', 'DL', 'GC', 'Gar', 'BEAR.*', 'BONITA'))
-depth_Q_fits <- read_csv('data/depth_discharge_relationships_allsites.csv')
-bad_days <- read_csv('data/days_with_poor_DO_fits_initial_run.csv')
+depth_Q_fits <- read_csv('data/site_data/depth_discharge_relationships_allsites.csv')
+bad_days <- read_csv('data/metabolism/days_with_poor_DO_fits_initial_run.csv')
 ##Save USGS gage numbers for downloading
 # usgs.GC<-'12324680' # Gold Creek USGS gage
 # usgs.DL<-'12324200' # Deer Lodge USGS gage
@@ -48,7 +48,7 @@ bad_days <- read_csv('data/days_with_poor_DO_fits_initial_run.csv')
 # mapview(sites, color = 1) +
 #     mapview(usgs, color = 2, cex = 5)
 
-air_press_temp <- read_csv('data/air_pressure_temp.csv')
+air_press_temp <- read_csv('data/site_data/air_pressure_temp.csv')
 # prep raw data files for running metabolism -------------------------------####
 f <- list.files('data/prepared_data/cleaned_data/')
 site_dat <- depth_Q_fits %>%

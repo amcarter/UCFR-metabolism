@@ -5,40 +5,26 @@ library(tidyverse)
 library(mgcv)
 
 biomass <- read_csv('data/biomass_data/biomass_working_data.csv') %>%
-    mutate(site = case_when(site == 'BG' ~ 'BM',
-                            site == 'WS' ~ 'PL',
-                            TRUE ~ site),
-           doy = as.numeric(format(date, '%j')))%>%
+    filter(!is.na(site) & site != 'CR') %>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')),
-           year = as.factor(year)) %>%
-    filter(!is.na(site))
+           year = as.factor(lubridate::year(date)),
+           site_year = paste(site, year, sep = '_'))
 
 glimpse(biomass)
 
 
 # look at the data
 biomass %>%
-    select(date, site, ends_with('.om.area.g.m2')) %>%
-    select(-cpom.om.area.g.m2)%>%
-    filter(!is.na(site))%>%
-    pivot_longer(cols = -c('date', 'site'), names_to = 'bm_category',
-                 values_to = 'g_m2') %>%
-    mutate(doy = format(date, "%j"),
-           year = as.factor(substr(date, 1,4))) %>%
-    ggplot(aes(doy, g_m2, col = year)) +
+    select(date, doy, year, site, ends_with('_gm2')) %>%
+    pivot_longer(cols = -c('date', 'doy', 'year', 'site'),
+                 names_to = 'bm_category',
+                 values_to = 'gm2') %>%
+    ggplot(aes(doy, gm2, col = year)) +
     geom_point() +
     facet_grid(site~bm_category, scales = 'free_y')
 
 
-# There is a lot of missing data for the epiphyton and macrophyte categories
 
-# combine filamentous algae and epiphyton for this analysis:
-biomass <- biomass %>%
-    mutate(site_year = as.factor(paste(site, year, sep = '_')),
-           fila.om.area.g.m2 = case_when(is.na(epip.om.area.g.m2) ~ fila.om.area.g.m2,
-                                         TRUE ~ fila.om.area.g.m2 + epip.om.area.g.m2),
-           fila.chla.mg.m2.ritchie = case_when(is.na(epip.chla.mg.m2.ritchie) ~ fila.chla.mg.m2.ritchie,
-                                         TRUE ~ fila.chla.mg.m2.ritchie + epip.chla.mg.m2.ritchie))
 dates <- c(seq(min(biomass$date), max(biomass$date[biomass$year == 2020]), by = 'day'),
            seq(min(biomass$date[biomass$year == 2021]), max(biomass$date), by = 'day'))
 
@@ -59,19 +45,22 @@ s_preds_lin <- s_preds_gamma <-
     tibble()
 
 link_fn = 'log' # gamma link function, log or inverse?
+delta = 0.5
 par(mfrow = c(2,2))
 
 # try it for all sites
-fg2_gamma <- gam(epil.om.area.g.m2 ~ s(doy) +
+biomass$site_year <- factor(biomass$site_year)
+fg2_gamma <- gam(epilithon_gm2 + delta ~ s(doy) +
                   s(doy, site_year, bs = 'fs'),
               data = biomass, method = 'REML',
               family = Gamma(link = link_fn))
 
-fg2 <- gam(epil.om.area.g.m2 ~ s(doy) +
+fg2 <- gam(epilithon_gm2 ~ s(doy) +
                s(doy, site_year, bs = 'fs'),
            data = biomass, method = 'REML', family = 'gaussian')
 
 gam.check(fg2)
+
 gam.check(fg2_gamma)
 AIC(fg2)
 AIC(fg2_gamma)
@@ -84,16 +73,16 @@ s_preds_lin <- mutate(s_preds_lin,
                       epil_gm2_fit = c(pp_lin$fit),
                       epil_gm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
-                        epil_gm2_fit = c(pp_gamma$fit),
+                        epil_gm2_fit = c(pp_gamma$fit) - delta,
                         epil_gm2_se = c(pp_gamma$se.fit))
 
 # filamentous
-fg2_fila_gamma <- gam(fila.om.area.g.m2 ~ s(doy) +
+fg2_fila_gamma <- gam(filamentous_gm2 +delta ~ s(doy) +
                           s(doy, site_year, bs = 'fs'),
                       data = biomass, method = 'REML',
                       family = Gamma(link = link_fn))
 
-fg2_fila <- gam(fila.om.area.g.m2 ~ s(doy) +
+fg2_fila <- gam(filamentous_gm2 ~ s(doy) +
                     s(doy, site_year, bs = 'fs'),
                 data = biomass, method = 'REML', family = 'gaussian')
 
@@ -112,16 +101,16 @@ s_preds_lin <- mutate(s_preds_lin,
                       fila_gm2_fit = c(pp_lin$fit),
                       fila_gm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
-                        fila_gm2_fit = c(pp_gamma$fit),
+                        fila_gm2_fit = c(pp_gamma$fit)-delta,
                         fila_gm2_se = c(pp_gamma$se.fit))
 
 
 # chlorophyll
-fg2_chla_gamma <- gam(epil.chla.mg.m2.ritchie ~ s(doy) +
+fg2_chla_gamma <- gam(epilithon_chla_mgm2 + delta ~ s(doy) +
                           s(doy, site_year, bs = 'fs'),
                       data = biomass, method = 'REML',
                       family = Gamma(link = link_fn))
-fg2_chla <- gam(epil.chla.mg.m2.ritchie ~ s(doy) +
+fg2_chla <- gam(epilithon_chla_mgm2 ~ s(doy) +
                   s(doy, site_year, bs = 'fs'),
               data = biomass, method = 'REML', family = 'gaussian')
 
@@ -139,15 +128,15 @@ s_preds_lin <- mutate(s_preds_lin,
                       epil_chla_mgm2_fit = c(pp_lin$fit),
                       epil_chla_mgm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
-                        epil_chla_mgm2_fit = c(pp_gamma$fit),
+                        epil_chla_mgm2_fit = c(pp_gamma$fit) - delta,
                         epil_chla_mgm2_se = c(pp_gamma$se.fit))
 
 # filamentous
-fg2_fila_chla_gamma <- gam(fila.chla.mg.m2.ritchie ~ s(doy) +
+fg2_fila_chla_gamma <- gam(filamentous_chla_mgm2 +delta ~ s(doy) +
                                s(doy, site_year, bs = 'fs'),
                            data = biomass, method = 'REML',
                            family = Gamma(link = link_fn))
-fg2_fila_chla <- gam(fila.chla.mg.m2.ritchie ~ s(doy) +
+fg2_fila_chla <- gam(filamentous_chla_mgm2 ~ s(doy) +
                         s(doy, site_year, bs = 'fs'),
                      data = biomass, method = 'REML', family = 'gaussian')
 
@@ -165,7 +154,7 @@ s_preds_lin <- mutate(s_preds_lin,
                       fila_chla_mgm2_fit = c(pp_lin$fit),
                       fila_chla_mgm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
-                        fila_chla_mgm2_fit = c(pp_gamma$fit),
+                        fila_chla_mgm2_fit = c(pp_gamma$fit)-delta,
                         fila_chla_mgm2_se = c(pp_gamma$se.fit))
 
 # Calculate fit metrics for the smoothness parameter
@@ -248,7 +237,10 @@ qq = as_tibble(lapply(s_preds_lin, c)) %>% select(-site_year)
 write_csv(qq, 'data/biomass_data/linear_gam_fits_biomass.csv')
 write_csv(k_check, 'data/biomass_data/linear_gam_smoothness_parameter_checks.csv')
 
-qq = as_tibble(lapply(s_preds_gamma, c)) %>% select(-site_year)
+qq = as_tibble(lapply(s_preds_gamma, c)) %>% select(-site_year) %>%
+    mutate(across(starts_with(c('epil', 'fila')),
+                              ~case_when(. < 0 ~ 0,
+                                         TRUE ~ .)))
 write_csv(qq, 'data/biomass_data/log_gamma_gam_fits_biomass.csv')
 write_csv(k_check_gamma, 'data/biomass_data/log_gamma_gam_smoothness_parameter_checks.csv')
 
@@ -268,10 +260,10 @@ qq <- qq %>%
     #        se = case_when(is.na(fit)~NA_real_,
     #                       TRUE ~ se))
 meas <- select(biomass, date, site, sample,
-       epil_gm2_meas = epil.om.area.g.m2,
-       fila_gm2_meas = fila.om.area.g.m2,
-       epil_chla_mgm2_meas = epil.chla.mg.m2.ritchie,
-       fila_chla_mgm2_meas = fila.chla.mg.m2.ritchie) %>%
+       epil_gm2_meas = epilithon_gm2,
+       fila_gm2_meas = filamentous_gm2,
+       epil_chla_mgm2_meas = epilithon_chla_mgm2,
+       fila_chla_mgm2_meas = filamentous_chla_mgm2) %>%
     pivot_longer(cols = starts_with(c('epil', 'fila')),
                  names_to = c('biomass_type', 'units', 'stat'),
                  names_pattern = '([a-z]+)_([a-z0-9_]+)_([a-z]+)',
@@ -280,18 +272,62 @@ meas <- select(biomass, date, site, sample,
     mutate(year = lubridate::year(date))
 meas_chl <- filter(meas, units == 'chla_mgm2')
 meas_mass <- filter(meas, units == 'gm2')
-x = 10
+
+# mm <- qq %>% filter(units == 'gm2') %>%
+#     mutate(fit = fit + x,
+#            fit_high = fit + se,
+#            fit_low = fit - se,
+#            fit_low = case_when(fit_low < 0.3 ~ 0.3,
+#                                TRUE ~ fit_low)) %>%
+#     ggplot(aes(date, fit, col = biomass_type)) +
+#     geom_line()+
+#     geom_ribbon(aes(ymax = fit_high, ymin = fit_low,
+#                     fill = biomass_type), alpha = 0.4, color = NA)+
+#     geom_point(data = meas_mass, aes(date, meas, col = biomass_type))+
+#     facet_grid(site~year, scales = 'free_x') +
+#     scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
+#     scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
+#     scale_y_log10(limits = c(0.3, 600))+
+#     xlab('Date') +
+#     ylab(expression('Algal Standing Crop (AFDM g '~ m^-2*')')) +
+#     theme_bw()
+# cc <- qq %>%
+#     mutate(fit = fit + x,
+#            fit_high = fit + se,
+#            fit_low = fit - se,
+#            fit_low = case_when(fit_low < 0.3 ~ 0.3,
+#                                TRUE ~ fit_low)) %>%
+#     filter(units == 'chla_mgm2') %>%
+#     ggplot(aes(date, fit, col = biomass_type)) +
+#     geom_line()+
+#     geom_ribbon(aes(ymax = fit_high, ymin = fit_low,
+#                     fill = biomass_type), alpha = 0.4, color = NA)+
+#     geom_point(data = meas_chl, aes(date, meas, col = biomass_type))+
+#     facet_grid(site~year, scales = 'free_x') +
+#     scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
+#     scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
+#     scale_y_log10(limits = c(0.3, 1000))+
+#     xlab('Date') +
+#     ylab(expression('Algal Standing Crop (mg chl a '~ m^-2*')')) +
+#     theme_bw()
+meas_mass2 <- mutate(meas_mass,
+                     meas = case_when(meas < delta ~ delta,
+                                      TRUE ~ meas))
+meas_chl2 <- mutate(meas_chl,
+                    meas = case_when(meas < delta ~ delta,
+                                     TRUE ~ meas))
 mm <- qq %>% filter(units == 'gm2') %>%
-    mutate(fit = fit + x,
+    mutate(fit = case_when(fit < delta ~ delta,
+                           TRUE ~ fit),
            fit_high = fit + se,
            fit_low = fit - se,
-           fit_low = case_when(fit_low < 0.3 ~ 0.3,
+           fit_low = case_when(fit_low < delta ~ delta,
                                TRUE ~ fit_low)) %>%
     ggplot(aes(date, fit, col = biomass_type)) +
     geom_line()+
     geom_ribbon(aes(ymax = fit_high, ymin = fit_low,
                     fill = biomass_type), alpha = 0.4, color = NA)+
-    geom_point(data = meas_mass, aes(date, meas, col = biomass_type))+
+    geom_point(data = meas_mass2, aes(date, meas, col = biomass_type))+
     facet_grid(site~year, scales = 'free_x') +
     scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
     scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
@@ -300,17 +336,18 @@ mm <- qq %>% filter(units == 'gm2') %>%
     ylab(expression('Algal Standing Crop (AFDM g '~ m^-2*')')) +
     theme_bw()
 cc <- qq %>%
-    mutate(fit = fit + x,
+    mutate(fit = case_when(fit < delta ~ delta,
+                           TRUE ~ fit),
            fit_high = fit + se,
            fit_low = fit - se,
-           fit_low = case_when(fit_low < 0.3 ~ 0.3,
+           fit_low = case_when(fit_low < delta ~ delta,
                                TRUE ~ fit_low)) %>%
     filter(units == 'chla_mgm2') %>%
     ggplot(aes(date, fit, col = biomass_type)) +
     geom_line()+
     geom_ribbon(aes(ymax = fit_high, ymin = fit_low,
                     fill = biomass_type), alpha = 0.4, color = NA)+
-    geom_point(data = meas_chl, aes(date, meas, col = biomass_type))+
+    geom_point(data = meas_chl2, aes(date, meas, col = biomass_type))+
     facet_grid(site~year, scales = 'free_x') +
     scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
     scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
@@ -319,12 +356,12 @@ cc <- qq %>%
     ylab(expression('Algal Standing Crop (mg chl a '~ m^-2*')')) +
     theme_bw()
 
-# png('figures/biomass_log_gamma_gams_comb.png', width = 7.5, height = 5, units = 'in',
-#     res = 300)
+png('figures/biomass_log_gamma_gams_comb_zeros.png', width = 7.5, height = 5, units = 'in',
+    res = 300)
 
     ggpubr::ggarrange(mm, cc, nrow = 1, common.legend = TRUE,
                       labels = c('a', 'b'))
-# dev.off()
+dev.off()
 
 # trim estimates so that they aren't more than 2 weeks from an actual measurement
 qq %>%
