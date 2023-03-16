@@ -24,11 +24,33 @@ biomass %>%
     facet_grid(site~bm_category, scales = 'free_y')
 
 
+# find 2%quantile ####
+# add the 2% quantile to each of the biomass categories in order to
+# fit log transformed GAMs
+colnames(biomass)
+min_vals <- biomass %>%
+    select(epilithon_gm2, epilithon_chla_mgm2,
+           filamentous_gm2, filamentous_chla_mgm2,
+           fila_macro_gm2) %>%
+    mutate(across(.fns = ~case_when(. == 0 ~ NA_real_,
+                                    TRUE ~ .))) %>%
+    pivot_longer(cols = everything(), names_to = 'biomass', values_to = 'value') %>%
+    group_by(biomass) %>%
+    summarize(min = quantile(value, 0.01, na.rm = T),
+              q2 = quantile(value, 0.02, na.rm = T))
 
 dates <- c(seq(min(biomass$date), max(biomass$date[biomass$year == 2020]), by = 'day'),
            seq(min(biomass$date[biomass$year == 2021]), max(biomass$date), by = 'day'))
 
 
+# biomass <- biomass %>%
+#     mutate(epilithon_gm2 = epilithon_gm2 + min_vals$min[min_vals$biomass == 'epilithon_gm2'],
+#            epilithon_chla_mgm2 = epilithon_chla_mgm2 +
+#                min_vals$min[min_vals$biomass == 'epilithon_chla_mgm2'],
+#            filamentous_gm2 = filamentous_gm2 + min_vals$min[min_vals$biomass == 'filamentous_gm2'],
+#            filamentous_chla_mgm2 = filamentous_chla_mgm2 +
+#                min_vals$min[min_vals$biomass == 'filamentous_chla_mgm2'],
+#            fila_macro_gm2 = fila_macro_gm2 + min_vals$min[min_vals$biomass == 'fila_macro_gm2'])
 # fit gams
 preds <- data.frame(date = dates,
                     doy = as.numeric(format(dates, '%j')),
@@ -50,7 +72,8 @@ par(mfrow = c(2,2))
 
 # try it for all sites
 biomass$site_year <- factor(biomass$site_year)
-fg2_gamma <- gam(epilithon_gm2 + delta ~ s(doy) +
+fg2_gamma <- gam(epilithon_gm2 +
+                     min_vals$min[min_vals$biomass == 'epilithon_gm2'] ~ s(doy) +
                   s(doy, site_year, bs = 'fs'),
               data = biomass, method = 'REML',
               family = Gamma(link = link_fn))
@@ -73,11 +96,13 @@ s_preds_lin <- mutate(s_preds_lin,
                       epil_gm2_fit = c(pp_lin$fit),
                       epil_gm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
-                        epil_gm2_fit = c(pp_gamma$fit) - delta,
+                        epil_gm2_fit = c(pp_gamma$fit) -
+                            min_vals$min[min_vals$biomass == 'epilithon_gm2'],
                         epil_gm2_se = c(pp_gamma$se.fit))
 
 # filamentous
-fg2_fila_gamma <- gam(filamentous_gm2 +delta ~ s(doy) +
+fg2_fila_gamma <- gam(filamentous_gm2 +
+                          min_vals$min[min_vals$biomass == 'filamentous_gm2'] ~ s(doy) +
                           s(doy, site_year, bs = 'fs'),
                       data = biomass, method = 'REML',
                       family = Gamma(link = link_fn))
@@ -101,12 +126,14 @@ s_preds_lin <- mutate(s_preds_lin,
                       fila_gm2_fit = c(pp_lin$fit),
                       fila_gm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
-                        fila_gm2_fit = c(pp_gamma$fit)-delta,
+                        fila_gm2_fit = c(pp_gamma$fit)-
+                            min_vals$min[min_vals$biomass == 'filamentous_gm2'],
                         fila_gm2_se = c(pp_gamma$se.fit))
 
 
 # chlorophyll
-fg2_chla_gamma <- gam(epilithon_chla_mgm2 + delta ~ s(doy) +
+fg2_chla_gamma <- gam(epilithon_chla_mgm2 +
+                          min_vals$min[min_vals$biomass == 'epilithon_chla_mgm2']~ s(doy) +
                           s(doy, site_year, bs = 'fs'),
                       data = biomass, method = 'REML',
                       family = Gamma(link = link_fn))
@@ -128,11 +155,13 @@ s_preds_lin <- mutate(s_preds_lin,
                       epil_chla_mgm2_fit = c(pp_lin$fit),
                       epil_chla_mgm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
-                        epil_chla_mgm2_fit = c(pp_gamma$fit) - delta,
+                        epil_chla_mgm2_fit = c(pp_gamma$fit) -
+                            min_vals$min[min_vals$biomass == 'epilithon_chla_mgm2'],
                         epil_chla_mgm2_se = c(pp_gamma$se.fit))
 
 # filamentous
-fg2_fila_chla_gamma <- gam(filamentous_chla_mgm2 +delta ~ s(doy) +
+fg2_fila_chla_gamma <- gam(filamentous_chla_mgm2 +
+                               min_vals$min[min_vals$biomass == 'filamentous_chla_mgm2']~ s(doy) +
                                s(doy, site_year, bs = 'fs'),
                            data = biomass, method = 'REML',
                            family = Gamma(link = link_fn))
@@ -154,7 +183,8 @@ s_preds_lin <- mutate(s_preds_lin,
                       fila_chla_mgm2_fit = c(pp_lin$fit),
                       fila_chla_mgm2_se = c(pp_lin$se.fit))
 s_preds_gamma <- mutate(s_preds_gamma,
-                        fila_chla_mgm2_fit = c(pp_gamma$fit)-delta,
+                        fila_chla_mgm2_fit = c(pp_gamma$fit)-
+                            min_vals$min[min_vals$biomass == 'filamentous_chla_mgm2'],
                         fila_chla_mgm2_se = c(pp_gamma$se.fit))
 
 # Calculate fit metrics for the smoothness parameter

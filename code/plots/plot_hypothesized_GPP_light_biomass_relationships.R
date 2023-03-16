@@ -1,144 +1,126 @@
 library(tidyverse)
 library(viridis)
 
+dat <- read_csv('data/model_fits/biomass_metab_model_data.csv') %>%
+    mutate(biomass = fila_chla_mgm2_fit + epil_chla_mgm2_fit)
 # baseline, light only
-beta1 <- 15
+pdat <- data.frame(light = seq(min(dat$light, na.rm = T),
+                               max(dat$light, na.rm = T), length.out = 90),
+                   biomass = rep(seq(min(dat$biomass, na.rm = T),
+                                 max(dat$biomass, na.rm = T),
+                                 length.out = 15), 6))
+mod <- summary(lme4::lmer(GPP~light + (1|site), dat))$coefficients
+pdat$linlight <- mod[1,1] + mod[2,1] * pdat$light
 
-BL <- data.frame(light = seq(0,1, by = 0.01))
-BL$GPP = beta1 * df$light
+mod <- summary(lme4::lmer(log(GPP)~log(light) + (1|site), dat))$coefficients
+pdat$loglight <- exp(mod[1,1] + mod[2,1] * log(pdat$light))
+
+plot(pdat$light, pdat$linlight)
+lines(pdat$light, pdat$loglight)
 
 
-L <- ggplot(BL, aes(light, GPP)) +
-    geom_line(size = 1.5) +
-    theme_bw()
-# linear no interaction
-beta0 <- 2.5
-beta1 <- 0.8
-beta2 <- 0.05
-biomass = seq(1, 10, by = 0.5)
-PI_1 <- data.frame()
+# biomass model
+mod <- summary(lme4::lmer(GPP~light + biomass + (1|site), dat))$coefficients
+pdat$linlightbio <- mod[1,1] + mod[2,1] * pdat$light + mod[3,1] * pdat$biomass
 
-for(B in biomass){
-    df <- data.frame(light = seq(0.13,1, by = 0.01),
-                     biomass = B)
 
-    df$GPP = beta0 + beta1 * log(df$light) + beta2 *(B)
+mod <- summary(lme4::lmer(log(GPP)~log(light) + log(biomass) + (1|site), dat))$coefficients
+pdat$loglightbio <- exp(mod[1,1] + mod[2,1] * log(pdat$light) +
+                            mod[3,1] * log(pdat$biomass))
 
-    PI_1 <- bind_rows(PI_1, df)
-}
 
-# A <-
-ggplot(PI_1, aes((light), exp(GPP), col = biomass, group = factor(biomass))) +
-    geom_line(size = 1.5) +
-    scale_color_viridis(option = 'D') +
-    theme_bw()
-
-# linear + interaction
-beta0 <- 0
-beta1 <- 0.2
-beta2 <- 0.1
-beta3 <- 0.2
-biomass = seq(1, 10, by = 0.5)
-PI_2 <- data.frame()
-
-for(B in biomass){
-    df <- data.frame(light = seq(0,1, by = 0.01),
-                     biomass = B)
-
-    df$GPP = beta0 + beta1 * df$light + beta2 * B + beta3 * df$light * B
-
-    PI_2 <- bind_rows(PI_2, df)
-}
-
-BB <-
-ggplot(PI_2, aes(light, exp(GPP), col = biomass, group = factor(biomass))) +
+ggplot(pdat, aes(light, linlightbio, col = biomass, group = factor(biomass)))+
     geom_line(size = 1.5) +
     scale_color_viridis(option = 'D') +
     theme_bw()
-
-#linear interaction term only
-beta0 <- 0
-beta1 <- 0.3
-biomass = seq(1, 10, by = 0.5)
-PI_3 <- data.frame()
-
-for(B in biomass){
-    df <- data.frame(light = seq(0,1, by = 0.01),
-                     biomass = B)
-
-    df$GPP = beta0 + beta1 * df$light * B
-
-    PI_3 <- bind_rows(PI_3, df)
-}
-
-C <-
-    ggplot(PI_3, aes(light, exp(GPP), col = biomass, group = factor(biomass))) +
+ggplot(pdat, aes(light, loglightbio, col = biomass, group = factor(biomass)))+
     geom_line(size = 1.5) +
     scale_color_viridis(option = 'D') +
     theme_bw()
 
 
-# PI curve
-alpha <- 5
-Pmax <- 1.7
-biomass = seq(1, 10, length.out = 20)
-PI_4 <- data.frame()
+mod <- summary(lme4::lmer(GPP~light * biomass + (1|site), dat))$coefficients
+pdat$linlightbioint <- mod[1,1] + mod[2,1] * pdat$light + mod[3,1] * pdat$biomass +
+    mod[4,1] * pdat$light * pdat$biomass
 
-for(B in biomass){
-    df <- data.frame(light = seq(0,1, by = 0.01),
-                     biomass = B)
 
-    df$GPP = Pmax * B * tanh(alpha * df$light/Pmax)
+mod <- summary(lme4::lmer(log(GPP)~log(light) * log(biomass) + (1|site), dat))$coefficients
+pdat$loglightbioint <- exp(mod[1,1] + mod[2,1] * log(pdat$light) +
+                            mod[3,1] * log(pdat$biomass) +
+                            mod[4,1]/9 * log(pdat$biomass)*log(pdat$light))
 
-    PI_4 <- bind_rows(PI_4, df)
-}
 
-D <-
-    ggplot(PI_4, aes(light, GPP, col = biomass, group = factor(biomass))) +
+ggplot(pdat, aes(light, linlightbioint, col = biomass, group = factor(biomass)))+
+    geom_line(size = 1.5) +
+    scale_color_viridis(option = 'D') +
+    theme_bw()
+ggplot(pdat, aes(light, loglightbioint, col = biomass, group = factor(biomass)))+
     geom_line(size = 1.5) +
     scale_color_viridis(option = 'D') +
     theme_bw()
 
+# interaction only
+dat$interaction <- dat$light * dat$biomass
+dat$loginteraction <- log(dat$light) * log(dat$biomass)
+mod <- summary(lme4::lmer(GPP~ interaction + (1|site), dat))$coefficients
+pdat$linlightbiointonly <- mod[1,1] + mod[2,1] * pdat$light * pdat$biomass
 
 
+mod <- summary(lme4::lmer(log(GPP)~log(interaction) + (1|site), dat))$coefficients
+pdat$loglightbiointonly <- exp(mod[1,1] + mod[2,1] * log(pdat$light* pdat$biomass))
 
-ggpubr::ggarrange(A,BB,C,D, common.legend = TRUE, ncol = 2, nrow = 2)
 
-PI_1$model = '1. Linear model'
-PI_2$model = '2. Linear model with interaction'
-PI_3$model = '3. Linear model only interaction'
-PI_4$model = '4. PI curve'
-
-PI <- bind_rows(PI_1, PI_2, PI_3, PI_4) %>%
-    mutate(model = factor(model,
-                          levels = c('1. Linear model',
-                                     '2. Linear model with interaction',
-                                     '3. Linear model only interaction',
-                                     '4. PI curve')))
-png('figures/model_examples.png', width = 5.5, height = 4, units = 'in', res = 300)
-PI %>% rename(Biomass = biomass) %>%
-ggplot( aes(light, GPP, col = Biomass, group = factor(Biomass))) +
+# ggplot(pdat, aes(light, linlightbiointonly, col = biomass, group = factor(biomass)))+
+#     geom_line(size = 1.5) +
+#     scale_color_viridis(option = 'D') +
+#     theme_bw()
+ggplot(pdat, aes(light, loglightbiointonly, col = biomass, group = factor(biomass)))+
     geom_line(size = 1.5) +
     scale_color_viridis(option = 'D') +
-    facet_wrap(.~model, ncol = 2)+
+    theme_bw()
+
+pdat %>%
+    pivot_longer(cols = starts_with(c('log', 'lin')),
+                 values_to = 'GPP',
+                 names_to = 'model') %>%
+    filter(model %in% c('linlightbio','linlightbioint',
+                        'loglightbio', 'loglightbioint')) %>%
+    mutate(model = case_when(model == 'linlightbio' ~ 'linear model',
+                             model == 'linlightbioint' ~ 'linear model with interaction',
+                             model == 'loglightbio' ~ 'log model',
+                             model == 'loglightbioint'~ 'log model with interaction')) %>%
+    ggplot(aes(light, GPP, group = factor(biomass), col = biomass)) +
+    geom_line(size = 1.5) +
+    scale_color_viridis(option = 'D',
+                        name = expression(paste('Chl a \n(mg', m^-2,')'))) +
+    facet_wrap(.~model)+
     theme_bw()+
-    ylab(expression(paste('Productivity (g ',O[2],  m^-2, d^-1, ')')))+
-    xlab('Relative light')
+    xlab('Relative light')+
+    ylab(expression(paste('Productivity (g ',O[2],  m^-2, d^-1, ')')))
+
+png('figures/model_examples2.png', width = 5.5, height = 4, units = 'in', res = 300)
+pdat %>%
+    pivot_longer(cols = starts_with(c('log', 'lin')),
+                 values_to = 'GPP',
+                 names_to = 'model') %>%
+    filter(model %in% c('loglight','loglightbioint',
+                        'loglightbio', 'loglightbiointonly')) %>%
+    mutate(model = case_when(model == 'loglight' ~ '0. Baseline model (Light)',
+                             model == 'loglightbiointonly' ~ '3. Light x Biomass',
+                             model == 'loglightbio' ~ '2. Light + Biomass',
+                             model == 'loglightbioint'~ '4. Light + Biomass + Light x Biomass'),
+           cover = case_when(model == '0. Baseline model (Light)' ~ GPP,
+                             TRUE ~ NA_real_)) %>%
+    ggplot(aes(light, GPP, group = factor(biomass), col = biomass)) +
+    geom_line(size = 1.5) +
+    scale_color_viridis(option = 'D',
+                        name = expression(paste('Chl a \n(mg', m^-2,')'))) +
+    geom_line(aes(y = cover), col = 'grey', size = 1.5) +
+    facet_wrap(.~model)+
+    theme_bw()+
+    xlab('Relative light')+
+    ylab(expression(paste('Productivity (g ',O[2],  m^-2, d^-1, ')'))) +
+    xlim(0,1) + ylim(0,16)
+
 dev.off()
 
-
-BL$model = '0. Baseline model'
-BL1 <- BL %>% mutate(model = 'a')
-BL2 <- BL %>% mutate(model = 'b')
-BL3 <- BL %>% mutate(model = 'c')
-BL <- bind_rows(BL, BL2, BL1, BL3) %>%
-    mutate(model = factor(model,
-                          levels = c('a', 'b', '0. Baseline model', 'c')))
-png('figures/baseline_model_examples.png', width = 4.5, height = 4, units = 'in', res = 300)
-BL %>% ggplot( aes(light, GPP)) +
-    geom_line(size = 1.5) +
-    facet_wrap(.~model, ncol = 2)+
-    theme_bw()+
-    ylab(expression(paste('Productivity (g ',O[2],  m^-2, d^-1, ')')))+
-    xlab('Relative light')
-dev.off()

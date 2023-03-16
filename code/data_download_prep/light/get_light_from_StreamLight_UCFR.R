@@ -14,7 +14,7 @@ setwd('C:/Users/alice.carter/git/UCFR-metabolism/')
 
 source('code/data_download_prep/light/modified_streamLight_functions.R')
 sitedat <- read_csv('data/site_data/site_data.csv') %>%
-    filter(!is.na(sitecode))%>%
+    dplyr::filter(!is.na(sitecode))%>%
     dplyr::rename(Lat = Latitude, Lon = Longitude) %>%
     mutate(startDate = as.Date('2020-07-01'),
            endDate = as.Date('2021-11-30'),
@@ -116,12 +116,12 @@ site_parm <- site_parm %>%
          datum = rep('NAD83', n),
          Azimuth = c(0, 170, 135, 105, 95, 107),
          WL = rep(1, n), # water level
-         BH = rep(0.2, n), # bank height
+         BH = rep(0, n), # bank height
          BS = rep(100, n), # bankslope
-         TH = rep(2, n), # tree height (m)
-         x = rep(1, n),
-         overhang = rep(1, n),
-         overhang_height = rep(5, n)) %>%
+         TH = rep(0, n), # tree height (m)
+         x = rep(0, n),
+         overhang = rep(0, n),
+         overhang_height = rep(0, n)) %>%
   data.frame()
 
 # get canopy data:
@@ -213,8 +213,9 @@ for(site in as.character(site_parm[,'Site_ID'])){
   dat <- bind_rows(dat, ss)
 }
 dat %>%
-ggplot(aes(date, LAI, col = site)) +
+ggplot(aes(date, PAR_surface, col = site)) +
   geom_point()
 
 write_csv(dat, 'C:/Users/alice.carter/git/UCFR-metabolism/data/site_data/daily_modeled_light_all_sites.csv')
+dat <- read_csv('C:/Users/alice.carter/git/UCFR-metabolism/data/site_data/daily_modeled_light_all_sites.csv')
 
