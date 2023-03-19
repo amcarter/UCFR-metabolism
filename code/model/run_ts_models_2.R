@@ -50,6 +50,66 @@ sites <- unique(dd$site)
 ar1_lmod_ss <- stan_model("code/model/stan_code/AR1_linear_model_ss.stan",
                        model_name = 'ar1_lmod_ss')
 
+# simulate data:
+
+N = nrow(dd)
+K = 2
+S = 6
+ss <- as.numeric(as.factor(dd$site))
+X <- as.matrix(select(dd,log_light, log_fila_chla_mgm2_fit), ncol = K)
+new_ts <- rep(0, nrow(dd))
+new_ts[rle2(paste0(dd$year, dd$site))$starts] <- 1
+
+# parameters
+gamma = rnorm(K+1,0,2)
+phi = rbeta(1,1,1)
+tau = abs(rnorm(1,0, 2))
+sigma = abs(rnorm(1,0,2))
+P_sd = abs(rnorm(N,0,0.2))
+beta = rnorm(S, gamma[1], tau);
+
+P = rep(NA_real_, N)
+P[new_ts == 1] <- dd$GPP[new_ts == 1]
+mu = rep(NA_real_, N)
+for(n in 1:N){
+    if(new_ts[n] == 1){
+        # restart the AR process on each new time series
+        mu[n] = rnorm(1, P[n], sigma)
+    }
+    else{
+        mu[n] = rnorm(1, beta[ss[n]] + X[n,] * gamma[2:(K+1)] + phi * mu[n-1], sigma)
+    }
+}
+
+P = rnorm(N, mu, P_sd);
+
+
+datlist <- list(
+    N = N, K = K, S = S,
+    ss = ss, X = X, new_ts = new_ts,
+    P = P, P_sd = P_sd
+)
+
+simfit <- sampling(
+    ar1_lmod_ss,
+    datlist,
+    chains = 4,
+    iter = 4000
+)
+shinystan::launch_shinystan(simfit)
+print(simfit, pars = c('gamma', 'sigma', 'tau', 'phi', 'beta'))
+gamma
+sigma
+tau
+phi
+beta
+
+ggplot(dd, aes(date, log_fila_chla_mgm2_fit))+
+    geom_line() + facet_grid(site~year, scales = 'free')
+dd %>% mutate(log_GPP = P) %>%
+ggplot( aes(log_fila_chla_mgm2_fit, log_GPP, col = site))+
+    geom_point()
+
 # run on real data: ####
 master_X <- select(dd, log_light,
                    epil_afdm = log_epil_gm2_fit,
@@ -73,10 +133,15 @@ mod_ests <- data.frame()
 chains <- data.frame()
 mod_comp <- data.frame()
 
-for(i in 1:length(model_combinations)){
+for(i in 15:length(model_combinations)){
     print(paste('model', i, 'of', length(model_combinations), sep = ' '))
     X <- master_X[,model_combinations[[i]]]
-    fit <- fit_biomass_model(ar1_lmod_ss, dd, X = as.matrix(X))
+    # write_lines(paste('model', i, 'of', length(model_combinations), ' vars = ',
+    #                   colnames(X), sep = ' '),
+    #             'model_warnings.txt', append = TRUE)
+    # fit <- tryCatch({
+    fit <- fit_biomass_model(ar1_lmod_ss, dd, X = as.matrix(X), iter = 4000)
+    # }, warning = function(w) write_lines(w, 'model_warnings.txt', append = TRUE))
     preds <- get_model_preds(fit, dd)
     p <- plot_model_fit(preds) +
         ggtitle(paste0('ar1_lmod: ', paste(colnames(X), collapse = ' + ')))

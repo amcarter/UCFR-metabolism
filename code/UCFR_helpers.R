@@ -33,7 +33,8 @@ fit_biomass_model <- function(model, dat, X, log_GPP = TRUE,
         N = nrow(X), K = ncol(X),
         S = length(unique(dat$site)),
         ss = as.numeric(dat$site),
-        X = X, P = dat$log_GPP
+        X = X, P = dat$log_GPP,
+        P_sd = dat$log_GPP_sd
     )
 
 

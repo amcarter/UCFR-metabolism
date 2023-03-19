@@ -11,7 +11,7 @@ data {
     int<lower=1,upper=S> ss[N]; // site for each observation
     matrix[N,K] X;              // model matrix with covariates
     vector[N] P;                // productivity (response)
-    // vector[N] P_sd;             // known sd of observations
+    vector[N] P_sd;             // known sd of observations
     int new_ts[N];              // vector of 0/1 indicating new site years
 }
 
@@ -21,7 +21,7 @@ parameters {
     vector[S] beta;             // site level intercepts
     real<lower=0> tau;          // variation in site intercepts
     real<lower=0> sigma;        // standard deviation of process error
-    real<lower = 0> P_sd;       // known sd of observations
+    // real<lower = 0> P_sd;       // known sd of observations
     vector[N] mu;               // underlying mean of process
 }
 
@@ -33,7 +33,7 @@ model {
     //priors
     gamma ~ normal(0,5);
     phi ~ beta(1,1);
-    P_sd ~ cauchy(0,5);
+    // P_sd ~ cauchy(0,5);
     tau ~ cauchy(0, 2.5);
     sigma ~ cauchy(0,5);
 
@@ -47,12 +47,13 @@ model {
             mu[n] ~ normal(P[n], sigma);
         }
         else{
-            mu[n] ~ normal(beta[ss[n]] + X[n,] * gamma[2:K+1] + phi * mu[n-1], sigma);
+            mu[n] ~ normal(beta[ss[n]] + X[n,] * gamma[2:(K+1)] + phi * mu[n-1], sigma);
         }
+
+        // Likelihood
+        P[n] ~ normal(mu[n], P_sd[n]);
     }
 
-    // Likelihood
-    P ~ normal(mu, P_sd);
 
 }
 
@@ -71,7 +72,7 @@ generated quantities {
         else{
             mu_tilde[n] = normal_rng(beta[ss[n]] + X[n,] * gamma[2:K+1] + phi * mu_tilde[n-1], sigma);
         }
-        y_tilde[n] = normal_rng(mu_tilde[n], P_sd);
-        log_lik[n] = normal_lpdf(P[n] | mu[n], P_sd);
+        y_tilde[n] = normal_rng(mu_tilde[n], P_sd[n]);
+        log_lik[n] = normal_lpdf(P[n] | mu[n], P_sd[n]);
     }
 }

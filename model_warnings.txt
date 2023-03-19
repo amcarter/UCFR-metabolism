@@ -1,0 +1,43 @@
+model 1 of 19  vars =  log_light
+model 1 of 19  vars =  log_light
+model 2 of 19  vars =  log_light
+model 2 of 19  vars =  epil_afdm
+model 3 of 19  vars =  log_light
+model 3 of 19  vars =  fila_afdm
+model 4 of 19  vars =  log_light
+model 4 of 19  vars =  epil_chla
+model 5 of 19  vars =  log_light
+model 5 of 19  vars =  fila_chla
+model 6 of 19  vars =  log_light
+model 6 of 19  vars =  epil_afdm
+model 6 of 19  vars =  fila_afdm
+model 7 of 19  vars =  log_light
+model 7 of 19  vars =  epil_chla
+model 7 of 19  vars =  fila_chla
+model 8 of 19  vars =  log_light
+model 8 of 19  vars =  epil_afdm
+model 8 of 19  vars =  log_light_epil_afdm
+model 9 of 19  vars =  log_light
+model 9 of 19  vars =  fila_afdm
+model 9 of 19  vars =  log_light_fila_afdm
+model 10 of 19  vars =  log_light
+model 10 of 19  vars =  epil_chla
+model 10 of 19  vars =  log_light_epil_chla
+model 11 of 19  vars =  log_light
+model 11 of 19  vars =  fila_chla
+model 11 of 19  vars =  log_light_fila_chla
+model 12 of 19  vars =  log_light
+model 12 of 19  vars =  epil_afdm
+model 12 of 19  vars =  fila_afdm
+model 12 of 19  vars =  log_light_epil_afdm
+model 12 of 19  vars =  log_light_fila_afdm
+model 13 of 19  vars =  log_light
+model 13 of 19  vars =  epil_chla
+model 13 of 19  vars =  fila_chla
+model 13 of 19  vars =  log_light_epil_chla
+model 13 of 19  vars =  log_light_fila_chla
+model 14 of 19  vars =  log_light_epil_afdm
+simpleWarning: There were 62 divergent transitions after warmup. See
+https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
+to find out why this is a problem and how to eliminate them.
+
