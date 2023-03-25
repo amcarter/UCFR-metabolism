@@ -98,17 +98,22 @@ pdat %>%
     xlab('Relative light')+
     ylab(expression(paste('Productivity (g ',O[2],  m^-2, d^-1, ')')))
 
-png('figures/model_examples2.png', width = 5.5, height = 4, units = 'in', res = 300)
+
+png('figures/model_examples2.png', width = 6.5, height = 5, units = 'in', res = 300)
+
 pdat %>%
     pivot_longer(cols = starts_with(c('log', 'lin')),
                  values_to = 'GPP',
                  names_to = 'model') %>%
     filter(model %in% c('loglight','loglightbioint',
                         'loglightbio', 'loglightbiointonly')) %>%
-    mutate(model = case_when(model == 'loglight' ~ '0. Baseline model (Light)',
-                             model == 'loglightbiointonly' ~ '3. Light x Biomass',
+    mutate(model = factor(model, levels = c('loglight','loglightbio',
+                                            'loglightbiointonly',
+                                            'loglightbioint')),
+           model = case_when(model == 'loglight' ~ '0. Baseline model (Light)',
+                             model == 'loglightbiointonly' ~ '3. Light \U00D7 Biomass',
                              model == 'loglightbio' ~ '2. Light + Biomass',
-                             model == 'loglightbioint'~ '4. Light + Biomass + Light x Biomass'),
+                             model == 'loglightbioint'~ '4. Light + Biomass + Light \U00D7 Biomass'),
            cover = case_when(model == '0. Baseline model (Light)' ~ GPP,
                              TRUE ~ NA_real_)) %>%
     ggplot(aes(light, GPP, group = factor(biomass), col = biomass)) +
@@ -120,7 +125,7 @@ pdat %>%
     theme_bw()+
     xlab('Relative light')+
     ylab(expression(paste('Productivity (g ',O[2],  m^-2, d^-1, ')'))) +
-    xlim(0,1) + ylim(0,16)
+    xlim(0,1) + ylim(0,16.5)
 
 dev.off()
 
