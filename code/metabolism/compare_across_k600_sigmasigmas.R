@@ -94,12 +94,30 @@ COMP_MET %>%
 
 
 # Comparison to Qipei's metabolism fit for Garrison
-GR <- read_csv('GR_metab.csv')
-
-GR2 <-  GR %>% select(date, GPP = GPP.daily, ER = ER.daily, K600 = K600.daily) %>%
+GR_20 <- read_csv('GR_metab.csv')
+GR_2021 <- read_csv('GR_params_2020_2021.csv')
+GR2 <-  GR_20 %>% select(date, GPP = GPP.daily, ER = ER.daily, K600 = K600.daily) %>%
+    mutate(met = 'qipei_20') %>%
+    bind_rows(filter(COMP_MET, site == 'GR', K600_sigsig == '0.01'))
+GR2 <-  GR_2021 %>% select(date, GPP = GPP.daily, ER = ER.daily, K600 = K600.daily) %>%
     mutate(met = 'qipei') %>%
-    bind_rows(filter(COMP_MET, site == 'GR'))
-GR <-  GR %>% select(date, GPP_CO2 = GPP.daily, ER_CO2 = ER.daily, K600_CO2 = K600.daily) %>%
+    bind_rows(GR2) %>%
+    mutate(year = year(date),
+               est = case_when(is.na(met)~'alice',
+                               TRUE ~ met)) %>% select(-met)
+GR2 %>%
+    pivot_longer(cols = c('GPP', 'ER', 'K600'),
+                 names_to = 'met', values_to = 'value') %>%
+    ggplot(aes(date, value, col = est)) +
+        geom_line() +
+        facet_grid(met~year, scales = 'free')+
+        theme_bw()
+
+GR2 %>%
+    ggplot(aes(K600, ER, col = est)) +
+        geom_point() + theme_bw()
+
+GR <-  GR_20 %>% select(date, GPP_CO2 = GPP.daily, ER_CO2 = ER.daily, K600_CO2 = K600.daily) %>%
      left_join(filter(COMP_MET, site == 'GR'), by = 'date')
 GR %>%
     rename(GPP_O2 = GPP, ER_O2 = ER) %>%

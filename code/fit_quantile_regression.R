@@ -2,9 +2,9 @@
 
 library(tidyverse)
 library(lubridate)
-install.packages('lqmm')
+# install.packages('lqmm')
 library(lqmm)
-install.packages('qrLMM')
+# install.packages('qrLMM')
 library(qrLMM)
 
 source('code/metabolism/functions_examine_SM_output.R')
@@ -26,8 +26,12 @@ ggplot(met, aes(GPP, ER, col = factor(year))) +
 y = met$ER
 x = cbind(1, met$GPP)
 z = cbind(1, met$GPP)
-qm90sy <- qrLMM::QRLMM(y,x,z, groups = met$siteyear, p = 0.9,
-             MaxIter = 500, M = 20)
+# qm90sy <- qrLMM::QRLMM(y,x,z, groups = met$siteyear, p = 0.9,
+#              MaxIter = 500, M = 20)
+#
+# saveRDS(qm90sy, 'data/model_fits/quantile_PR_fits.rds')
+
+qm90sy <- readRDS('data/model_fits/quantile_PR_fits.rds')
 # qm90 <- lqmm(ER ~ GPP, random = ~GPP, group =site, data = met, tau = 0.9,
 #              control = lqmmControl(LP_max_iter = 2000))
 # qm90 <- lqmm(ER ~ GPP, random = ~GPP, group =site, data = met, tau = 0.9,
@@ -109,7 +113,7 @@ met %>%
 biogams <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv')
 bio <- read_csv('data/biomass_data/biomass_working_data_summary.csv')
 NPP <- bio %>%
-    mutate(year = year(date)) %>%
+    mutate(year = lubridate::year(date)) %>%
     group_by(site, year) %>%
     summarize(fila_chla_meas = mean(filamentous_chla_mgm2),
               epil_chla_meas = mean(epilithon_chla_mgm2),
@@ -142,12 +146,13 @@ npp <- NPP %>%
            days_epil = epil_gm/2/NPP_C,
            days_fila = fila_gm/2/NPP_C,
            days_bio = biomass_C/NPP_C)
-    # ggplot(aes(biomass_C, days_bio, col = factor(year)))+
-    # geom_point(size = 2)
-    summary(npp)
+ggplot(npp, aes(biomass_C, days_bio, col = factor(year)))+
+    geom_point(size = 2)
+summary(npp)
 
 NPP$NPP * 30
-mean(NPP$days)
+mean(npp$days_bio)
+
 # Comparison to individual quantile regressions: ####
 
 library(quantreg)
