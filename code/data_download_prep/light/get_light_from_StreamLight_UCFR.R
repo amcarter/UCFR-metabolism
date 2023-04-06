@@ -194,6 +194,7 @@ predicted %>%
 
 # Combine the outputs into one file
 dat <- data.frame()
+dat_daily <- data.frame()
 for(site in as.character(site_parm[,'Site_ID'])){
   fl <- list.files(working_dir)
   if(!paste(site, "_driver.rds", sep = "") %in% fl) next
@@ -201,8 +202,11 @@ for(site in as.character(site_parm[,'Site_ID'])){
   pred <- readRDS(paste(working_dir, '/', site, '_predicted.rds', sep = ''))
   ss <- pred %>%
   dplyr::select(local_time, LAI, PAR_inc, PAR_surface) %>%
-  mutate(date = as.Date(local_time, tz = 'EST'),
-         site = site) %>%
+  mutate(date = as.Date(local_time, tz = 'America/Denver'),
+         site = site)
+  dat_daily <- bind_rows(dat_daily, ss)
+
+  ss <- ss %>%
   group_by(site, date) %>%
   summarize(light_hrs = length(which(PAR_inc>0)),
             LAI = mean(LAI, na.rm = T),
@@ -217,5 +221,6 @@ ggplot(aes(date, PAR_surface, col = site)) +
   geom_point()
 
 write_csv(dat, 'C:/Users/alice.carter/git/UCFR-metabolism/data/site_data/daily_modeled_light_all_sites.csv')
+write_csv(dat_daily, 'C:/Users/alice.carter/git/UCFR-metabolism/data/site_data/hourly_modeled_light_all_sites.csv')
 dat <- read_csv('C:/Users/alice.carter/git/UCFR-metabolism/data/site_data/daily_modeled_light_all_sites.csv')
 

@@ -27,62 +27,66 @@ BM<-read_csv('data/prepared_data/BM2020_2021.csv') %>% select(-discharge)
 BN<-read_csv('data/prepared_data/BN2020_2021.csv') %>% select(-discharge)
 
 
+file_ext <- '_kfull_0.rds'
+
 #Run models
+
+K_meds <- read_csv('data/metabolism/median_K600s.csv')
 
 PL_daily <- PL %>%
     mutate(date = as.Date(solar.time)) %>%
     group_by(date) %>%
     summarize(discharge.daily = mean(depth, na.rm = T)) %>%
     ungroup() %>%
-    mutate(K600.daily = 13.6) %>%
+    mutate(K600.daily = K_meds$K600[K_meds$site == 'PL']) %>%
     select(-discharge.daily)
 PL_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=PL,
                        data_daily = PL_daily)
-saveRDS(PL_fit, 'data/metabolism/metab_fits/PL_knorm_mle_bdr_0.rds')
+saveRDS(PL_fit, paste0('data/metabolism/metab_fits/PL', file_ext))
 
 DL_daily <- DL %>%
     mutate(date = as.Date(solar.time)) %>%
     group_by(date) %>%
     summarize(discharge.daily = mean(depth, na.rm = T)) %>%
     ungroup() %>%
-    mutate(K600.daily = 7.6) %>%
+    mutate(K600.daily = K_meds$K600[K_meds$site == 'DL']) %>%
     select(-discharge.daily)
 DL_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=DL,
                        data_daily = DL_daily)
-saveRDS(DL_fit, 'data/metabolism/metab_fits/DL_knorm_mle_bdr_0.rds')
+saveRDS(DL_fit, paste0('data/metabolism/metab_fits/DL', file_ext))
 
 GR_daily <- GR %>%
     mutate(date = as.Date(solar.time)) %>%
     group_by(date) %>%
     summarize(discharge.daily = mean(depth, na.rm = T)) %>%
     ungroup() %>%
-    mutate(K600.daily = 18.1) %>%
+    mutate(K600.daily = K_meds$K600[K_meds$site == 'GR']) %>%
     select(-discharge.daily)
 GR_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=GR,
                        data_daily = GR_daily)
-saveRDS(GR_fit, 'data/metabolism/metab_fits/GR_knorm_mle_bdr_0.rds')
+saveRDS(GR_fit, paste0('data/metabolism/metab_fits/GR', file_ext))
 
 GC_daily <- GC %>%
     mutate(date = as.Date(solar.time)) %>%
     group_by(date) %>%
     summarize(discharge.daily = mean(depth, na.rm = T)) %>%
     ungroup() %>%
-    mutate(K600.daily = 10.4) %>%
+    mutate(K600.daily = K_meds$K600[K_meds$site == 'GC']) %>%
     select(-discharge.daily)
 GC_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=GC,
                        data_daily = GC_daily)
-saveRDS(GC_fit, 'data/metabolism/metab_fits/GC_knorm_mle_bdr_0.rds')
+saveRDS(GC_fit, paste0('data/metabolism/metab_fits/GC', file_ext))
 
 BM_daily <- BM %>%
     mutate(date = as.Date(solar.time)) %>%
     group_by(date) %>%
     summarize(discharge.daily = mean(depth, na.rm = T)) %>%
     ungroup() %>%
-    mutate(K600.daily = 9.7) %>%
+    mutate(K600.daily = K_meds$K600[K_meds$site == 'BM']) %>%
     select(-discharge.daily)
 BM_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=BM,
                        data_daily = BM_daily)
-saveRDS(BM_fit, 'data/metabolism/metab_fits/BM_knorm_mle_bdr_0.rds')
+saveRDS(BM_fit, paste0('data/metabolism/metab_fits/BM', file_ext))
 
 
 BN_daily <- BN %>%
@@ -90,11 +94,11 @@ BN_daily <- BN %>%
     group_by(date) %>%
     summarize(discharge.daily = mean(depth, na.rm = T)) %>%
     ungroup() %>%
-    mutate(K600.daily = 10.8) %>%
+    mutate(K600.daily = K_meds$K600[K_meds$site == 'BN']) %>%
     select(-discharge.daily)
 BN_fit <- metab_mle(specs = specs(mm_name(type = 'mle')), data=BN,
                        data_daily = BN_daily)
-saveRDS(BN_fit, 'data/metabolism/metab_fits/BN_knorm_mle_bdr_0.rds')
+saveRDS(BN_fit, paste0('data/metabolism/metab_fits/BN', file_ext))
 
 
 
@@ -107,62 +111,70 @@ site_dat <- read_csv('data/site_data/site_data.csv') %>%
     filter(!is.na(sitecode)) %>%
     rename(distance_dwnstrm_km = 'Distance downstream (km)')
 
-# all_bad_days <- data.frame()
 compiled_metab <- data.frame()
 # Perkins ####
-fit <- readRDS('data/metabolism/metab_fits/PL_knorm_mle_bdr_0.rds')
+fit <- readRDS(paste0('data/metabolism/metab_fits/PL', file_ext))
 dat <- read_csv('data/prepared_data/PL2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-met <- extract_metab(fit, sitecode = 'PL', mle = TRUE)#, bad_days = bad_days)
+bad_days <- as.Date(c('2020-08-24', '2020-10-23', '2021-07-01', '2021-07-21',
+                      '2021-08-08', '2021-08-18'))
+met <- extract_metab(fit, sitecode = 'PL', mle = TRUE, bad_days = bad_days)
 compiled_metab <- bind_rows(compiled_metab, met)
 
 # Deer Lodge ####
-fit <- readRDS('data/metabolism/metab_fits/DL_knorm_mle_bdr_0.rds')
+fit <- readRDS(paste0('data/metabolism/metab_fits/DL', file_ext))
 dat <- read_csv('data/prepared_data/DL2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-met <- extract_metab(fit, sitecode = 'DL', mle = TRUE)#, bad_days)
+bad_days <- as.Date(c('2020-09-19', '2021-06-26', '2021-08-05', '2021-08-08',
+                      '2021-09-14', '2021-09-21', '2021-09-22'))
+met <- extract_metab(fit, sitecode = 'DL', mle = TRUE, bad_days)
 compiled_metab <- bind_rows(compiled_metab, met)
 
-# Garrison 2020####
-fit <- readRDS('data/metabolism/metab_fits/GR_knorm_mle_bdr_0.rds')
+# Garrison####
+fit <- readRDS(paste0('data/metabolism/metab_fits/GR', file_ext))
 dat <- read_csv('data/prepared_data/GR2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-met <- extract_metab(fit, sitecode = 'GR', mle = TRUE)#, bad_days)
+bad_days <- as.Date(c('2020-08-24', '2020-08-25', '2021-07-14', '2021-07-15',
+                      '2021-08-08', '2021-08-18', '2021-09-22'))
+met <- extract_metab(fit, sitecode = 'GR', mle = TRUE, bad_days)
 compiled_metab <- bind_rows(compiled_metab, met)
 
 
-# Gold Creek 2020####
-fit <- readRDS('data/metabolism/metab_fits/GC_knorm_mle_bdr_0.rds')
+# Gold Creek ####
+fit <- readRDS(paste0('data/metabolism/metab_fits/GC', file_ext))
 dat <- read_csv('data/prepared_data/GC2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-met <- extract_metab(fit, sitecode = 'GC', mle = TRUE)
+bad_days <- as.Date(c('2020-08-24', '2020-08-27', '2021-08-08'))
+met <- extract_metab(fit, sitecode = 'GC', mle = TRUE, bad_days)
 compiled_metab <- bind_rows(compiled_metab, met)
 
-# BearMouth 2020####
-fit <- readRDS('data/metabolism/metab_fits/BM_knorm_mle_bdr_0.rds')
+# BearMouth ####
+fit <- readRDS(paste0('data/metabolism/metab_fits/BM', file_ext))
 dat <- read_csv('data/prepared_data/BM2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-met <- extract_metab(fit, sitecode = 'BM', mle = TRUE)#, bad_days)
+bad_days <- as.Date(c('2020-08-18', '2020-08-24', '2021-07-20', '2021-07-21'))
+met <- extract_metab(fit, sitecode = 'BM', mle = TRUE, bad_days)
 compiled_metab <- bind_rows(compiled_metab, met)
 
 
 # Bonita 2020####
-fit <- readRDS('data/metabolism/metab_fits/BN_knorm_mle_bdr_0.rds')
+fit <- readRDS(paste0('data/metabolism/metab_fits/BN', file_ext))
 dat <- read_csv('data/prepared_data/BN2020_2021.csv')
 # examine DO fit for bad days
 plot_metab_preds(fit)
 plot_DO_preds(fit, y_var=c( "pctsat"), style='dygraphs')
-met <- extract_metab(fit, sitecode = 'BN', mle = TRUE)#, bad_days)
+bad_days <- as.Date(c('2020-08-24', '2021-08-01', '2021-08-02'))
+met <- extract_metab(fit, sitecode = 'BN', mle = TRUE, bad_days)
 compiled_metab <- bind_rows(compiled_metab, met)
 
 
@@ -171,7 +183,6 @@ compiled_metab <- compiled_metab %>%
            doy = as.numeric(format(date, '%j')),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
     left_join(select(site_dat, site, distance_dwnstrm_km))
-
 
 write_csv(compiled_metab, 'data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv')
 # write_csv(all_bad_days, 'data/days_with_poor_DO_fits.csv')

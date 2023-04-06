@@ -16,7 +16,7 @@ library(zoo)
 ##set working directory
 site_dat <- read_csv('data/site_data/site_data.csv') %>%
     filter(!is.na(sitecode)) %>%
-    mutate(filecode = c('PERKINS', 'DL', 'GC', 'Gar', 'BEAR.*', 'BONITA'))
+    mutate(filecode = c('PERKINS', 'DL',  'Gar', 'GC','BEAR.*', 'BONITA'))
 depth_Q_fits <- read_csv('data/site_data/depth_discharge_relationships_allsites.csv')
 bad_days <- read_csv('data/metabolism/days_with_poor_DO_fits_initial_run.csv')
 ##Save USGS gage numbers for downloading
@@ -55,8 +55,8 @@ site_dat <- depth_Q_fits %>%
     rename(sitecode = site) %>%
     left_join(site_dat)
 
-remove_bad_days = TRUE
-# remove_bad_days = FALSE
+# remove_bad_days = TRUE
+remove_bad_days = FALSE
 enddate <- ymd_hms('2021-10-14 12:00:00')
 
 for(i in 1:6){

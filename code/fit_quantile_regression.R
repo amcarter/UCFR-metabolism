@@ -20,7 +20,9 @@ met <- met%>%
 
 ggplot(met, aes(GPP, ER, col = factor(year))) +
     geom_point() +
-    facet_wrap(.~site, scales = 'free') + geom_abline(slope = -1, intercept = 0)
+    facet_wrap(.~site, scales = 'free') +
+    geom_abline(slope = -1, intercept = 0) +
+    ylim(-15,0) + xlim(0,20)
 
 # fit quantile regression model:
 y = met$ER
@@ -106,8 +108,9 @@ ggplot(mm, aes(doy, cumNPP, col = year)) +
     theme_bw()
 
 met %>%
-    ggplot(aes(GPP, ER - GPP * ARf, col = factor(year)))+
-    geom_point() + facet_wrap(.~site)
+    ggplot(aes(date, ER + GPP * ARf, col = factor(year)))+
+    geom_point() +
+    geom_line(aes(y = ER)) +facet_grid(site~year, scales = 'free_x')
 # compare to biomass Growth ####
 
 biogams <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv')
@@ -136,7 +139,7 @@ ggplot(NPP, aes(epil_gm, ARf, col = site)) +
     geom_point(size = 2)
 ggplot(NPP, aes(epil_chla/epil_gm, ARf, col = site)) +
     geom_point(size = 2)
-ggplot(NPP, aes(fila_chla/fila_gm, ARf, col = site)) +
+ggplot(NPP, aes(fila_gm, ARf, col = site)) +
     geom_point(size = 2)
 
 npp <- NPP %>%
@@ -146,12 +149,15 @@ npp <- NPP %>%
            days_epil = epil_gm/2/NPP_C,
            days_fila = fila_gm/2/NPP_C,
            days_bio = biomass_C/NPP_C)
-ggplot(npp, aes(biomass_C, days_bio, col = factor(year)))+
+ggplot(npp, aes(epil_gm/2/(biomass_C), NPP_C, col = factor(year)))+
+    geom_point(size = 2)
+ggplot(npp, aes(NPP_C, fila_gm, col = factor(year)))+
     geom_point(size = 2)
 summary(npp)
 
 NPP$NPP * 30
 mean(npp$days_bio)
+plot(density(npp$days_bio))
 
 # Comparison to individual quantile regressions: ####
 

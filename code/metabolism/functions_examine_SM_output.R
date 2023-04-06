@@ -47,9 +47,10 @@ extract_metab <- function(fit, sitecode = NA, bad_days = NULL, mle = FALSE){ # b
     }
 
     if(!is.null(bad_days)){
-        bds <- data.frame(date = bad_days,
-                          DO_fit = 'bad')
-        met <- left_join(met, bds, by = 'date')
+        met$DO_fit = 'good'
+        if(length(bad_days)>0){
+            met$DO_fit[met$date %in% bad_days]<- 'bad'
+        }
     }
 
     return(met)

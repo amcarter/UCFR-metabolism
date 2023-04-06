@@ -252,6 +252,12 @@ dat %>% select(DO.obs) %>%
     dySeries('DO.obs', drawPoints = TRUE) %>%
     dyRangeSelector()
 
+dat %>% select(water.temp) %>%
+    xts(order.by = dat$UTC) %>%
+    dygraph() %>%
+    dySeries('water.temp', drawPoints = TRUE) %>%
+    dyRangeSelector()
+
 flag_points <- data.frame(MST = c(
     ymd_hms(c('2020-08-14 14:42:00', '2020-08-10 13:52:00',
     '2020-09-02 12:23:00')),
@@ -274,8 +280,14 @@ dt <- as.numeric(median(diff(dat$UTC)))
 dat_clean <- left_join(dat, flag_points) %>%
     mutate(DO.raw = DO.obs,
         DO.obs = case_when(flag == 'bad data' ~ NA_real_,
-                                   TRUE ~ DO.obs),
-        DO.obs = zoo::na.approx(DO.obs, maxgap = max_gap * 60/dt, x = UTC, na.rm = F))
+                           TRUE ~ DO.obs),
+        water.temp = case_when(flag == 'bad data' ~ NA_real_,
+                               TRUE ~ water.temp),
+        DO.obs = zoo::na.approx(DO.obs, maxgap = max_gap * 60/dt,
+                                x = UTC, na.rm = F),
+        water.temp = zoo::na.approx(water.temp, maxgap = max_gap * 60/dt,
+                                x = UTC, na.rm = F)
+        )
 
 dat_clean %>%
     select(DO.obs, DO.raw) %>%
@@ -635,8 +647,6 @@ flag_points <- data.frame(MST = c(
     '2021-10-10 11:44:00', '2021-10-12 09:59:00',
     '2021-10-13 09:29:00', '2021-10-17 09:59:00'
     )),
-    seq(ymd_hms('2021-06-30 14:47:00'),
-        ymd_hms('2021-06-30 15:32:00'), by = 'min'),
     seq(ymd_hms('2021-07-13 08:15:00'),
         ymd_hms('2021-07-13 09:45:00'), by = 'min'),
     seq(ymd_hms('2021-09-27 09:29:00'),
@@ -648,14 +658,31 @@ flag_points <- data.frame(MST = c(
     ),
     flag = 'bad data')
 
+dat %>% select(water.temp) %>%
+    xts(order.by = dat$UTC) %>%
+    dygraph() %>%
+    dySeries('water.temp', drawPoints = TRUE) %>%
+    dyRangeSelector()
+
+flag_points_temp <- data.frame(MST = c(
+    seq(ymd_hms('2021-06-30 14:47:00'),
+        ymd_hms('2021-06-30 15:32:00'), by = 'min')),
+    flag = 'bad data', flagtemp = 'bad data')
+flag_points <- bind_rows(flag_points, flag_points_temp)
+
 dt <- as.numeric(median(diff(dat$UTC)))
 
 dat_clean <- left_join(dat, flag_points) %>%
     mutate(DO.raw = DO.obs,
         DO.obs = case_when(flag == 'bad data' ~ NA_real_,
-                                   TRUE ~ DO.obs),
-        DO.obs = zoo::na.approx(DO.obs, maxgap = max_gap * 60/dt, x = UTC, na.rm = F)) %>%
-    distinct()
+                           TRUE ~ DO.obs),
+        DO.obs = zoo::na.approx(DO.obs, maxgap = max_gap * 60/dt,
+                                x = UTC, na.rm = F),
+        water.temp = case_when(flagtemp == 'bad data' ~ NA_real_,
+                               TRUE ~ water.temp),
+        water.temp = zoo::na.approx(water.temp, maxgap = max_gap * 60/dt,
+                                    x = UTC, na.rm = F)) %>%
+    distinct() %>% select(-flagtemp)
 
 dat_clean %>%
     select(DO.obs, DO.raw) %>%

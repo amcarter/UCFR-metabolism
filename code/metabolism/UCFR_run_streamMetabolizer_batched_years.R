@@ -59,17 +59,26 @@ bayes_name <- mm_name(type='bayes', pool_K600='normal',
                       err_obs_iid=TRUE, err_proc_iid=TRUE)
 # bayes_specs = specs(bayes_name,
 #                     verbose = T, n_cores = 4)
+#
+#
 bayes_specs <- specs(bayes_name,
                      # K600_daily_meanlog_meanlog = 1.986474396, # where did this number for K600 come from?
                      burnin_steps = 1000,
                      saved_steps = 1000,
                      K600_daily_meanlog_meanlog = 2.484906649788,
                      K600_daily_meanlog_sdlog = 0.75,
-                     K600_daily_sdlog_sigma = 0.1,
+                     K600_daily_sdlog_sigma = 0.001,
                      n_cores=4, verbose=T)
 
 # Only relevant for running binned SM:
 # set the nodes to reflect the range of discharge at this site:
+# bayes_name <- mm_name(type='bayes', pool_K600='binned',
+#                       err_obs_iid=TRUE, err_proc_iid=TRUE)
+# bayes_specs <- specs(bayes_name,
+#                      # K600_daily_meanlog_meanlog = 1.986474396, # where did this number for K600 come from?
+#                      burnin_steps = 1000,
+#                      saved_steps = 1000,
+#                      n_cores=4, verbose=T)
 # set_Q_nodes <- function(bayes_specs, discharge){
 #     Qrange = quantile(log(discharge),
 #                       probs = c(0.1, 0.9), na.rm = T)
@@ -88,45 +97,40 @@ bayes_specs <- specs(bayes_name,
 # }
 
 #Run models
+file_ext <- '_knorm_oipi_001_bdr.rds'
 # bayes_specs <- set_Q_nodes(bayes_specs, PL$discharge)
 PL_fit <- metab(bayes_specs, data=PL)
-saveRDS(PL_fit, 'data/metabolism/metab_fits/PL_knorm_oipi.rds')
-# saveRDS(PL_fit, 'data/metab_fits/PL_kb_oipi.rds')
+saveRDS(PL_fit, paste0('data/metabolism/metab_fits/PL', file_ext))
 rm(PL_fit)
 gc()
 
 # bayes_specs <- set_Q_nodes(bayes_specs,  DL$discharge)
 DL_fit <- metab(bayes_specs, data=DL)
-saveRDS(DL_fit, 'data/metabolism/metab_fits/DL_knorm_oipi.rds')
-# saveRDS(DL_fit, 'data/metab_fits/DL_kb_oipi.rds')
+saveRDS(DL_fit, paste0('data/metabolism/metab_fits/DL', file_ext))
 rm(DL_fit)
 gc()
 
 # bayes_specs <- set_Q_nodes(bayes_specs, GR$discharge)
 GR_fit <- metab(bayes_specs, data=GR)
-saveRDS(GR_fit, 'data/metabolism/metab_fits/GR_knorm_oipi.rds')
-# saveRDS(GR_fit, 'data/metab_fits/GR_kb_oipi.rds')
+saveRDS(GR_fit, paste0('data/metabolism/metab_fits/GR', file_ext))
 rm(GR_fit)
 gc()
 
 # bayes_specs <- set_Q_nodes(bayes_specs, GC$discharge)
 GC_fit <- metab(bayes_specs, data=GC)
-saveRDS(GC_fit, 'data/metabolism/metab_fits/GC_knorm_oipi.rds')
-# saveRDS(GC_fit, 'data/metab_fits/GC_kb_oipi.rds')
+saveRDS(GC_fit, paste0('data/metabolism/metab_fits/GC', file_ext))
 rm(GC_fit)
 gc()
 
 # bayes_specs <- set_Q_nodes(bayes_specs, BM$discharge)
 BM_fit <- metab(bayes_specs, data=BM)
-saveRDS(BM_fit, 'data/metabolism/metab_fits/BM_knorm_oipi.rds')
-# saveRDS(BM_fit, 'data/metab_fits/BM_kb_oipi.rds')
+saveRDS(BM_fit, paste0('data/metabolism/metab_fits/BM', file_ext))
 rm(BM_fit)
 gc()
 
 # bayes_specs <- set_Q_nodes(bayes_specs, BN$discharge)
 BN_fit <- metab(bayes_specs, data=BN)
-saveRDS(BN_fit, 'data/metabolism/metab_fits/BN_knorm_oipi.rds')
-# saveRDS(BN_fit, 'data/metab_fits/BN_kb_oipi.rds')
+saveRDS(BN_fit, paste0('data/metabolism/metab_fits/BN', file_ext))
 rm(BN_fit)
 gc()
 
