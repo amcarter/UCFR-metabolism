@@ -16,7 +16,7 @@ source('code/data_download_prep/light/modified_streamLight_functions.R')
 sitedat <- read_csv('data/site_data/site_data.csv') %>%
     dplyr::filter(!is.na(sitecode))%>%
     dplyr::rename(Lat = Latitude, Lon = Longitude) %>%
-    mutate(startDate = as.Date('2020-07-01'),
+    mutate(startDate = as.Date('2020-06-01'),
            endDate = as.Date('2021-11-30'),
            Site_ID = paste0('nwis_', nwis_code))
 # Download and Process NLDAS data for incoming radiation ####

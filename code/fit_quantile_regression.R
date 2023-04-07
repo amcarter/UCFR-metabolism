@@ -149,7 +149,7 @@ npp <- NPP %>%
            days_epil = epil_gm/2/NPP_C,
            days_fila = fila_gm/2/NPP_C,
            days_bio = biomass_C/NPP_C)
-ggplot(npp, aes(epil_gm/2/(biomass_C), NPP_C, col = factor(year)))+
+ggplot(npp, aes(epil_gm/2/(biomass_C), days_bio, col = factor(year)))+
     geom_point(size = 2)
 ggplot(npp, aes(NPP_C, fila_gm, col = factor(year)))+
     geom_point(size = 2)

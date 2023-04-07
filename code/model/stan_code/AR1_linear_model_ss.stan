@@ -21,7 +21,6 @@ parameters {
     vector[S] beta;             // site level intercepts
     real<lower=0> tau;          // variation in site intercepts
     real<lower=0> sigma;        // standard deviation of process error
-    // real<lower = 0> P_sd;       // known sd of observations
     vector[N] mu;               // underlying mean of process
 }
 
@@ -47,7 +46,7 @@ model {
             mu[n] ~ normal(P[n], sigma);
         }
         else{
-            mu[n] ~ normal(beta[ss[n]] + X[n,] * gamma[2:(K+1)] + phi * mu[n-1], sigma);
+            mu[n] ~ normal(beta[ss[n]] + X[n,] * gamma[2:(K+1)] + phi * P[n-1], sigma);
         }
 
         // Likelihood
@@ -72,7 +71,9 @@ generated quantities {
         else{
             mu_tilde[n] = normal_rng(beta[ss[n]] + X[n,] * gamma[2:K+1] + phi * mu_tilde[n-1], sigma);
         }
-        y_tilde[n] = normal_rng(mu_tilde[n], P_sd[n]);
+        y_tilde[n] = normal_rng(mu[n], P_sd[n]);
         log_lik[n] = normal_lpdf(P[n] | mu[n], P_sd[n]);
     }
+
 }
+
