@@ -4,8 +4,7 @@ library(tidyverse)
 library(viridis)
 
 mod_ests <- read_csv('data/model_fits/ar_PIcurve_parameter_ests.csv')
-mod_ests <- read_csv('data/model_fits/ar1_linear_model_parameter_ests_ss.csv') %>%
-    bind_rows(mod_ests)
+mod_ests <- read_csv('data/model_fits/ar1_linear_model_parameter_ests_ss.csv')
 chains <- read_csv('data/model_fits/ar_PIcurve_chains.csv')
 chains <- read_csv('data/model_fits/ar1_linear_model_chains_ss.csv') %>%
     bind_rows(chains)
