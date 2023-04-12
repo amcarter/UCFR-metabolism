@@ -104,6 +104,53 @@ get_model_preds <- function(fit, dat){
     return(preds)
 }
 
+predict_holdout <- function(fit, dat_full, X_full, holdout_rows){
+
+    X <- as.matrix(X_full)
+    site <- holdout$site[1]
+    phi_post <- rstan::extract(fit, pars = 'phi')$phi
+    draws <- nrow(phi_post)
+    beta_post <- matrix(rstan::extract(fit, pars = 'gamma')$gamma[,-1],
+                        nrow = draws)
+    beta0_post <- rstan::extract(fit, pars = 'beta')$beta[,as.numeric(site)]
+    sigma_post <- rstan::extract(fit, pars = 'sigma')$sigma
+
+
+    # forecast the held out observations
+    post_preds <- matrix(nrow = draws, ncol = length(holdout_rows))
+
+    # fill in first observation:
+    post_preds[,1] <- matrix(rep(log(dat_full$GPP[holdout_rows[1]]), draws),
+                             nrow = draws, ncol = 1)
+    for(i in 1:draws){
+        for(t in 2:length(holdout_rows)){
+            y_past <- as.double(post_preds[i, t-1])
+            post_preds[i, t] <- X[holdout_rows[t],] %*% beta_post[i,] +
+                beta0_post[i] + phi_post[i] * y_past +
+                rnorm(1, sd = sigma_post[i])
+        }
+    }
+
+    preds <- dat_full[holdout_rows,] %>%
+        select(site, date, GPP) %>%
+        mutate(log_GPP = log(GPP),
+               estim = apply(post_preds, 2, mean),
+               low = apply(post_preds, 2, quantile, probs = 0.025),
+               high = apply(post_preds, 2, quantile, probs = 0.975)
+               )
+    plot(preds$date, preds$log_GPP, type = 'l',
+         ylim = c(min(preds$low), max(preds$high)))
+    lines(preds$date, preds$estim, lty = 2)
+    polygon(c(preds$date, rev(preds$date)),
+            c(preds$low, rev(preds$high)), col = alpha('brown', 0.3),
+            border = NA)
+
+    RMSE_forecast <- sqrt(mean((preds$log_GPP - preds$estim)^2))
+
+    return(preds)
+
+}
+
 plot_model_fit <- function(preds, log_ests = TRUE, mod = NA,
                            scales = 'free_x', write = FALSE){
     if(log_ests){

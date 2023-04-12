@@ -45,7 +45,7 @@ bmet <- read_csv('data/model_fits/biomass_metab_model_data.csv')
         # facet_grid(site~year, scales = 'free') +
         theme_bw() +
         # scale_color_viridis(option = 'D') +
-        geom_abline(slope = -1, intercept = 0, col = 'grey50')
+        geom_abline(slope = -1, intercept = 0, col = 'grey50') +
         ylab(expression(paste('ER (g ', O[2], m^-2, d^-1, ')')))
     bmet %>%
         mutate(NEP = ER + GPP,

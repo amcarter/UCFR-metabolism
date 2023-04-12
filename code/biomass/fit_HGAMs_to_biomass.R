@@ -234,11 +234,11 @@ rownames(k4) <- NULL
 k_check_gamma <- bind_rows(k1, k2, k3, k4)
 
 # plot diagnostics
-png('figures/biomass_idGAMs_diagnostics.png', width = 7.5, height = 7.5,
+png('figures/SI/biomass_loggammaGAMs_diagnostics.png', width = 7.5, height = 7.5,
     units = 'in', res = 300)
     par(mfrow = c(4,4),
         mar = c(3,4,2,2),
-        oma = c(0,3,1,0))
+        oma = c(0,3,2,0))
     gam.check(fg2_gamma)
     mtext(expression(paste('biofilm g',m^-2)), 2, line = 45)
     gam.check(fg2_fila_gamma)
@@ -247,6 +247,8 @@ png('figures/biomass_idGAMs_diagnostics.png', width = 7.5, height = 7.5,
     mtext(expression(paste('biofilm chla mg',m^-2)), 2, line = 45)
     gam.check(fg2_fila_chla_gamma)
     mtext(expression(paste('fila. chla mg',m^-2)), 2, line = 45)
+    par(mfrow = c(1,1), new = T)
+    mtext('Model fit metrics for Biomass GAMS', line = 2.75)
 dev.off()
 png('figures/biomass_linGAMs_diagnostics.png', width = 7.5, height = 7.5,
     units = 'in', res = 300)
@@ -364,7 +366,9 @@ mm <- qq %>% filter(units == 'gm2') %>%
     scale_y_log10(limits = c(0.3, 600))+
     xlab('Date') +
     ylab(expression('Algal Standing Crop (AFDM g '~ m^-2*')')) +
-    theme_bw()
+    theme_classic()+
+    theme(panel.border = element_rect(fill = NA),
+          panel.spacing = unit(0, 'line'))
 cc <- qq %>%
     mutate(fit = case_when(fit < delta ~ delta,
                            TRUE ~ fit),
@@ -384,7 +388,9 @@ cc <- qq %>%
     scale_y_log10(limits = c(0.3, 1000))+
     xlab('Date') +
     ylab(expression('Algal Standing Crop (mg chl a '~ m^-2*')')) +
-    theme_bw()
+    theme_classic()+
+    theme(panel.border = element_rect(fill = NA),
+          panel.spacing = unit(0, 'line'))
 
 png('figures/biomass_log_gamma_gams_comb_zeros.png', width = 7.5, height = 5, units = 'in',
     res = 300)

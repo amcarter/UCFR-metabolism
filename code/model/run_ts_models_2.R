@@ -139,12 +139,11 @@ mod_comp <- data.frame()
 for(i in 1:length(model_combinations)){
     print(paste('model', i, 'of', length(model_combinations), sep = ' '))
     X <- master_X[,model_combinations[[i]]]
-    # write_lines(paste('model', i, 'of', length(model_combinations), ' vars = ',
-    #                   colnames(X), sep = ' '),
-    #             'model_warnings.txt', append = TRUE)
-    # fit <- tryCatch({
-    fit <- fit_biomass_model(ar1_lmod_ss, dd, X = as.matrix(X), iter = 4000)
-    # }, warning = function(w) write_lines(w, 'model_warnings.txt', append = TRUE))
+    fit <- fit_biomass_model(ar1_lmod_ss, dd,
+                             X = as.matrix(X),
+                             log_GPP = TRUE,
+                             iter = 4000)
+
     preds <- get_model_preds(fit, dd)
     p <- plot_model_fit(preds) +
         ggtitle(paste0('ar1_lmod: ', paste(colnames(X), collapse = ' + ')))
@@ -180,4 +179,48 @@ mod_ests %>% filter(biomass_vars == 'log_light + epil_chla + fila_chla') %>%
 mod_comp %>% arrange(waic)
 plot(mod_comp$waic, mod_comp$rmse)
 
+
+# Fit models with holdout of 2021 years
+mod_holdout_preds <- data.frame()
+mod_holdout_RMSE <- data.frame()
+
+for(i in 1:length(model_combinations)){
+    print(paste('model', i, 'of', length(model_combinations), sep = ' '))
+    full_holdout_preds <- data.frame()
+    RMSE_holdout <- vector(mode = 'double', length = length(sites))
+    for(s in sites){
+        print(paste('Holdout site', s, sep = ' '))
+        # remove data from 2021 at each site iteratively and fit model:
+        holdout_rows <- which(dd$site == s & dd$year == 2021)
+
+        X <- master_X[,model_combinations[[i]]]
+        fit <- fit_biomass_model(ar1_lmod_ss, dd[-holdout_rows,],
+                             X = as.matrix(X[-holdout_rows,]),
+                             log_GPP = TRUE,
+                             iter = 4000)
+        holdout_preds <- predict_holdout(fit, dd, X, holdout_rows)
+        RMSE_holdout[as.numeric(site)] <-
+            sqrt(mean((holdout_preds$log_GPP - holdout_preds$estim)^2))
+
+        full_holdout_preds <- bind_rows(full_holdout_preds, holdout_preds)
+    }
+
+
+    mod_holdout_preds <- full_holdout_preds %>%
+        mutate(biomass_vars = paste(colnames(X), collapse = ' + '),
+               model = fit@model_name) %>%
+        bind_rows(mod_holdout_preds)
+    mod_holdout_RMSE <- data.frame(
+        site = sites,
+        biomass_vars = rep(paste(colnames(X), collapse = ' + '), 6),
+        model = rep(fit@model_name, 6),
+        RMSE_holdout = RMSE_holdout) %>%
+        bind_rows(mod_holdout_RMSE)
+
+}
+
+beepr::beep(5)
+
+write_csv(mod_holdout_preds, 'data/model_fits/ar1_log_model_holdout_predictions.csv')
+write_csv(mod_holdout_RMSE, 'data/model_fits/ar1_log_model_holdout_RMSEs.csv')
 

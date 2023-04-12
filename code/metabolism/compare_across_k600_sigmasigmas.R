@@ -48,27 +48,52 @@ KCOR <- COMP_MET %>% group_by(site, K600_sigsig, K_pool) %>%
     mutate(across(starts_with('r2_'), ~case_when(K_pool == 'kfull'~ NA_real_,
                                                 TRUE ~ .)))
 
+png('figures/SI/met_model_KER_relationships_comparison.png',
+    width = 7, height = 5.5, units = 'in', res = 300)
+    dd %>%
+        mutate(K_group = paste(K_pool, K600_sigsig, sep = '_'),
+               site = factor(site, level = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+        filter(K_group != 'kfull_0.0')%>%
+        ggplot(aes(K600, ER, col = DO_fit)) +
+        geom_point(size = 0.5) +
+        scale_color_manual("Model fit",
+                           values = c('brown3', 'black'))+
+        facet_grid(site~K_group)+
+        theme_bw()
+dev.off()
 
-a <-COMP_MET %>%
+cc <- COMP_MET %>%
     mutate(doy = as.numeric(format(date, "%j")),
-           year = lubridate::year(date)) %>%
-    ggplot(aes(date, GPP, col = K600_sigsig, lty = K_pool))+
+           year = lubridate::year(date),
+           model = paste(K_pool, K600_sigsig, sep = "_"),
+           model = case_when(model == 'kb_0.1' ~ 'Binned K600',
+                             model == 'knorm_0.01' ~ 'Normally pooled K600',
+                             model == 'kfull_0.0' ~ 'Fixed K600',
+                             TRUE ~ NA_character_),
+           model = factor(model, levels = c('Binned K600',
+                                            'Normally pooled K600',
+                                            'Fixed K600')),
+           site = factor(site, levels = c('PL', 'DL', 'GR',
+                                          'GC', 'BM', 'BN'))) %>%
+    filter(!is.na(model))
+library(RColorBrewer)
+a <- ggplot(cc, aes(date, GPP, col = model))+
     geom_line(linewidth = 0.5) +
     facet_grid(site~year, scales = 'free_x') +
-    theme_bw()+
+    theme_classic()+
+    scale_color_brewer('Model', palette = 'Set1')+
     theme(strip.background.y = element_blank(),
-          strip.text.y = element_blank())+
-    scale_color_discrete('Prior for K600 sigma sigma')
-b <- COMP_MET %>% tibble() %>%
-    mutate(doy = as.numeric(format(date, "%j")),
-           year = lubridate::year(date)) %>%
-    ggplot(aes(K600, ER, col = K600_sigsig, lty = K_pool))+
+          strip.text.y = element_blank(),
+          panel.border = element_rect(fill = NA))
+b <- cc %>%
+    filter(model != 'Fixed K600') %>%
+    ggplot(aes(K600, ER, col = model))+
     geom_point(size = 0.5) +
     facet_grid(site~year, scales = 'free_x') +
-    theme_bw()+
-    theme(strip.background.y = element_blank(),
-          strip.text.y = element_blank())+
-    scale_color_discrete('Prior for K600 sigma sigma')
+    scale_color_brewer('Model', palette = 'Set1')+
+    theme_classic()+
+    theme(panel.border = element_rect(fill = NA))
+
 c <- KCOR %>%
     mutate(kgroup = paste(K_pool, K600_sigsig, sep = '_')) %>%
     ggplot( aes(K600_sigsig, r2_gpp, fill = kgroup)) +
@@ -80,11 +105,11 @@ c <- KCOR %>%
     ggtitle('')+
     theme_bw()
 
-# png('figures/SI/metab_change_with_K600_sigsig.png', width = 10, height = 7,
-#     units = 'in', res = 300)
-    ggpubr::ggarrange(a,b, c, nrow = 1, common.legend = TRUE,
-                      widths = c(3,2, 1))#, align = 'v')
-# dev.off()
+png('figures/SI/metab_change_model_choice.png', width = 9, height = 6,
+    units = 'in', res = 300)
+    ggpubr::ggarrange(a,b, nrow = 1, common.legend = TRUE,
+                      widths = c(2,1))#, align = 'v')
+dev.off()
 
 dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')
 dd <- left_join(COMP_MET, dat, by = c('site', 'date'))
@@ -98,15 +123,6 @@ COMP_MET %>%
     facet_wrap(year~., scales = 'free_x', ncol = 1) +
     theme_bw()+
     scale_color_discrete('Prior for K600 sigma sigma')
-
-dd %>%
-    mutate(K_group = paste(K_pool, K600_sigsig, sep = '_'),
-           site = factor(site, level = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
-    filter(K_group != 'kfull_0.0')%>%
-    ggplot(aes(K600, ER, col = DO_fit)) +
-    geom_point() +
-    facet_grid(site~K_group)+
-    theme_bw()
 
 dd %>%
     mutate(K_group = paste(K_pool, K600_sigsig, sep = '_'),
@@ -184,20 +200,29 @@ dev.off()
 GR_20 <- read_csv('GR_metab.csv')
 GR_2021 <- read_csv('GR_params_2020_2021.csv')
 GR2 <-  GR_20 %>% select(date, GPP = GPP.daily, ER = ER.daily, K600 = K600.daily) %>%
-    mutate(met = 'qipei_20') %>%
-    bind_rows(filter(COMP_MET, site == 'GR', K600_sigsig == '0.01'))
-GR2 <-  GR_2021 %>% select(date, GPP = GPP.daily, ER = ER.daily, K600 = K600.daily) %>%
-    mutate(met = 'qipei') %>%
-    bind_rows(GR2) %>%
-    mutate(year = year(date),
-               est = case_when(is.na(met)~'alice',
+    mutate(met = 'sensor light') %>%
+    bind_rows(filter(COMP_MET, site == 'GR', K600_sigsig %in% c('0.0', '0.01'),
+                     K_pool != 'kb'))
+GR2 <-  mutate(GR2, est = case_when(is.na(met)~'theoretical light',
                                TRUE ~ met)) %>% select(-met)
+# GR2 <-  GR_2021 %>% select(date, GPP = GPP.daily, ER = ER.daily, K600 = K600.daily) %>%
+#     mutate(met = 'qipei') %>%
+#     bind_rows(GR2) %>%
+#     mutate(year = year(date),
+#                est = case_when(is.na(met)~'alice',
+#                                TRUE ~ met)) %>% select(-met)
+
 GR2 %>%
+    filter(date < ymd('2020-10-08')&
+               date > ymd('2020-08-20')) %>%
     pivot_longer(cols = c('GPP', 'ER', 'K600'),
                  names_to = 'met', values_to = 'value') %>%
-    ggplot(aes(date, value, col = est)) +
+    mutate(K600_sigsig = case_when(is.na(K600_sigsig) ~ "0.0",
+                                   TRUE ~ K600_sigsig))%>%
+    ggplot(aes(date, value, col = est, lty = K600_sigsig)) +
         geom_line() +
-        facet_grid(met~year, scales = 'free')+
+        facet_wrap(.~met, scales = 'free', ncol = 1, strip.position = 'right')+
+        scale_color_manual(values = c('brown','black'))+
         theme_bw()
 
 GR2 %>%
