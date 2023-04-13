@@ -187,7 +187,7 @@ mod_holdout_RMSE <- data.frame()
 for(i in 1:length(model_combinations)){
     print(paste('model', i, 'of', length(model_combinations), sep = ' '))
     full_holdout_preds <- data.frame()
-    RMSE_holdout <- vector(mode = 'double', length = length(sites))
+    RMSE_holdout <- data.frame()
     for(s in sites){
         print(paste('Holdout site', s, sep = ' '))
         # remove data from 2021 at each site iteratively and fit model:
@@ -199,8 +199,11 @@ for(i in 1:length(model_combinations)){
                              log_GPP = TRUE,
                              iter = 4000)
         holdout_preds <- predict_holdout(fit, dd, X, holdout_rows)
-        RMSE_holdout[as.numeric(site)] <-
-            sqrt(mean((holdout_preds$log_GPP - holdout_preds$estim)^2))
+        div <- stan_psum(fit)
+        RMSE_holdout <-
+            data.frame(RMSE = sqrt(mean((holdout_preds$log_GPP - holdout_preds$estim)^2)),
+                       divergent_trans = div$divergent) %>%
+            bind_rows(RMSE_holdout)
 
         full_holdout_preds <- bind_rows(full_holdout_preds, holdout_preds)
     }
@@ -210,11 +213,11 @@ for(i in 1:length(model_combinations)){
         mutate(biomass_vars = paste(colnames(X), collapse = ' + '),
                model = fit@model_name) %>%
         bind_rows(mod_holdout_preds)
-    mod_holdout_RMSE <- data.frame(
-        site = sites,
-        biomass_vars = rep(paste(colnames(X), collapse = ' + '), 6),
-        model = rep(fit@model_name, 6),
-        RMSE_holdout = RMSE_holdout) %>%
+    mod_holdout_RMSE <-
+        RMSE_holdout %>%
+        mutate(site = sites,
+               biomass_vars = rep(paste(colnames(X), collapse = ' + '), 6),
+               model = rep(fit@model_name, 6)) %>%
         bind_rows(mod_holdout_RMSE)
 
 }
@@ -224,3 +227,83 @@ beepr::beep(5)
 write_csv(mod_holdout_preds, 'data/model_fits/ar1_log_model_holdout_predictions.csv')
 write_csv(mod_holdout_RMSE, 'data/model_fits/ar1_log_model_holdout_RMSEs.csv')
 
+mod_holdout_preds <- read_csv('data/model_fits/ar1_log_model_holdout_predictions.csv')
+
+mod_holdout_preds  %>% tibble() %>%
+    group_by(biomass_vars, model, site) %>%
+    mutate(se = (log_GPP - (estim))^2) %>%
+    summarize(mse = mean(se)) %>%
+    mutate(rmse = sqrt(mse)) %>%
+    group_by(biomass_vars) %>%
+    summarize(RMSE = mean(rmse)) %>% arrange(RMSE)
+    ggplot(aes(biomass_vars, rmse, col = site)) +
+    geom_point()
+
+    mod_holdout_preds %>%
+        mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))%>%
+        mutate(model = case_when(biomass_vars == 'log_light' ~ '0. Baseline (Light)',
+                                 biomass_vars == 'log_light + fila_chla' ~
+                                     '1. Light + Biomass',
+                                 biomass_vars == 'log_light + fila_chla + log_light_fila_chla' ~
+                                     '3. Light + Biomass + \nLight \U00D7 Biomass',
+                                 biomass_vars == 'log_light_fila_chla' ~
+                                     '2. Light \U00D7 Biomass',
+                                TRUE ~ NA_character_)) %>%
+        filter(!is.na(model)) %>%
+        ggplot(aes(date, GPP)) +
+        geom_line() +
+        geom_line(aes(y = exp(estim)), lty = 2)+
+        geom_ribbon(aes(ymin = exp(low), ymax = exp(high)),
+                    fill = alpha('brown', 0.3))+
+        facet_grid(site~model) +
+        theme_classic() +
+        # ylim(0.88, 3.5)+
+        # ylab(expression("log(GPP)"~(g~O[2]~m^-2~d^-1)))+
+        ylab("log(GPP)")+
+        xlab('Date')+
+        theme(panel.border = element_rect(fill = NA),
+              panel.spacing = unit(0, units = 'pt'))
+
+png('figures/SI/holdout_site_predictions.png', width = 7.5, height = 6.5,
+    units = 'in', res = 300)
+
+    # p <-
+    mod_holdout_preds %>%
+        mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))%>%
+        mutate(model = case_when(biomass_vars == 'log_light' ~ '0. Baseline (Light)',
+                                 biomass_vars == 'log_light + fila_chla' ~
+                                     '1. Light + Biomass',
+                                 biomass_vars == 'log_light + fila_chla + log_light_fila_chla' ~
+                                     '3. Light + Biomass + \nLight \U00D7 Biomass',
+                                 biomass_vars == 'log_light_fila_chla' ~
+                                     '2. Light \U00D7 Biomass',
+                                TRUE ~ NA_character_)) %>%
+        filter(!is.na(model)) %>%
+        ggplot(aes(date, log_GPP)) +
+        geom_line() +
+        geom_line(aes(y = estim), lty = 2)+
+        geom_ribbon(aes(ymin = low, ymax = high),
+                    fill = alpha('brown', 0.3))+
+        facet_grid(site~model) +
+        theme_classic() +
+        ylim(0.88, 3.5)+
+        # ylab(expression("log(GPP)"~(g~O[2]~m^-2~d^-1)))+
+        ylab("log(GPP)")+
+        xlab('Date')+
+        theme(panel.border = element_rect(fill = NA),
+              panel.spacing = unit(0, units = 'pt'))
+
+
+    # dummy_df <- data.frame(GPP = rep(c('Actual', 'Predicted'), each = 2),
+    #                        x = c(1,2,1,2), y = c(1,1,1,2))
+    # dummy_plot <- ggplot(dummy_df, aes(x,y, lty = GPP)) +
+    #     geom_line() + theme_classic()+
+    #     # geom_ribbon(aes(ymin = y/2, ymax = 2*y, fill = GPP))+
+    #     # scale_fill_manual(values = c('transparent', alpha('brown', 0.3)),
+    #     #                   name = "") +
+    #     theme(legend.direction = 'horizontal')
+    #
+    # lgnd <- ggpubr::get_legend(dummy_plot)
+    # pp <- ggpubr::ggarrange(p, legend.grob = lgnd)
+
+dev.off()

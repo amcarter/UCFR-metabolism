@@ -186,6 +186,7 @@ compiled_metab <- compiled_metab %>%
 
 write_csv(compiled_metab, 'data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv')
 # write_csv(all_bad_days, 'data/days_with_poor_DO_fits.csv')
+compiled_metab <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv')
 
 met <- compiled_metab %>%
     select(-errors) %>%

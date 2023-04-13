@@ -276,6 +276,7 @@ qq = as_tibble(lapply(s_preds_gamma, c)) %>% select(-site_year) %>%
 write_csv(qq, 'data/biomass_data/log_gamma_gam_fits_biomass.csv')
 write_csv(k_check_gamma, 'data/biomass_data/log_gamma_gam_smoothness_parameter_checks.csv')
 
+qq <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv')
 # plot GAMS
 qq <- qq %>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%

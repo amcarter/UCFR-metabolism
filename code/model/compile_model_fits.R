@@ -27,21 +27,14 @@ dd <- dd %>% select(site, GPP, log_GPP, light, epil_chla_mgm2_fit, log_epil_chla
               fila_chla_mgm2_fit, log_fila_chla_mgm2_fit)
 
 
-mod_ests <- read_csv('data/model_fits/ar_PIcurve_parameter_ests.csv')
-mod_ests <- read_csv('data/model_fits/ar1_linear_model_parameter_ests_ss.csv') %>%
-    bind_rows(mod_ests)
-chains <- read_csv('data/model_fits/ar_PIcurve_chains.csv')
-chains <- read_csv('data/model_fits/ar1_linear_model_chains_ss.csv') %>%
-    bind_rows(chains)
-mod_metrics <- read_csv('data/model_fits/ar_PIcurve_model_metrics_unconditioned.csv')
-mod_metrics <- read_csv('data/model_fits/ar1_linear_model_metrics_ss_uncond.csv') %>%
-    bind_rows(mod_metrics)
+mod_ests <- read_csv('data/model_fits/ar1_log_model_parameter_ests_ss.csv')
+chains <- read_csv('data/model_fits/ar1_log_model_chains_ss.csv')
+mod_metrics <- read_csv('data/model_fits/ar1_log_model_metrics_ss_cond.csv')
 
 mod_metrics <- mod_metrics %>%
     mutate(model = c('baseline', rep('linear model', 6),
                      rep('linear model with interaction', 6),
-                     rep('linear model interaction only', 6),
-                     rep('PI curve model', 6))) %>%
+                     rep('linear model interaction only', 6))) %>%
     arrange(model, rmse) %>% print(n = 30)
 
 
@@ -50,15 +43,12 @@ chains <- chains %>%
     rename(covariates = biomass_vars) %>%
     left_join(mod_metrics[,1:2], by = 'covariates')
 
-best_mods_by_cat <- mod_metrics %>%
-    group_by(model)%>%
-    filter(r2adj > max(r2adj) - 0.012) %>%
-    mutate(across(c('r2adj', 'rmse'), round, digits = 2),
-           across(starts_with(c('loo', 'waic')), round, digits = 0))
+best_mods <- mod_metrics %>%
+    slice(1, 5, 10, 15)
 
 write_csv(best_mods_by_cat, 'data/model_fits/best_models_by_category.csv')
 
-best_mods <- best_mods_by_cat[c(1,2,4,5,8),]
+# best_mods <- best_mods_by_cat[c(1,2,4,5,8),]
 best_chains <- chains %>%
     right_join(best_mods[,1:2])
 
@@ -72,7 +62,7 @@ best_chains <- data.frame(parameter = c(rep('gamma_fila_chla',2),
 
 best_coeffs <- mod_ests %>% select(-r2_adj, -rmse, -model) %>%
     rename(covariates = biomass_vars) %>%
-    left_join(best_mods_by_cat[c(1,2,4, 5,8),], by = 'covariates')
+    left_join(best_mods, by = 'covariates')
 
 mod_ests <- mod_ests %>% select(-r2_adj, -rmse, -model) %>%
     rename(covariates = biomass_vars) %>%
@@ -81,7 +71,6 @@ mod_ests <- mod_ests %>% select(-r2_adj, -rmse, -model) %>%
 baseline <- filter(best_chains, covariates == 'light' & model == 'baseline')
 linear <- filter(best_chains, model == 'linear model')
 linear_i <- filter(best_chains, model == 'linear model with interaction')
-pi_curve <- filter(best_chains, model == 'PI curve model')
 
 linear %>% group_by(parameter) %>% summarize(mean = mean(chains))
 
