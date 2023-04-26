@@ -6,6 +6,7 @@ library(lubridate)
 library(lqmm)
 # install.packages('qrLMM')
 library(qrLMM)
+library(lme4)
 
 source('code/metabolism/functions_examine_SM_output.R')
 
@@ -217,20 +218,6 @@ npp <- NPP %>%
            days_fila = fila_gm/2/NPP_C,
            days_bio = biomass_C/NPP_C)
 
-png('figures/turnover_time_by_composition.png',
-    width = 4.5, height = 4, units = 'in', res = 300)
-    ggplot(npp, aes(fila_gm/2/(biomass_C)*100, days_bio, col = epil_gm))+
-        geom_point(size = 1.5)+
-        xlab('Filamentous fraction of total biomass (%)')+
-        ylab('Turnover time of biomass standing stock (d)')+
-        scale_color_gradient('Epilithon \nmass (g/m2)',
-                             low = 'grey97', high = 'steelblue')+
-        geom_point(size = 1.6, pch = 1, col = 'black')+
-        theme_classic()+
-        # guide_colorbar(frame.colour = 'black')+
-        theme(legend.position = c(0.2, 0.75))
-dev.off()
-
 ggplot(npp, aes(NPP_C, fila_gm, col = factor(year)))+
     geom_point(size = 2)
 summary(npp)
@@ -254,6 +241,7 @@ mod <- lm(GPP ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
 mod1 <- lm(NPP ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
 mod2 <- lm(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
 mod3 <- lm(NPP/light ~ 0 + epil_gm2 + fila_gm2, bm_met)
+
 modmix <- lme4::lmer(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2 +
                        (0+epil_chla_mgm2|site) + (0+fila_chla_mgm2|site),
                      data = bm_met,
@@ -284,6 +272,7 @@ bm_met <- bm_met %>%
            epil_prod_gCd = (coefs[1] * epil_chla_mgm2*light) * 14/32 ,
            epil_turnover = epil_gm2/2/epil_prod_gCd)
 
+
 # bm_met <- bm_met %>%
 #     mutate(fila_prod_gCd = (0.02394 * fila_gm2*light)*14/32 ,
 #            fila_turnover = case_when(fila_prod_gCd > 0.04 ~ fila_gm2/2/fila_prod_gCd,
@@ -292,8 +281,41 @@ bm_met <- bm_met %>%
 #            epil_turnover = epil_gm2/2/epil_prod_gCd)
 
 bm_fila <- filter(bm_met, fila_prod_gCd > 0.04)
+cols <- c()
 
-plot(density(bm_fila$fila_turnover), ylim = c(0, 0.2), xlim = c(0, 50),
+p1 <- bm_fila %>%
+    pivot_longer(cols = ends_with('turnover'),
+                 values_to = 'turnover', names_to = 'Biomass',
+                 names_pattern = '(epil|fila)_.*') %>%
+    ggplot(aes(x=turnover, group = Biomass, fill = Biomass)) +
+    geom_density(adjust=1.5, alpha=.4) +
+    scale_fill_manual(values = c('#1B9EC9', '#97BB43'))+
+    xlim(0, 40)+
+    ylab('Density')+
+    xlab('Turnover time of biomass fraction (days)')+
+    theme_classic()+
+    theme(legend.position = 'none')
+p1 <- p1 + annotate(geom = 'text', x = 10, y = 0.25,
+              label="Epilithon", col = '#1B9EC9')
+p1 <- p1 + annotate(geom = 'text', x = 27, y = 0.05,
+              label="Filamentous", col = '#97BB43')
+p2 <- ggplot(npp, aes(fila_gm/2/(biomass_C)*100, days_bio, col = epil_gm))+
+        geom_point(size = 1.5)+
+        xlab('Filamentous fraction of total biomass (%)')+
+        ylab('Turnover time of standing stock (days)')+
+        scale_color_gradient('Epilithon \nmass (g/m2)',
+                             low = 'grey97', high = '#1B9EC9')+
+        geom_point(size = 1.6, pch = 1, col = 'black')+
+        theme_classic()+
+        # guide_colorbar(frame.colour = 'black')+
+        theme(legend.position = c(0.2, 0.7))
+png('figures/turnover_time_by_composition.png',
+    width = 6.5, height = 3.5, units = 'in', res = 300)
+    ggpubr::ggarrange(p1, p2)
+dev.off()
+
+
+plot(density(bm_fila$fila_turnover), ylim = c(0, 0.25), xlim = c(0, 50),
      main = 'Algal Biomass Turnover Time',
      xlab = 'Days', ylab = 'Density')
 par(new = T)
