@@ -12,6 +12,7 @@ Data and code for estimating DO metabolism and building biomass models in the Up
     - [Biomass](#biomass)  
     - [Model](#model)  
     - [Stan Code](#stan-code)  
+    - [NPP Calculations](#npp-calculations)  
 
 
 <!-- Data Sets description -->
@@ -140,3 +141,8 @@ Metabolism estimates from Stream Metabolizer
 
 <!--stan-code-->
 ### Stan Code
+
+<!--npp-calculations-->
+### NPP Calculations
+
+**1. fit_quantile_regression.R** - fits a multilevel quantile regression model to the GPP and ER estimates from each site year to estimate the fraction of GPP that is respired as autotrophic respiration. Based on this calculation, it estimates NPP for each day. Part two of this code builds a second multilevel linear regression to estimate daily NPP as a function of chlorophyll in the epilithon and filamentous fraction with an intercept of zero. Based on these rates, we calculate turnover times of each biomass fraction. This script also makes several plots of these data. 
