@@ -7,6 +7,7 @@ library(lqmm)
 # install.packages('qrLMM')
 library(qrLMM)
 library(lme4)
+library(viridis)
 
 source('code/metabolism/functions_examine_SM_output.R')
 
@@ -57,13 +58,15 @@ q90 <- q90 %>%
     select(-siteyear, -X1, -X2)
 
 plot(density(q90$ARf))
+abline(v = -beta[2,1])
 
 q90 <- mutate(q90, year = factor(year),
               site = factor(site,
                             levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
 met <- mutate(met, year = factor(year)) %>%
     left_join(select(q90, site, year, ARf), by = c('site', 'year')) %>%
-    mutate(NPP = GPP * (1-ARf))
+    mutate(NPP = GPP * (1-ARf),
+           NPP2 = GPP * (1 + beta[2,1]))
 
 png('figures/quantile_regression.png', width = 5, height = 3.5, units = 'in',
     res = 300)
@@ -71,8 +74,8 @@ png('figures/quantile_regression.png', width = 5, height = 3.5, units = 'in',
         mutate(year = factor(year),
                site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
         ggplot(aes(GPP, ER, col = year)) +
-        geom_point() +
-        geom_abline(intercept = 0, slope = -1, lty = 2, col = 'grey40')+
+        geom_point(size = 0.6) +
+        geom_abline(intercept = beta[1,1], slope = beta[2,1], lty = 2, col = 'grey40')+
         geom_abline(data = q90, aes(intercept = intercept, slope = q90, col = year))+
         facet_wrap(site~.)+
         ylim(-25,0)+
@@ -84,7 +87,7 @@ dev.off()
 
 NPP <- met %>%
     group_by(site, year) %>%
-    summarize(NPP = mean(NPP), GPP = mean(GPP), ER = mean(ER)) %>%
+    summarize(NPP = mean(NPP), NPP2 = mean(NPP2), GPP = mean(GPP), ER = mean(ER)) %>%
     left_join(q90, by = c('site', 'year'))
 
 ggplot(NPP, aes(ER, ARf, col = factor(year))) + geom_point(size = 2) +theme_minimal()
@@ -143,6 +146,16 @@ ggplot(mm, aes(doy, cumNPP, col = year)) +
     theme_bw()
 
 met %>%
+    ggplot(aes(date, GPP*(1-ARf)))+
+    geom_line(col = 'aquamarine3', size = 1.5) +
+    geom_line(aes(y = GPP), size = 1.2) +
+    facet_grid(site~year, scales = 'free_x')+
+    theme_classic()+
+    ylab('Respiration') +
+    xlab('Date')+
+    theme(panel.border = element_rect(fill = NA),
+          panel.spacing = unit(0, units = 'in'))
+met %>%
     ggplot(aes(date, ER + GPP * ARf))+
     geom_line(col = 'aquamarine3', size = 1.5) +
     geom_line(aes(y = ER), size = 1.2) +
@@ -153,7 +166,7 @@ met %>%
     xlab('Date')+
     theme(panel.border = element_rect(fill = NA),
           panel.spacing = unit(0, units = 'in'))
-met$AR = met$ER + met$GPP*met$ARf
+met$AR = met$ER + met$GPP*(met$ARf)
 
 png('figures/respiration_breakdown.png',
     width = 6.5, height = 6.5,
@@ -176,6 +189,24 @@ met %>% #ungroup() %>%
     xlab('Date')+
     theme(panel.border = element_rect(fill = NA),
           panel.spacing = unit(0, units = 'in'))
+met$AR <- -met$AR
+met %>% #ungroup() %>%
+    mutate(GPP = AR,
+           AR = 0,
+           group = 1) %>%
+    arrange(date, .by_group = TRUE)%>%
+    bind_rows(arrange(met, desc(date), .by_group = TRUE)) %>%
+    # arrange(site, year, group) %>%
+    ggplot(aes(date, AR))+
+    geom_polygon(fill = 'grey50') +
+    geom_polygon(aes(y = GPP), fill = 'aquamarine3') +
+    facet_grid(site~year, scales = 'free_x')+
+    theme_classic()+
+    # ylim(-22,0)+
+    ylab('Productivity') +
+    xlab('Date')+
+    theme(panel.border = element_rect(fill = NA),
+          panel.spacing = unit(0, units = 'in'))
 
 dev.off()
 
@@ -183,6 +214,9 @@ dev.off()
 
 biogams <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv')
 bio <- read_csv('data/biomass_data/biomass_working_data_summary.csv')
+min_epil_gm2 <- min(bio$epilithon_gm2)
+min_fila_gm2 <- filter(bio, filamentous_gm2>0) %>% select(filamentous_gm2) %>% min()
+
 NPP <- bio %>%
     mutate(year = factor(lubridate::year(date))) %>%
     group_by(site, year) %>%
@@ -205,15 +239,20 @@ ggplot(NPP, aes(fila_meas, fila_gm, col = site)) +
     geom_point(size = 2)
 ggplot(NPP, aes(epil_gm, ARf, col = site)) +
     geom_point(size = 2)
-ggplot(NPP, aes(epil_chla/epil_gm, ARf, col = site)) +
+ggplot(NPP, aes(fila_chla, ARf, col = year)) +
     geom_point(size = 2)
-ggplot(NPP, aes(fila_gm, ARf, col = site)) +
+ggplot(NPP, aes((fila_chla + epil_chla)/(fila_gm + epil_gm), ARf, col = year)) +
+    geom_point(size = 2)
+ggplot(NPP, aes((fila_chla)/(fila_gm), ARf, col = site)) +
+    geom_point(size = 2)
+ggplot(NPP, aes(fila_chla/(fila_chla + epil_chla), ARf, col = year)) +
     geom_point(size = 2)
 
 npp <- NPP %>%
     select(-ends_with('_meas')) %>%
     mutate(biomass_C = (epil_gm + fila_gm)/2,
            NPP_C = NPP * 14/32,
+           NPP_C2 = NPP2 * 14/32,
            days_epil = epil_gm/2/NPP_C,
            days_fila = fila_gm/2/NPP_C,
            days_bio = biomass_C/NPP_C)
@@ -267,7 +306,7 @@ coefs <- fixef(modmix)
 
 bm_met <- bm_met %>%
     mutate(fila_prod_gCd = (coefs[2] * fila_chla_mgm2*light) * 14/32 ,
-           fila_turnover = case_when(fila_prod_gCd > 0.04 ~ fila_gm2/2/fila_prod_gCd,
+           fila_turnover = case_when(fila_gm2 > min_fila_gm2 ~ fila_gm2/2/fila_prod_gCd,
                                      TRUE ~ NA_real_),
            epil_prod_gCd = (coefs[1] * epil_chla_mgm2*light) * 14/32 ,
            epil_turnover = epil_gm2/2/epil_prod_gCd)
@@ -280,8 +319,7 @@ bm_met <- bm_met %>%
 #            epil_prod_gCd = (0.435 * epil_gm2*light)*14/32 ,
 #            epil_turnover = epil_gm2/2/epil_prod_gCd)
 
-bm_fila <- filter(bm_met, fila_prod_gCd > 0.04)
-cols <- c()
+bm_fila <- filter(bm_met, fila_gm2 > min_fila_gm2)
 
 p1 <- bm_fila %>%
     pivot_longer(cols = ends_with('turnover'),
@@ -292,60 +330,206 @@ p1 <- bm_fila %>%
     scale_fill_manual(values = c('#1B9EC9', '#97BB43'))+
     xlim(0, 40)+
     ylab('Density')+
-    xlab('Turnover time of biomass fraction (days)')+
+    xlab('Turnover time (d)')+
     theme_classic()+
-    theme(legend.position = 'none')
-p1 <- p1 + annotate(geom = 'text', x = 10, y = 0.25,
-              label="Epilithon", col = '#1B9EC9')
-p1 <- p1 + annotate(geom = 'text', x = 27, y = 0.05,
+    theme(legend.position = 'none',
+          panel.border = element_rect(fill = NA))
+p1 <- p1 + annotate(geom = 'text', x = 12, y = 0.25,
+              label="Epilithic", col = '#1B9EC9')
+p1 <- p1 + annotate(geom = 'text', x = 32, y = 0.06,
               label="Filamentous", col = '#97BB43')
-p2 <- ggplot(npp, aes(fila_gm/2/(biomass_C)*100, days_bio, col = epil_gm))+
+p2 <- ggplot(npp, aes(fila_gm/2/(biomass_C)*100, days_bio))+
         geom_point(size = 1.5)+
-        xlab('Filamentous fraction of total biomass (%)')+
-        ylab('Turnover time of standing stock (days)')+
-        scale_color_gradient('Epilithon \nmass (g/m2)',
-                             low = 'grey97', high = '#1B9EC9')+
+        xlab('Filamentous fraction of \ntotal biomass (%)')+
+        ylab('Turnover time (d)')+
+        # scale_color_gradient('Epilithon \nmass (g/m2)',
+        #                      low = 'grey97', high = '#1B9EC9')+
         geom_point(size = 1.6, pch = 1, col = 'black')+
         theme_classic()+
         # guide_colorbar(frame.colour = 'black')+
-        theme(legend.position = c(0.2, 0.7))
+        theme(legend.position = c(0.2, 0.7),
+              panel.border = element_rect(fill = NA))
 png('figures/turnover_time_by_composition.png',
     width = 6.5, height = 3.5, units = 'in', res = 300)
     ggpubr::ggarrange(p1, p2)
 dev.off()
 
-
-plot(density(bm_fila$fila_turnover), ylim = c(0, 0.25), xlim = c(0, 50),
-     main = 'Algal Biomass Turnover Time',
-     xlab = 'Days', ylab = 'Density')
-par(new = T)
-plot(density(bm_met$epil_turnover), xlim = c(0, 50),
-     xlab = '', ylab = '', yaxt = 'n', main = '')
-mtext('Biofilm', line = -5, adj = 0.12)
-mtext('Filamentous', line = -20, adj = 0.56)
-
 ggplot(bm_met, aes(date, fila_prod_gCd))+
     geom_line(col = 'forestgreen') +
     geom_line(aes(y = epil_prod_gCd), col = 'sienna')+
     facet_grid(site~year, scales = 'free_x')
-png('figures/NPP_vs_standing_crop_all_sites.png',
-    width = 6.5, height = 6.5,
-    res = 300, units = 'in')
-    bm_met %>%
+# png('figures/NPP_vs_standing_crop_all_sites.png',
+#     width = 6.5, height = 6.5,
+#     res = 300, units = 'in')
+#     bm_met %>%
+#         mutate(doy = as.numeric(format(date, '%j')),
+#                Date = as.Date(paste0('2020-', doy), format = '%Y-%j'),
+#                site = factor(site, levels = c('PL', 'DL', 'GR','GC','BM','BN'))) %>%
+#         select(site, Date, year, fila_prod_gCd, fila_gm2, epil_prod_gCd, epil_gm2) %>%
+#         pivot_longer(cols = starts_with(c('fila', 'epil')),
+#                      values_to = 'value', names_to = c('biomass', 'measure'),
+#                      names_pattern = '(fila|epil)_(.*)') %>%
+#         pivot_wider(names_from = measure, values_from = value) %>%
+#         mutate(gCm2 = gm2/2)%>%
+#     ggplot(aes(prod_gCd, gCm2, col = Date, pch = biomass))+
+#         geom_point() +
+#         facet_grid(site~year)+
+#         theme_classic()+
+#         scale_shape_manual('Biomass', values = c(1, 19))+
+#         ylab(expression(paste('Biomass standing crop (gC ', m^-2, ')')))+
+#         xlab(expression(paste('Biomass production (gC ', m^-2, d^-1, ')')))+
+#         theme(panel.border = element_rect(fill = NA),
+#               panel.spacing = unit(0, units = 'in'))
+# dev.off()
+# png('figures/NPP_vs_standing_crop_all_sites.png',
+#     width = 6.5, height = 6.5,
+#     res = 300, units = 'in')
+    coeff = 125
+    p <- bm_met %>%
         mutate(doy = as.numeric(format(date, '%j')),
                Date = as.Date(paste0('2020-', doy), format = '%Y-%j'),
                site = factor(site, levels = c('PL', 'DL', 'GR','GC','BM','BN'))) %>%
-        select(site, Date, year, fila_prod_gCd, fila_gm2, epil_prod_gCd, epil_gm2) %>%
+        mutate(fila_gm2 = case_when(fila_gm2 < min_fila_gm2 ~ NA_real_,
+                                    TRUE ~ fila_gm2)) %>%
+        select(site, Date, year, light,
+               fila_prod_gCd, fila_gm2, epil_prod_gCd, epil_gm2) %>%
         pivot_longer(cols = starts_with(c('fila', 'epil')),
                      values_to = 'value', names_to = c('biomass', 'measure'),
                      names_pattern = '(fila|epil)_(.*)') %>%
         pivot_wider(names_from = measure, values_from = value) %>%
-        mutate(gCm2 = gm2/2)%>%
-    ggplot(aes(prod_gCd, gCm2, col = Date, pch = biomass))+
-        geom_point() +
-        facet_grid(site~year)+
+        mutate(Light = factor(rep(" ", 2*nrow(bm_met)), levels = c("1"," ")),
+               gCm2 = gm2/2,
+               biomass = case_when(biomass == 'fila' ~ 'Filamentous',
+                                   biomass == 'epil'~'Epilithic'),
+               biomass = factor(biomass, levels = c('Filamentous', 'Epilithic')))%>%
+
+    ggplot(aes(Date, prod_gCd/gCm2, col = biomass))+
+        geom_area(aes(Date, gCm2/coeff, fill = biomass), color = NA, alpha = 0.4)+
+        geom_line(size = 1.2)+
+        geom_line(aes(y = light/2.5, lty = Light), col = 'grey20') +
+        facet_grid(site~year, scales = 'free_x', ) +
+        scale_y_continuous(
+            name = expression(paste('Production rate (', d^-1, ')')),
+            sec.axis = sec_axis(~.*coeff,
+                                name = expression(paste('Biomass (g C', m^-2, ')')))
+        )+
+        scale_color_manual('Biomass production rate',
+                           values = c('#97BB43', '#1B9EC9')) +
+        scale_fill_manual('Biomass standing stock',
+                          values = c('#97BB43', '#1B9EC9')) +
+        scale_linetype_manual('Light', values = c(2)) +
         theme_classic()+
-        scale_shape_manual('Biomass', values = c(1, 19))+
+        xlab('Date')+
+        theme(strip.text.y = element_blank(),
+              panel.border = element_rect(fill = NA),
+              panel.spacing = unit(0, units = 'in'),
+              # legend.position = 'right',
+              # legend.justification = 'top')
+              # legend.box.margin = margin(0, 5, 0, 5, "cm"),
+              legend.position = 'bottom')+
+        guides(color = guide_legend(title.position = "top", title.hjust = 0,
+                                      order = 1),
+               fill = guide_legend(title.position = "top", title.hjust = 0,
+                                   order = 2),
+               linetype = guide_legend(title.position = 'top', title.hjust = 0,
+                                  order = 3))
+
+    ann_text <- data.frame(Date = rep(as.Date('2020-07-16'), 6),
+                           prod_gCd = rep(0.48, 6),
+                           gCm2 = rep(1, 6),
+                           year = rep(2020,6),
+                           biomass = factor(rep('Epilithic', 6),
+                                            levels = c('Filamentous','Epilithic')),
+                           site = factor(c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'),
+                                        levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
+
+    p3 <- p + geom_text(data = ann_text, aes(label = site), col = 'black')
+
+   p4 <- bm_met %>%
+        mutate(site = factor(site, levels = c('PL', 'DL', 'GR','GC','BM','BN'))) %>%
+        group_by(site, year) %>%
+        summarize(n = n(),
+                  fila_Biomass = max(fila_gm2)/2,
+                  epil_Biomass = max(epil_gm2)/2,
+                  fila_cumprod = sum(fila_prod_gCd),
+                  epil_cumprod = sum(epil_prod_gCd)) %>%
+        pivot_longer(cols = starts_with(c('epil', 'fila')),
+                     values_to = 'value',
+                     names_to = c('biomass', 'measure'),
+                     names_pattern = '(fila|epil)_(Biomass|cumprod)') %>%
+        mutate(measure = case_when(measure == 'cumprod' ~ 'Cumulative \nProduction',
+                                   measure == 'Biomass' ~ 'Maximum \nBiomass'),
+               measure = factor(measure, levels = c('Maximum \nBiomass',
+                                                    'Cumulative \nProduction')),
+               biomass = case_when(biomass == 'epil' ~ 'Epilithic',
+                                   biomass == 'fila' ~ 'Filamentous'),
+               biomass = factor(biomass, levels = c('Filamentous', 'Epilithic')))%>%
+        ggplot(aes(x = measure, y = value, fill = biomass)) +
+        geom_boxplot(outlier.shape=NA, alpha = 0.4)+
+        geom_point(position = position_jitterdodge(jitter.width = 0.2),
+                   size = 0.8)+
+        # geom_jitter(color="black", alpha=0.9) +
+        scale_fill_manual('',
+                          values = c('#97BB43', '#1B9EC9')) +
+        ylab(expression(paste('Mass (g C ', m^-2, ')')))+
+        xlab('')+
+        theme_classic()+
+        theme(panel.border = element_rect(fill = NA),
+              legend.position = c(0.3, 0.9),
+              legend.background = element_rect(fill = NA))
+
+    p5 <- ggplot(data.frame(a = 1, b = 1), aes(a,b)) +
+        geom_point(col = 'white') +
+        xlab('') + ylab('')+
+        theme_classic() +
+        theme(axis.line = element_blank(),
+              axis.ticks = element_blank(),
+              axis.text = element_blank())
+
+png('figures/biomass_prod_and_turnover_3panel.png', width = 8, height = 8,
+    units = 'in', res = 300)
+    ggpubr::ggarrange(p3,
+                      ggpubr::ggarrange(p2, p1, p4, p5, ncol = 1,
+                                        labels = c('B', 'C', 'D', ''),
+                                        heights = c(5.1, 5, 5.2, 1.3),
+                                        align = 'v'),
+                      ncol = 2, labels = 'A', #label.y = 0.917,
+                      widths = c(2,1))
+dev.off()
+
+bm_met %>%
+    group_by(site, year) %>%
+    mutate(fila_rate = fila_prod_gCd/(fila_gm2/2),
+           epil_rate = epil_prod_gCd/(epil_gm2/2)) %>%
+    filter(fila_gm2 >= min_fila_gm2) %>%
+               summary()
+bm_met %>%
+    group_by(site, year) %>%
+    filter((year == 2020 & site %in% c('GR', 'GC'))|
+               (year == 2021 & site %in% c('GC', 'BN','BM')))%>%
+    summarize(n = n(),
+              fila_Biomass = max(fila_gm2)/2,
+              epil_Biomass = max(epil_gm2)/2,
+              fila_prod = mean(fila_prod_gCd),
+              epil_prod = mean(epil_prod_gCd),
+              fila_cumprod = sum(fila_prod_gCd),
+              epil_cumprod = sum(epil_prod_gCd)) %>%
+    mutate(n_epil = epil_cumprod/epil_Biomass,
+           n_fila = fila_cumprod/fila_Biomass)%>%
+    summary()
+
+bm_met %>%
+    filter(!(site %in% c('DL', 'PL') ))%>%
+    ggplot(aes(date, fila_turnover)) +
+    geom_line() +
+    facet_grid(site~year, scale = 'free_x') + ylim(0,100)
+
+    ggplot(aes(Date, NPP/(fila_gm2 + epil_gm2),
+               col = fila_gm2/(epil_gm2 + fila_gm2)))+
+        geom_point() +
+        facet_grid(site~year, scales = 'free')+
+        geom_line(aes(y = light))+
+        theme_classic()+
         ylab(expression(paste('Biomass standing crop (gC ', m^-2, ')')))+
         xlab(expression(paste('Biomass production (gC ', m^-2, d^-1, ')')))+
         theme(panel.border = element_rect(fill = NA),
@@ -353,6 +537,15 @@ png('figures/NPP_vs_standing_crop_all_sites.png',
 dev.off()
 
 
+bm_met %>%
+        mutate(fila_gm2 = case_when(fila_gm2 < min_fila_gm2 ~ NA_real_,
+                                    TRUE ~ fila_gm2)) %>%
+    mutate(fila_mgchlagC = fila_chla_mgm2/(fila_gm2/2),
+           epil_mgchlagC = epil_chla_mgm2/(epil_gm2/2)) %>%
+    ggplot(aes(date, fila_mgchlagC))+
+    geom_point() +
+    geom_point(aes(y = epil_mgchlagC), col = 2) +
+    facet_grid(site~year, scales = 'free_x')
 # Comparison to individual quantile regressions: ####
 
 library(quantreg)
