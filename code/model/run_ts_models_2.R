@@ -49,6 +49,8 @@ sites <- unique(dd$site)
 # compile time series model
 ar1_lmod_ss <- stan_model("code/model/stan_code/AR1_linear_model_ss.stan",
                        model_name = 'ar1_lmod_ss')
+ar1_lmod_ss <- stan_model("code/model/stan_code/AR1_error_model.stan",
+                       model_name = 'ar1_lmod_ss')
 
 # simulate data: ####
 
@@ -69,19 +71,20 @@ P_sd = abs(rnorm(N,0,0.2))
 beta = rnorm(S, gamma[1], tau);
 
 P = rep(NA_real_, N)
+P_state = rep(NA_real_, N)
 P[new_ts == 1] <- beta[ss[new_ts == 1]] + X[new_ts == 1,]%*% gamma[2:(K+1)]
-mu = rep(NA_real_, N)
+mu = beta[ss] + X %*% gamma[2:(K+1)]
 
 for(n in 1:N){
     if(new_ts[n] == 1){
         # restart the AR process on each new time series
-        mu[n] = rnorm(1, P[n], sigma)
+        P_state[n] = rnorm(1, P[n], sigma)
     }
     else{
-        mu[n] = rnorm(1, beta[ss[n]] + X[n,] %*% gamma[2:(K+1)] + phi * P[n-1], sigma)
+        P_state[n] = rnorm(1, mu[n] + phi * (P[n-1] - mu[n-1]), sigma)
     }
 
-    P[n] = rnorm(1, mu[n], P_sd[n]);
+    P[n] = rnorm(1, P_state[n], P_sd[n]);
 }
 
 
@@ -96,7 +99,7 @@ simfit <- sampling(
     ar1_lmod_ss,
     datlist,
     # iter = 4000,
-    chains = 4
+    chains = 1
 )
 
 shinystan::launch_shinystan(simfit)
@@ -167,10 +170,11 @@ for(i in 1:length(model_combinations)){
 }
 beepr::beep(5)
 
-write_csv(mod_ests, 'data/model_fits/ar1_log_model_parameter_ests_ss.csv')
-write_csv(chains, 'data/model_fits/ar1_log_model_chains_ss.csv')
-write_csv(mod_comp, 'data/model_fits/ar1_log_model_metrics_ss_cond.csv')
+write_csv(mod_ests, 'data/model_fits/ar1_log_model_parameter_ests_ss2.csv')
+write_csv(chains, 'data/model_fits/ar1_log_model_chains_ss2.csv')
+write_csv(mod_comp, 'data/model_fits/ar1_log_model_metrics_ss_cond2.csv')
 
+# mod_ests <- read_csv('data/model_fits/ar1_log_model_parameter_ests_ss.csv')
 mod_ests %>% distinct(biomass_vars, .keep_all = TRUE) %>%
     arrange(r2_adj)
 
@@ -224,8 +228,8 @@ for(i in 1:length(model_combinations)){
 
 beepr::beep(5)
 
-write_csv(mod_holdout_preds, 'data/model_fits/ar1_log_model_holdout_predictions.csv')
-write_csv(mod_holdout_RMSE, 'data/model_fits/ar1_log_model_holdout_RMSEs.csv')
+write_csv(mod_holdout_preds, 'data/model_fits/ar1_log_model_holdout_predictions2.csv')
+write_csv(mod_holdout_RMSE, 'data/model_fits/ar1_log_model_holdout_RMSEs2.csv')
 
 mod_holdout_preds <- read_csv('data/model_fits/ar1_log_model_holdout_predictions.csv')
 
@@ -292,6 +296,7 @@ png('figures/SI/holdout_site_predictions.png', width = 7.5, height = 6.5,
         xlab('Date')+
         theme(panel.border = element_rect(fill = NA),
               panel.spacing = unit(0, units = 'pt'))
+
 
 
     # dummy_df <- data.frame(GPP = rep(c('Actual', 'Predicted'), each = 2),

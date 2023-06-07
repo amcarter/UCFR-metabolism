@@ -375,7 +375,9 @@ models in the Upper Clark Fork River for the CREWS project</p>
 </li>
 <li><a href="#model">Model</a><br />
 </li>
-<li><a href="#stan-code">Stan Code</a></li>
+<li><a href="#stan-code">Stan Code</a><br />
+</li>
+<li><a href="#npp-calculations">NPP Calculations</a></li>
 </ul></li>
 </ol>
 <!-- Data Sets description -->
@@ -532,9 +534,9 @@ biomass datafile, select and summarize data relevant to this
 project.</p>
 <p><strong>2. compare_biomass_and_metab.R</strong>- an exploratory
 comparison of raw biomass data with metabolism estimates.</p>
-<p><strong>3. fit_GAM_to_biomass.R</strong> - fit hierarchical GAMs to
-biomass datasets using mcgv package. Also generates plots of fitted
-biomass data.</p>
+<p><strong>3. fit_HGAM_to_biomass.R</strong> - fit hierarchical GAMs to
+biomass datasets using mcgv package. Compares across different model
+fits. Also generates plots of fitted biomass data.</p>
 <!--model-->
 </div>
 <div id="model" class="section level3">
@@ -554,6 +556,19 @@ testing parameter recovery in stan models.</p>
 </div>
 <div id="stan-code" class="section level3">
 <h3>Stan Code</h3>
+<!--npp-calculations-->
+</div>
+<div id="npp-calculations" class="section level3">
+<h3>NPP Calculations</h3>
+<p><strong>1. fit_quantile_regression.R</strong> - fits a multilevel
+quantile regression model to the GPP and ER estimates from each site
+year to estimate the fraction of GPP that is respired as autotrophic
+respiration. Based on this calculation, it estimates NPP for each day.
+Part two of this code builds a second multilevel linear regression to
+estimate daily NPP as a function of chlorophyll in the epilithon and
+filamentous fraction with an intercept of zero. Based on these rates, we
+calculate turnover times of each biomass fraction. This script also
+makes several plots of these data.</p>
 </div>
 </div>
 </div>

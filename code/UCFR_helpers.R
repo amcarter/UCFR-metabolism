@@ -33,12 +33,12 @@ fit_biomass_model <- function(model, dat, X, log_GPP = TRUE,
         N = nrow(X), K = ncol(X),
         S = length(unique(dat$site)),
         ss = as.numeric(dat$site),
-        X = X, P = dat$log_GPP,
-        P_sd = dat$log_GPP_sd
+        X = X, P = dat$log_GPP
+        # P_sd = dat$log_GPP_sd
     )
 
 
-    if(model@model_name %in% c('ar1_lmod','PI_curve', 'ar1_lmod_ss')){
+    if(model@model_name %in% c('ar1_lmod','PI_curve', 'ar1_lmod_ss', 'ma_mod')){
         new_ts <- rep(0, nrow(dat))
         new_ts[rle2(paste0(dat$year, dat$site))$starts] <- 1
         datlist <- c(datlist, list(new_ts = new_ts))
@@ -96,7 +96,7 @@ fit_biomass_model <- function(model, dat, X, log_GPP = TRUE,
 # }
 
 get_model_preds <- function(fit, dat){
-    preds <- rstan::summary(fit, pars = 'y_tilde')$summary %>%
+    preds <- rstan::summary(fit, pars = 'y_hat')$summary %>%
         data.frame() %>%
         select(P_mod = mean, P_mod_upper = 'X97.5.', P_mod_lower = 'X2.5.')
     preds <- bind_cols(dat, preds)
@@ -107,7 +107,7 @@ get_model_preds <- function(fit, dat){
 predict_holdout <- function(fit, dat_full, X_full, holdout_rows){
 
     X <- as.matrix(X_full)
-    site <- holdout$site[1]
+    site <- dat_full[holdout_rows,]$site[1]
     phi_post <- rstan::extract(fit, pars = 'phi')$phi
     draws <- nrow(phi_post)
     beta_post <- matrix(rstan::extract(fit, pars = 'gamma')$gamma[,-1],
@@ -128,6 +128,55 @@ predict_holdout <- function(fit, dat_full, X_full, holdout_rows){
             post_preds[i, t] <- X[holdout_rows[t],] %*% beta_post[i,] +
                 beta0_post[i] + phi_post[i] * y_past +
                 rnorm(1, sd = sigma_post[i])
+        }
+    }
+
+    preds <- dat_full[holdout_rows,] %>%
+        select(site, date, GPP) %>%
+        mutate(log_GPP = log(GPP),
+               estim = apply(post_preds, 2, mean),
+               low = apply(post_preds, 2, quantile, probs = 0.025),
+               high = apply(post_preds, 2, quantile, probs = 0.975)
+               )
+    plot(preds$date, preds$log_GPP, type = 'l',
+         ylim = c(min(preds$low), max(preds$high)))
+    lines(preds$date, preds$estim, lty = 2)
+    polygon(c(preds$date, rev(preds$date)),
+            c(preds$low, rev(preds$high)), col = alpha('brown', 0.3),
+            border = NA)
+
+    RMSE_forecast <- sqrt(mean((preds$log_GPP - preds$estim)^2))
+
+    return(preds)
+
+}
+predict_holdout_ma <- function(fit, dat_full, X_full, holdout_rows){
+
+    X <- as.matrix(X_full)
+    site <- dat_full[holdout_rows,]$site[1]
+    theta_post <- rstan::extract(fit, pars = 'theta')$theta
+    draws <- nrow(theta_post)
+    beta_post <- matrix(rstan::extract(fit, pars = 'gamma')$gamma[,-1],
+                        nrow = draws)
+    beta0_post <- rstan::extract(fit, pars = 'beta')$beta[,as.numeric(site)]
+    sigma_post <- rstan::extract(fit, pars = 'sigma')$sigma
+
+
+    # forecast the held out observations
+    post_preds <- matrix(nrow = draws, ncol = length(holdout_rows))
+
+    # fill in first observation:
+    post_preds[,1] <- matrix(rep(log(dat_full$GPP[holdout_rows[1]]), draws),
+                             nrow = draws, ncol = 1)
+    for(i in 1:draws){
+        eps_past <- as.double(post_preds[i, 1] -
+                                  X[holdout_rows[1],] %*% beta_post[i,] -
+                                  beta0_post[i])
+        for(t in 2:length(holdout_rows)){
+            eps <- rnorm(1, sd = sigma_post[i])
+            post_preds[i, t] <- X[holdout_rows[t],] %*% beta_post[i,] +
+                beta0_post[i] + theta_post[i] * eps_past + eps
+            eps_past <- eps
         }
     }
 
@@ -262,7 +311,7 @@ calculate_r2_adj <- function(fit, dd, log = TRUE){
 
     r2_adj = 1 - ((1-r2)*(N-1))/(N-npar-1)
 
-    return(r2_adj)
+    return(r2)
 }
 
 calculate_rmse <- function(fit = NULL, dd = NULL, preds = NULL, log = TRUE){
@@ -289,7 +338,7 @@ calculate_model_metrics <- function(fit, X, dd, model, log = TRUE){
         waic_se = waic[3,2],
         loo = loo_cv[3,1],
         loo_se = loo_cv[3,2],
-        r2adj = calculate_r2_adj(fit, dd, log = log),
+        r2 = calculate_r2_adj(fit, dd, log = log),
         rmse = calculate_rmse(fit, dd, log = log)
     )
 

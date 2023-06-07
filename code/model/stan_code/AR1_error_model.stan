@@ -16,46 +16,53 @@ data {
 }
 
 parameters {
-    real<lower=0,upper=1> phi;  // ar1 coefficient
+    real<lower=0,upper=1> theta;// ar1 coefficient
     vector[K+1] gamma;          // population level coefficients
     vector[S] beta;             // site level intercepts
     real<lower=0> tau;          // variation in site intercepts
     real<lower=0> sigma;        // standard deviation of process error
+    vector[N] P_state;
 }
 
 transformed parameters {
     vector[N] mu;               // underlying mean of process
-    vector[N] P_state;          // underlying true GPP value
-    // vector[N] y2;               // underlying mean of process
+    vector[N] epsilon;          // error terms
 
     mu = beta[ss] + X * gamma[2:(K+1)];
-    P_state = P - mu;
+
+    for(t in 1:N){
+        if(new_ts[t] == 1){
+            epsilon[t] = P_state[t] - mu[t];
+        } else {
+            epsilon[t] = P_state[t] - mu[t] - theta * epsilon[t-1];
+        }
+    }
 }
 
 model {
     //priors
     gamma ~ normal(0,5);
-    phi ~ beta(1,1);
+    theta ~ beta(1,1);
     // P_sd ~ cauchy(0,5);
     tau ~ cauchy(0, 2.5);
     sigma ~ cauchy(0,5);
+    P_state ~ gamma(1,2);
 
     for(s in 1:S){
         beta[s] ~ normal(gamma[1], tau);
     }
 
-    for(n in 1:N){
-        if(new_ts[n] == 1){
+    for(t in 1:N){
+        if(new_ts[t] == 1){
             // restart the AR process on each new time series
-            P_state[n] ~ normal(P[n], sigma);
+            P_state[t] ~ normal(P[t], sigma);
         }
         else{
-            // P_state[n] ~ normal(mu[n] + phi * (P[n-1] - mu[n-1]), sigma);
-            P_state[n] ~ normal(phi * P[n-1], sigma);
+            P_state[t] ~ normal(mu[t] + theta * epsilon[t-1], sigma);
         }
 
         // Likelihood
-        P[n] ~ normal(P_state[n], P_sd[n]);
+        P[t] ~ normal(P_state[t], P_sd[t]);
     }
 
 }
