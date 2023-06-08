@@ -38,7 +38,7 @@ fit_biomass_model <- function(model, dat, X, log_GPP = TRUE,
     )
 
 
-    if(model@model_name %in% c('ar1_lmod','PI_curve', 'ar1_lmod_ss', 'ma_mod')){
+    if(model@model_name %in% c('ar1_lmod','PI_curve', 'ar1_lmod_ss','arma_mod', 'ma_mod')){
         new_ts <- rep(0, nrow(dat))
         new_ts[rle2(paste0(dat$year, dat$site))$starts] <- 1
         datlist <- c(datlist, list(new_ts = new_ts))

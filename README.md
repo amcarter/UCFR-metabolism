@@ -18,7 +18,9 @@ Data and code for estimating DO metabolism and building biomass models in the Up
 <!-- Data Sets description -->
 ## Data Sets Description
 
-1. [DO data product](url) - Raw and cleaned dissolved oxygen data from 2020 and 2021 in the Upper Clark Fork River.
+1. [DO data product](https://portal.edirepository.org/nis/metadataviewer?packageid=edi.1324.1) - Raw and cleaned dissolved oxygen data from 2020 and 2021 in the Upper Clark Fork River.
+
+2. [Algal biomass data product](url) - 
 
 <!-- Data files -->
 ### Data files
@@ -28,13 +30,13 @@ Data and code for estimating DO metabolism and building biomass models in the Up
 
 **b. UCFR_depth_summary.csv** - average depth estimates taken at different discharge levels at sites along the Upper Clark Fork River.
 
-**c. sw_radiation_all_sites.csv** - light data downloaded from [NLDAS]() using the [streamlight R package]() for all sites
+**c. sw_radiation_all_sites.csv**, **hourly_modeled_light_all_sites.csv**, **daily_modeled_light_all_sites.csv** - light data downloaded from [NLDAS](https://appeears.earthdatacloud.nasa.gov/) using the [streamlight R package](https://github.com/psavoy/StreamLight) for all sites
 
-**d. air_pressure_temp.csv** - air pressure and air temperature data downloaded from the DeerLodge airport. Released as part of [DO data product]() (see above).
+**d. air_pressure_temp.csv** - air pressure and air temperature data downloaded from the DeerLodge airport. Released as part of DO data product (see above).
 
 **e. discharge_UCFR_sites_2020** - discharge data for all sites downloaded from USGS gage stations.
 
-#### raw_DO
+#### raw_DO 
 Local copies of raw dissolved oxygen data for running code. See above data product for official version.
 
 #### prepared_data 
@@ -90,7 +92,7 @@ Metabolism estimates from Stream Metabolizer
 
 **1. download_air_temp_pres.R ** - download raw air temperature and air pressure data from the Deer Lodge Airport.
 
-**2. light (folder)**
+**2. light (folder)** Scripts and data for getting light from StreamLight
 
 **2a. get_light_from_StreamLight_UCFR.R** - workflow to download light data from NLDAS and imagery from MODIS to calculate light at the stream surface based on the package [StreamLight](github.com/psavoy/StreamLight.com)
 

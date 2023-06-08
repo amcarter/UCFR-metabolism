@@ -3,6 +3,8 @@
 #############################################################
 
 library(tidyverse)
+library(kableExtra)
+options(scipen = 0)
 
 dd <- read_csv('data/model_fits/biomass_metab_model_data.csv')
 
@@ -27,15 +29,28 @@ dd <- dd %>% select(site, GPP, log_GPP, light, epil_chla_mgm2_fit, log_epil_chla
               fila_chla_mgm2_fit, log_fila_chla_mgm2_fit)
 
 
-mod_ests <- read_csv('data/model_fits/ar1_log_model_parameter_ests_ss.csv')
-chains <- read_csv('data/model_fits/ar1_log_model_chains_ss.csv')
-mod_metrics <- read_csv('data/model_fits/ar1_log_model_metrics_ss_cond.csv')
+mod_ests <- read_csv('data/model_fits/ma1_log_model_parameter_ests_ss.csv')
+chains <- read_csv('data/model_fits/ma1_log_model_chains_ss.csv')
+mod_metrics <- read_csv('data/model_fits/ma1_log_model_metrics_ss_cond.csv')
+mod_holdouts <- read_csv('data/model_fits/ma1_log_model_holdout_RMSEs.csv')
+mod_holdout_preds <- read_csv('data/model_fits/ma1_log_model_holdout_predictions.csv')
+
+mod_rmse <- mod_holdout_preds %>%
+    group_by(biomass_vars) %>%
+    mutate(estim = exp(estim),
+           sqe = (GPP - estim)^2) %>%
+    summarize(rmspe = sqrt(mean(sqe)))
+
+mod_ests <- left_join(mod_ests, mod_rmse, by = 'biomass_vars')
 
 mod_metrics <- mod_metrics %>%
     mutate(model = c('baseline', rep('linear model', 6),
                      rep('linear model with interaction', 6),
-                     rep('linear model interaction only', 6))) %>%
-    arrange(model, rmse) %>% print(n = 30)
+                     rep('linear model interaction only', 6),
+                     rep('linear model', 2),
+                     rep('linear model with interaction', 2),
+                     rep('linear model interaction only', 2))) %>%
+    arrange(model, rmse)
 
 
 chains <- chains %>%
@@ -44,9 +59,52 @@ chains <- chains %>%
     left_join(mod_metrics[,1:2], by = 'covariates')
 
 best_mods <- mod_metrics %>%
-    slice(1, 5, 10, 15)
+    left_join(rename(mod_rmse, covariates = biomass_vars)) %>%
+    group_by(model) %>% arrange(rmspe) %>%
+    slice(1)
+best_mods <- mod_metrics %>%
+    left_join(rename(mod_rmse, covariates = biomass_vars)) %>%
+    group_by(model) %>% arrange(rmse) %>%
+    slice(1) %>% ungroup() %>% slice(-1) %>%
+    bind_rows(best_mods) %>% arrange(model, rmspe) %>%
+    select(-rmse,-starts_with(c('waic', 'loo')))
 
-write_csv(best_mods_by_cat, 'data/model_fits/best_models_by_category.csv')
+write_csv(best_mods, 'data/model_fits/best_models_by_category.csv')
+
+
+# format model table for SI:
+mod_ests_table <- mod_ests %>%
+    rename(covariates = biomass_vars,
+           r2 = r2_adj, RMSPE = rmspe) %>%
+    select(-model) %>%
+    left_join(select(mod_metrics, covariates, model) )%>%
+    mutate(value = case_when(mean >= 1 ~ paste0(signif(mean, 2), ' (', round(sd, 1), ')'),
+                             mean < 1 ~ paste0(round(mean, 2), ' (', round(sd, 2), ')')),
+           units = case_when(grepl('chla$', covariates) ~ 'chla',
+                             grepl('afdm$', covariates) ~ 'mass',
+                             TRUE ~ NA_character_)) %>%
+    select(model, covariates, units, parameter, value, r2, RMSPE) %>%
+    filter(!grepl('^beta', parameter)) %>%
+    mutate(parameter = case_when(grepl('chla$', parameter) ~ substr(parameter, 1, nchar(parameter)-5),
+                                 grepl('afdm$', parameter) ~ substr(parameter, 1, nchar(parameter)-5),
+                                 TRUE ~ parameter),
+           parameter = case_when(grepl('^gamma_log', parameter) ~ substr(parameter, 11, nchar(parameter)),
+                                 grepl('^gamma', parameter) ~ substr(parameter, 7, nchar(parameter)),
+                                 TRUE ~ parameter)) %>%
+    pivot_wider(names_from = parameter, values_from = value) %>%
+    relocate(model, theta, sigma, intercept, tau, light, biomass, fila, epil,
+             light_biomass, light_fila, light_epil, r2, RMSPE) %>%
+    select(-covariates)
+
+mod_ests_table %>%
+    mutate(across(-any_of(c('model', 'r2', 'RMSPE')),
+                  function(x) x = case_when(is.na(x) ~ '-',
+                                            TRUE ~ x)),
+           r2 = round(r2, 2), RMSPE = round(RMSPE, 2)) %>%
+     kbl(format = 'latex',
+         linesep = '') %>%
+        kable_classic(full_width = F, html_font = 'helvetica')
+
 
 # best_mods <- best_mods_by_cat[c(1,2,4,5,8),]
 best_chains <- chains %>%

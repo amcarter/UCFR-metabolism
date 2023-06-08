@@ -249,6 +249,12 @@ ggplot(aes(biomass_vars, rmse, col = site)) +
     geom_point()
 
 mod_holdout_preds %>%
+    group_by(site, biomass_vars) %>%
+    mutate(estim = exp(estim),
+           sqe = (GPP - estim)^2) %>%
+    summarize(rmse = sqrt(mean(sqe)))
+
+mod_holdout_preds %>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))%>%
     mutate(model = case_when(biomass_vars == 'log_light' ~ '0. Baseline (Light)',
                              biomass_vars == 'log_light + fila_chla' ~
@@ -267,8 +273,8 @@ mod_holdout_preds %>%
     facet_grid(site~model) +
     theme_classic() +
     # ylim(0.88, 3.5)+
-    # ylab(expression("log(GPP)"~(g~O[2]~m^-2~d^-1)))+
-    ylab("log(GPP)")+
+    ylab(expression("GPP"~(g~O[2]~m^-2~d^-1)))+
+    # ylab("log(GPP)")+
     xlab('Date')+
     theme(panel.border = element_rect(fill = NA),
           panel.spacing = unit(0, units = 'pt'))
