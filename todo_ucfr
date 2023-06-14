@@ -1,5 +1,61 @@
 UCFR todo:
 
+INTRODUCTION
+- Write the 2-3 main things this paper is doing (0.5)
+- turn those sentences into a final paragraph 'here we' (1)
+- Outline the main points that need to be made leading up to that (0.5)
+- edit the introduction other paragraphs (2)
+
+METHODS
+- Describe oxygen sensor deployment, calib, maintenance (1)
+- write stan fitting models section (0.5)
+- Edit time series model fitting and selection to reflect new models (1)
+- Edit the biomass section and move it up (1)
+- combine all instances of mentioning R version, Stan (0.5)
+
+RESULTS
+- outline main results points as paragraphs (1)
+- edit the algal biomass production section (1)
+- edit the time series model fitting section (1)
+- look up how to talk about HGAM fits (1)
+- remake model tables (1.5)
+
+DISCUSSION
+		- outline main discussion points (1)
+		- structure into paragraphs and think about an order (1)
+- draft discussion (3)
+- write future research/implications paragraph (1) 
+
+FIGURES
+- make a new site map (or delegate) (2)
+
+SI
+- add captions to SI figures (1)
+- Make SI model table (1)
+
+OVERALL
+- use consistent parameter names throughout
+- reference models by model number
+- make all results past tense
+- check ref formatting and missing refs
+
+ANALYSIS
+-finish fitting models
+-make figure for model fit
+
+POSTER
+		-design layout (1)
+- make partitioned GPP plot (1)
+- make autotrophic respiration explanation panel (1)
+- outline main points from building biomass side and add equation(1.5)
+- fix light biomass example (0.5)
+- add individual lines to posterior fits (1)
+- write main points and equations for model panel (1.5)
+- add graphic explanation of model (1)
+- format and futz(1)
+
+
+OLD:___________________________________________________________________________
 DATA ANALYSIS
 - fit biomass x chl a relationship with standardized axis regression
 - Compare cumulative GPP to biomass (maybe...)

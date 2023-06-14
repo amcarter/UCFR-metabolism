@@ -191,11 +191,13 @@ plot(mod_comp$waic, mod_comp$rmse)
 
 # Fit models with holdout of 2021 years
 mod_holdout_preds <- data.frame()
+mod_post_preds <- data.frame()
 mod_holdout_RMSE <- data.frame()
 
-for(i in 2:length(model_combinations)){
+for(i in 1:length(model_combinations)){
     print(paste('model', i, 'of', length(model_combinations), sep = ' '))
     full_holdout_preds <- data.frame()
+    full_post_preds <- data.frame()
     RMSE_holdout <- data.frame()
     for(s in sites){
         print(paste('Holdout site', s, sep = ' '))
@@ -208,13 +210,14 @@ for(i in 2:length(model_combinations)){
                                  log_GPP = TRUE,
                                  iter = 4000)
         holdout_preds <- predict_holdout_ma(fit, dd, X, holdout_rows)
-        div <- stan_psum(fit)
-        RMSE_holdout <-
-            data.frame(RMSE = sqrt(mean((holdout_preds$log_GPP - holdout_preds$estim)^2)),
-                       divergent_trans = div$divergent) %>%
-            bind_rows(RMSE_holdout)
+        # div <- stan_psum(fit)
+        # RMSE_holdout <-
+        #     data.frame(RMSE = sqrt(mean((holdout_preds$log_GPP - holdout_preds$estim)^2)),
+        #                divergent_trans = div$divergent) %>%
+        #     bind_rows(RMSE_holdout)
 
-        full_holdout_preds <- bind_rows(full_holdout_preds, holdout_preds)
+        full_holdout_preds <- bind_rows(full_holdout_preds, holdout_preds$preds)
+        full_post_preds <- bind_rows(full_post_preds, holdout_preds$post_preds)
     }
 
 
@@ -222,18 +225,23 @@ for(i in 2:length(model_combinations)){
         mutate(biomass_vars = paste(colnames(X), collapse = ' + '),
                model = fit@model_name) %>%
         bind_rows(mod_holdout_preds)
-    mod_holdout_RMSE <-
-        RMSE_holdout %>%
-        mutate(site = sites,
-               biomass_vars = rep(paste(colnames(X), collapse = ' + '), 6),
-               model = rep(fit@model_name, 6)) %>%
-        bind_rows(mod_holdout_RMSE)
+
+    mod_post_preds <- full_post_preds %>%
+        mutate(biomass_vars = paste(colnames(X), collapse = ' + ')) %>%
+        bind_rows(mod_post_preds)
+    # mod_holdout_RMSE <-
+    #     RMSE_holdout %>%
+    #     mutate(site = sites,
+    #            biomass_vars = rep(paste(colnames(X), collapse = ' + '), 6),
+    #            model = rep(fit@model_name, 6)) %>%
+    #     bind_rows(mod_holdout_RMSE)
 
 }
 
 beepr::beep(5)
 
 write_csv(mod_holdout_preds, 'data/model_fits/ma1_log_model_holdout_predictions.csv')
+write_csv(mod_post_preds, 'data/model_fits/ma1_log_model_holdout_post_predictions.csv')
 write_csv(mod_holdout_RMSE, 'data/model_fits/ma1_log_model_holdout_RMSEs.csv')
 
 mod_holdout_preds2 <- read_csv('data/model_fits/ar1_log_model_holdout_predictions.csv')
@@ -249,38 +257,65 @@ ggplot(aes(biomass_vars, rmse, col = site)) +
     geom_point()
 
 mod_holdout_preds %>%
-    group_by(site, biomass_vars) %>%
+    group_by(biomass_vars) %>%
     mutate(estim = exp(estim),
            sqe = (GPP - estim)^2) %>%
-    summarize(rmse = sqrt(mean(sqe)))
+    filter(grepl('biomass', biomass_vars)) %>%
+    summarize(rmse = sqrt(mean(sqe))) %>% arrange(rmse)
 
-mod_holdout_preds %>%
+N = 300
+mod_post <- mod_post_preds %>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))%>%
     mutate(model = case_when(biomass_vars == 'log_light' ~ '0. Baseline (Light)',
-                             biomass_vars == 'log_light + fila_chla' ~
+                             biomass_vars == 'log_light + epil_afdm + fila_afdm' ~
                                  '1. Light + Biomass',
-                             biomass_vars == 'log_light + fila_chla + log_light_fila_chla' ~
+                             biomass_vars == 'log_light + epil_afdm + fila_afdm + log_light_epil_afdm + log_light_fila_afdm' ~
                                  '3. Light + Biomass + \nLight \U00D7 Biomass',
-                             biomass_vars == 'log_light_fila_chla' ~
+                             biomass_vars == 'log_light_epil_chla' ~
                                  '2. Light \U00D7 Biomass',
-                             TRUE ~ NA_character_)) %>%
+                             TRUE ~ NA_character_),
+           across(starts_with('X'), function(x) exp(x))) %>%
+    filter(!is.na(model)) %>%
+    select(site, date, model, paste0('X', sample(1:1000, N)))
+
+colnames(mod_post) <- c('site', 'date', 'model', paste0('X', 1:N))
+p <- mod_holdout_preds %>%
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))%>%
+    mutate(model = case_when(biomass_vars == 'log_light' ~ '0. Baseline (Light)',
+                             biomass_vars == 'log_light + epil_afdm + fila_afdm' ~
+                                 '1. Light + Biomass',
+                             biomass_vars == 'log_light + epil_afdm + fila_afdm + log_light_epil_afdm + log_light_fila_afdm' ~
+                                 '3. Light + Biomass + \nLight \U00D7 Biomass',
+                             biomass_vars == 'log_light_epil_chla' ~
+                                 '2. Light \U00D7 Biomass',
+                             TRUE ~ NA_character_),
+           across(starts_with('X'), function(x) exp(x))) %>%
     filter(!is.na(model)) %>%
     ggplot(aes(date, GPP)) +
-    geom_line() +
-    geom_line(aes(y = exp(estim)), lty = 2)+
-    geom_ribbon(aes(ymin = exp(low), ymax = exp(high)),
-                fill = alpha('brown', 0.3))+
+    # geom_line() +
+    # geom_ribbon(aes(ymin = exp(low), ymax = exp(high)),
+    #             fill = alpha('#9E3A14', 0.03))+
     facet_grid(site~model) +
     theme_classic() +
-    # ylim(0.88, 3.5)+
+    ylim(min(exp(mod_holdout_preds$low)),
+         max(exp(mod_holdout_preds$high)))+
     ylab(expression("GPP"~(g~O[2]~m^-2~d^-1)))+
     # ylab("log(GPP)")+
     xlab('Date')+
     theme(panel.border = element_rect(fill = NA),
           panel.spacing = unit(0, units = 'pt'))
+err_col <- rgb(158/255, 57/255, 21/255)
+for(i in 1:150){
+    p <- p + geom_line(data = mod_post, aes_string(y = paste0('X', i)),
+              col = alpha(err_col, 0.025))
+}
 
+p <- p + geom_line(aes(date, GPP), col = 'black', linewidth = 0.4)+
+    geom_line(aes(y = exp(estim)), lty = 2, linewidth = 0.4)
 png('figures/SI/holdout_site_predictions_MA.png', width = 7.5, height = 6.5,
     units = 'in', res = 300)
+    p
+dev.off()
 
 # p <-
 mod_holdout_preds %>%

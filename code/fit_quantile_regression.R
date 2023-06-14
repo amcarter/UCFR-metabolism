@@ -166,7 +166,35 @@ met %>%
     xlab('Date')+
     theme(panel.border = element_rect(fill = NA),
           panel.spacing = unit(0, units = 'in'))
-met$AR = met$ER + met$GPP*(met$ARf)
+met$AR = met$GPP*(met$ARf)
+
+png('figures/poster/GPP_breakdown.png',
+    width = 6.5, height = 1.8,
+    res = 300, units = 'in')
+met %>%
+    filter(site == 'BN', year == 2021) %>%
+    mutate(bottom = 0) %>%
+    ggplot(aes(x = date)) +
+    geom_ribbon(aes(ymin = AR, ymax = GPP),
+                col = 'black', fill = alpha('aquamarine3', 0.5))+
+    geom_ribbon(aes(ymin = bottom, ymax = AR), col = 'grey20', fill = 'grey70') +
+    theme_classic()+
+    ylab(expression(paste('GPP (g ', O[2], m^-2, d^-1,')'))) +
+    xlab('Date')
+dev.off()
+png('figures/poster/GPP.png',
+    width = 6, height = 2,
+    res = 300, units = 'in')
+met %>%
+    filter(site == 'BN', year == 2021) %>%
+    ggplot(aes(x = date, y = GPP)) +
+    geom_line(col = 'forestgreen')+
+    geom_point(col = 'forestgreen', size = 0.5)+
+    geom_errorbar(aes(ymin = GPP.lower, ymax = GPP.upper), col = 'forestgreen') +
+    theme_classic()+
+    ylab('GPP') +
+    xlab('Date')
+dev.off()
 
 png('figures/respiration_breakdown.png',
     width = 6.5, height = 6.5,
