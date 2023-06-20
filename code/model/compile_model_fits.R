@@ -71,6 +71,7 @@ best_mods <- mod_metrics %>%
 
 write_csv(best_mods, 'data/model_fits/best_models_by_category.csv')
 
+
 best_mods %>%
     mutate(RMSE = round(rmspe, 2),
            r2 = round(r2, 2)) %>%
@@ -122,6 +123,12 @@ mod_ests %>%
         linesep = '') %>%
     kable_classic( html_font = 'helvetica')
 
+mutate(afdm, units = 'afdm') %>%
+    bind_rows(mutate(chla, units = 'chla')) %>%
+    pivot_wider(id_cols = c('bio_frac', 'model'),
+                names_from = 'units', values_from = 'r2') %>%
+    mutate(diff = (chla - afdm)/afdm) %>% slice(-13) %>%
+    group_by(bio_frac) %>% summarize(diff = mean(diff))
 
 # format model table for SI:
 mod_ests_table <- mod_ests %>%
