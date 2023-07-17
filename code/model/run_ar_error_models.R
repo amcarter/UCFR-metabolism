@@ -165,6 +165,10 @@ for(i in 1:length(model_combinations)){
     p <- plot_model_fit(preds) +
         ggtitle(paste0('ma1_lmod: ', paste(colnames(X), collapse = ' + ')))
     print(p)
+    # p <- plot_model_fit(preds) +
+    #     ggtitle('Model 1: Light + Biomass (Chl a)')
+    # ggsave('figures/biomass_models/mod_fit_example.png', p,
+    #        width = 5, height = 7, units = 'in')
     ggsave(paste('figures/biomass_models/unconditioned_preds/ar1_lmod',
                  paste(colnames(X),collapse = '_'),'2.png'), p,
            width = 5, height = 7, units = 'in')
@@ -279,12 +283,12 @@ mod_holdout_preds %>%
 N = 300
 mod_post <- mod_post_preds %>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))%>%
-    mutate(model = case_when(biomass_vars == 'log_light' ~ '0. Baseline (Light)',
-                             biomass_vars == 'log_light + epil_afdm + fila_afdm' ~
+    mutate(model = case_when(biomass_vars == 'log_light' ~ '0. Light',
+                             biomass_vars == 'log_light + biomass_chla' ~
                                  '1. Light + Biomass',
-                             biomass_vars == 'log_light + epil_afdm + fila_afdm + log_light_epil_afdm + log_light_fila_afdm' ~
+                             biomass_vars == 'log_light + biomass_chla + log_light_biomass_chla' ~
                                  '3. Light + Biomass + \nLight \U00D7 Biomass',
-                             biomass_vars == 'log_light_epil_chla' ~
+                             biomass_vars == 'log_light_biomass_chla' ~
                                  '2. Light \U00D7 Biomass',
                              TRUE ~ NA_character_),
            across(starts_with('X'), function(x) exp(x))) %>%
@@ -294,12 +298,12 @@ mod_post <- mod_post_preds %>%
 colnames(mod_post) <- c('site', 'date', 'model', paste0('X', 1:N))
 p <- mod_holdout_preds %>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))%>%
-    mutate(model = case_when(biomass_vars == 'log_light' ~ '0. Baseline (Light)',
-                             biomass_vars == 'log_light + epil_afdm + fila_afdm' ~
+    mutate(model = case_when(biomass_vars == 'log_light' ~ '0. Light',
+                             biomass_vars == 'log_light + biomass_chla' ~
                                  '1. Light + Biomass',
-                             biomass_vars == 'log_light + epil_afdm + fila_afdm + log_light_epil_afdm + log_light_fila_afdm' ~
+                             biomass_vars == 'log_light + biomass_chla + log_light_biomass_chla' ~
                                  '3. Light + Biomass + \nLight \U00D7 Biomass',
-                             biomass_vars == 'log_light_epil_chla' ~
+                             biomass_vars == 'log_light_biomass_chla' ~
                                  '2. Light \U00D7 Biomass',
                              TRUE ~ NA_character_),
            across(starts_with('X'), function(x) exp(x))) %>%
@@ -325,7 +329,7 @@ for(i in 1:300){
 
 p <- p + geom_line(aes(date, GPP), col = 'black', linewidth = 0.4)+
     geom_line(aes(y = exp(estim)), lty = 2, linewidth = 0.4)
-png('figures/SI/holdout_site_predictions_AR_err.png', width = 7.5, height = 6.5,
+png('figures/SI/holdout_site_predictions_AR_err2.png', width = 7.5, height = 6.5,
     units = 'in', res = 300)
     p
 dev.off()
