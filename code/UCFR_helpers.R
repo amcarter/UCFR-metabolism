@@ -38,7 +38,7 @@ fit_biomass_model <- function(model, dat, X, log_GPP = TRUE,
     )
 
 
-    if(model@model_name %in% c('ar1_lmod','PI_curve', 'ar1_lmod_ss','arma_mod', 'ma_mod')){
+    if(model@model_name %in% c('ar1_lmod','ar_mod', 'ar1_lmod_ss','arma_mod', 'ma_mod')){
         new_ts <- rep(0, nrow(dat))
         new_ts[rle2(paste0(dat$year, dat$site))$starts] <- 1
         datlist <- c(datlist, list(new_ts = new_ts))
@@ -125,8 +125,8 @@ predict_holdout <- function(fit, dat_full, X_full, holdout_rows){
     for(i in 1:draws){
         for(t in 2:length(holdout_rows)){
             y_past <- as.double(post_preds[i, t-1])
-            post_preds[i, t] <- X[holdout_rows[t],] %*% beta_post[i,] +
-                beta0_post[i] + phi_post[i] * y_past +
+            post_preds[i, t] <- X[holdout_rows[t],] %*% beta_post[i,] + beta0_post[i] +
+                phi_post[i] * (y_past - X[holdout_rows[t-1],] %*% beta_post[i,] - beta0_post[i]) +
                 rnorm(1, sd = sigma_post[i])
         }
     }
@@ -138,16 +138,25 @@ predict_holdout <- function(fit, dat_full, X_full, holdout_rows){
                low = apply(post_preds, 2, quantile, probs = 0.025),
                high = apply(post_preds, 2, quantile, probs = 0.975)
                )
+    post_preds <- post_preds[sample(1:8000, 1000),]
     plot(preds$date, preds$log_GPP, type = 'l',
          ylim = c(min(preds$low), max(preds$high)))
     lines(preds$date, preds$estim, lty = 2)
+    # for(i in sample(1:1000, 800)){
+    #     lines(preds$date, exp(post_preds[i,]), col = alpha('brown', 0.02))
+    # }
+    # lines(preds$date, exp(preds$estim), lty = 2)
+    # lines(preds$date, preds$GPP, lty = 2)
     polygon(c(preds$date, rev(preds$date)),
             c(preds$low, rev(preds$high)), col = alpha('brown', 0.3),
             border = NA)
 
     RMSE_forecast <- sqrt(mean((preds$log_GPP - preds$estim)^2))
+    post_preds <- bind_cols(select(preds, site, date), data.frame(t(post_preds)))
 
-    return(preds)
+    return(list(preds = preds,
+                post_preds = post_preds)
+    )
 
 }
 predict_holdout_ma <- function(fit, dat_full, X_full, holdout_rows){

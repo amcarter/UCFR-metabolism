@@ -21,15 +21,15 @@ parameters {
     vector[S] beta;             // site level intercepts
     real<lower=0> tau;          // variation in site intercepts
     real<lower=0> sigma;        // standard deviation of process error
+    vector[N] P_state;          // underlying true GPP value
 }
 
 transformed parameters {
     vector[N] mu;               // underlying mean of process
-    vector[N] P_state;          // underlying true GPP value
     // vector[N] y2;               // underlying mean of process
 
     mu = beta[ss] + X * gamma[2:(K+1)];
-    P_state = P - mu;
+    // P_state = P - mu;
 }
 
 model {
@@ -39,6 +39,7 @@ model {
     // P_sd ~ cauchy(0,5);
     tau ~ cauchy(0, 2.5);
     sigma ~ cauchy(0,5);
+    P_state ~ gamma(1,2);
 
     for(s in 1:S){
         beta[s] ~ normal(gamma[1], tau);
@@ -51,7 +52,7 @@ model {
         }
         else{
             // P_state[n] ~ normal(mu[n] + phi * (P[n-1] - mu[n-1]), sigma);
-            P_state[n] ~ normal(phi * P[n-1], sigma);
+            P_state[n] ~ normal(mu[n] + phi * (P_state[n-1] - mu[n-1]), sigma);
         }
 
         // Likelihood

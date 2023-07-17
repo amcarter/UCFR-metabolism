@@ -16,7 +16,7 @@ data {
 }
 
 parameters {
-    real<lower=0,upper=1> theta;// ar1 coefficient
+    real<lower=0,upper=1> phi;  // ar1 coefficient
     vector[K+1] gamma;          // population level coefficients
     vector[S] beta;             // site level intercepts
     real<lower=0> tau;          // variation in site intercepts
@@ -34,7 +34,7 @@ transformed parameters {
         if(new_ts[t] == 1){
             epsilon[t] = P_state[t] - mu[t];
         } else {
-            epsilon[t] = P_state[t] - mu[t] - theta * epsilon[t-1];
+            epsilon[t] = P_state[t] - mu[t] - phi * epsilon[t-1];
         }
     }
 }
@@ -42,7 +42,7 @@ transformed parameters {
 model {
     //priors
     gamma ~ normal(0,5);
-    theta ~ beta(1,1);
+    phi ~ beta(1,1);
     // P_sd ~ cauchy(0,5);
     tau ~ cauchy(0, 2.5);
     sigma ~ cauchy(0,5);
@@ -58,7 +58,7 @@ model {
             P_state[t] ~ normal(P[t], sigma);
         }
         else{
-            P_state[t] ~ normal(mu[t] + theta * epsilon[t-1], sigma);
+            P_state[t] ~ normal(mu[t] + phi * epsilon[t-1], sigma);
         }
 
         // Likelihood

@@ -29,11 +29,11 @@ dd <- dd %>% select(site, GPP, log_GPP, light, epil_chla_mgm2_fit, log_epil_chla
               fila_chla_mgm2_fit, log_fila_chla_mgm2_fit)
 
 
-mod_ests <- read_csv('data/model_fits/ma1_log_model_parameter_ests_ss.csv')
-chains <- read_csv('data/model_fits/ma1_log_model_chains_ss.csv')
-mod_metrics <- read_csv('data/model_fits/ma1_log_model_metrics_ss_cond.csv')
-mod_holdouts <- read_csv('data/model_fits/ma1_log_model_holdout_RMSEs.csv')
-mod_holdout_preds <- read_csv('data/model_fits/ma1_log_model_holdout_predictions.csv')
+mod_ests <- read_csv('data/model_fits/ar_err_log_model_parameter_ests_ss.csv')
+chains <- read_csv('data/model_fits/ar_err_log_model_chains_ss.csv')
+mod_metrics <- read_csv('data/model_fits/ar_err_log_model_metrics_ss_cond.csv')
+mod_holdouts <- read_csv('data/model_fits/ar_err_log_model_holdout_RMSEs.csv')
+mod_holdout_preds <- read_csv('data/model_fits/ar_err_log_model_holdout_predictions.csv')
 
 mod_rmse <- mod_holdout_preds %>%
     group_by(biomass_vars) %>%
@@ -94,7 +94,7 @@ mod_ests %>%
                                 grepl('epil.*fila', covariates) ~ 'both',
                                 grepl('epil', covariates) ~ 'epil',
                                 grepl('fila', covariates) ~ 'fila',
-                                TRUE ~ NA_character_)) %>%
+                                TRUE ~ 'none')) %>%
     select(model, covariates, bio_frac, parameter, value, r2, RMSE) %>%
     filter(!grepl('^beta', parameter)) %>%
     mutate(parameter = case_when(grepl('chla$', parameter) ~ substr(parameter, 1, nchar(parameter)-5),
@@ -110,15 +110,68 @@ mod_ests %>%
            biomass = if_else(is.na(biomass), epil, biomass),
            light_epil = if_else(!is.na(light_epil), paste(light_epil, light_fila, sep = '\n'),
                                 NA_character_),
-           light_biomass = if_else(is.na(biomass), light_epil, biomass)) %>%
-    select(-epil, -light_epil, -fila, -light_fila) %>%
-    relocate(model, theta, sigma, intercept, tau, light, biomass,
+           light_biomass = if_else(is.na(light_biomass), light_epil, light_biomass)) %>%
+    select(-epil, -light_epil, -fila, -light_fila, -intercept, -tau) %>%
+    relocate(model, phi, sigma, light, biomass,
              light_biomass, r2, RMSE) %>%
-    mutate(bio_frac = factor(bio_frac, levels = c('epil', 'fila',
-                                                  'sum', 'both'))) %>%
-    arrange(bio_frac) %>%
+    mutate(bio_frac = factor(bio_frac, levels = c('none', 'epil', 'fila',
+                                                  'both', 'sum')),
+           model = case_when(model == 'baseline' ~ 0,
+                             model == 'linear model' ~ 1,
+                             model == 'linear model interaction only' ~ 2,
+                             model == 'linear model with interaction' ~ 3)) %>%
+    arrange(bio_frac, model) %>%
     relocate(bio_frac)%>%
     select(-covariates) %>%
+    mutate(r2 = round(r2, 3),
+           RMSE = round(RMSE, 2)) %>%
+    kbl(format = 'latex',
+        linesep = '') %>%
+    kable_classic( html_font = 'helvetica')
+
+mod_ests %>%
+    filter(grepl('afdm', biomass_vars)| biomass_vars == 'log_light') %>%
+    rename(covariates = biomass_vars,
+           r2 = r2_adj, RMSE = rmspe) %>%
+    select(-model, -rmse) %>%
+    left_join(select(mod_metrics, covariates, model)) %>%
+    mutate(value = case_when(mean >= 1 ~ paste0(signif(mean, 2), ' (', round(sd, 1), ')'),
+                             mean < 1 ~ paste0(round(mean, 2), ' (', round(sd, 2), ')')),
+           bio_frac = case_when(grepl('biomass', covariates) ~ 'sum',
+                                grepl('epil.*fila', covariates) ~ 'both',
+                                grepl('epil', covariates) ~ 'epil',
+                                grepl('fila', covariates) ~ 'fila',
+                                TRUE ~ 'none')) %>%
+    select(model, covariates, bio_frac, parameter, value, r2, RMSE) %>%
+    filter(!grepl('^beta', parameter)) %>%
+    mutate(parameter = case_when(grepl('afdm$', parameter) ~ substr(parameter, 1, nchar(parameter)-5),
+                                 TRUE ~ parameter),
+           parameter = case_when(grepl('^gamma_log', parameter) ~ substr(parameter, 11, nchar(parameter)),
+                                 grepl('^gamma', parameter) ~ substr(parameter, 7, nchar(parameter)),
+                                 TRUE ~ parameter),
+           parameter = case_when(bio_frac == parameter ~ 'biomass',
+                                 parameter == paste0('light_', bio_frac) ~ 'light_biomass',
+                                 TRUE ~ parameter)) %>%
+    pivot_wider(names_from = parameter, values_from = value) %>%
+    mutate(epil = if_else(!is.na(epil), paste(epil, fila, sep = '\n'), NA_character_),
+           biomass = if_else(is.na(biomass), epil, biomass),
+           light_epil = if_else(!is.na(light_epil), paste(light_epil, light_fila, sep = '\n'),
+                                NA_character_),
+           light_biomass = if_else(is.na(light_biomass), light_epil, light_biomass)) %>%
+    select(-epil, -light_epil, -fila, -light_fila, -intercept, -tau) %>%
+    relocate(model, phi, sigma, light, biomass,
+             light_biomass, r2, RMSE) %>%
+    mutate(bio_frac = factor(bio_frac, levels = c('none', 'epil', 'fila',
+                                                  'both', 'sum')),
+           model = case_when(model == 'baseline' ~ 0,
+                             model == 'linear model' ~ 1,
+                             model == 'linear model interaction only' ~ 2,
+                             model == 'linear model with interaction' ~ 3)) %>%
+    arrange(bio_frac, model) %>%
+    relocate(bio_frac)%>%
+    select(-covariates) %>%
+    mutate(r2 = round(r2, 3),
+           RMSE = round(RMSE, 2)) %>%
     kbl(format = 'latex',
         linesep = '') %>%
     kable_classic( html_font = 'helvetica')
