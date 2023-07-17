@@ -338,7 +338,10 @@ bm_met <- bm_met %>%
                                      TRUE ~ NA_real_),
            epil_prod_gCd = (coefs[1] * epil_chla_mgm2*light) * 14/32 ,
            epil_turnover = epil_gm2/2/epil_prod_gCd)
-
+bm_met %>%
+    filter(year == 2021) %>%
+    select(-year, -ARf, -PAR_surface) %>%
+    write_csv('data/biomass_data/2021_turnovers_for_Rafa.csv')
 
 # bm_met <- bm_met %>%
 #     mutate(fila_prod_gCd = (0.02394 * fila_gm2*light)*14/32 ,

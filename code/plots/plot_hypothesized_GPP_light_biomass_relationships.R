@@ -110,11 +110,11 @@ pdat %>%
     mutate(model = factor(model, levels = c('loglight','loglightbio',
                                             'loglightbiointonly',
                                             'loglightbioint')),
-           model = case_when(model == 'loglight' ~ '0. Baseline (Light)',
+           model = case_when(model == 'loglight' ~ '0. Light',
                              model == 'loglightbiointonly' ~ '2. Light \U00D7 Biomass',
                              model == 'loglightbio' ~ '1. Light + Biomass',
                              model == 'loglightbioint'~ '3. Light + Biomass + Light \U00D7 Biomass'),
-           cover = case_when(model == '0. Baseline (Light)' ~ GPP,
+           cover = case_when(model == '0. Light' ~ GPP,
                              TRUE ~ NA_real_)) %>%
     ggplot(aes(light, GPP, group = factor(biomass), col = biomass)) +
     geom_line(size = 1.5) +
@@ -126,7 +126,6 @@ pdat %>%
     xlab('Relative light')+
     ylab(expression(paste('Productivity (g ',O[2],  m^-2, d^-1, ')'))) +
     xlim(0,1) + ylim(0,16.5)
-
 
 dev.off()
 
