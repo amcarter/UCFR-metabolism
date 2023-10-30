@@ -275,6 +275,8 @@ ggplot(NPP, aes((fila_chla)/(fila_gm), ARf, col = site)) +
     geom_point(size = 2)
 ggplot(NPP, aes(fila_chla/(fila_chla + epil_chla), ARf, col = year)) +
     geom_point(size = 2)
+ggplot(NPP, aes(epil_chla/(fila_chla + epil_chla), ARf, col = year)) +
+    geom_point(size = 2)
 
 npp <- NPP %>%
     select(-ends_with('_meas')) %>%
@@ -283,7 +285,11 @@ npp <- NPP %>%
            NPP_C2 = NPP2 * 14/32,
            days_epil = epil_gm/2/NPP_C,
            days_fila = fila_gm/2/NPP_C,
-           days_bio = biomass_C/NPP_C)
+           days_bio = biomass_C/NPP_C) %>%
+    ungroup() %>%
+    mutate(fila_bloom = c(0,1,0,1,0,0,1,1,1,0,0,0),
+           fila_bloom = case_when(fila_bloom == 0 ~ 'No Bloom',
+                                  fila_bloom == 1 ~ 'Bloom'))
 
 ggplot(npp, aes(NPP_C, fila_gm, col = factor(year)))+
     geom_point(size = 2)
@@ -370,15 +376,12 @@ p1 <- p1 + annotate(geom = 'text', x = 12, y = 0.25,
 p1 <- p1 + annotate(geom = 'text', x = 32, y = 0.06,
               label="Filamentous", col = '#97BB43')
 p2 <- ggplot(npp, aes(fila_gm/2/(biomass_C)*100, days_bio))+
-        geom_point(size = 1.5)+
         xlab('Filamentous fraction of \ntotal biomass (%)')+
         ylab('Turnover time (d)')+
-        # scale_color_gradient('Epilithon \nmass (g/m2)',
-        #                      low = 'grey97', high = '#1B9EC9')+
-        geom_point(size = 1.6, pch = 1, col = 'black')+
+        geom_point(aes(pch = factor(fila_bloom)), size = 1.6, col = 'black')+
         theme_classic()+
-        # guide_colorbar(frame.colour = 'black')+
-        theme(legend.position = c(0.2, 0.7),
+        theme(legend.title = element_blank(),
+              legend.position = c(0.22, 0.85),
               panel.border = element_rect(fill = NA))
 png('figures/turnover_time_by_composition.png',
     width = 6.5, height = 3.5, units = 'in', res = 300)
@@ -444,20 +447,20 @@ ggplot(bm_met, aes(date, fila_prod_gCd))+
             sec.axis = sec_axis(~.*coeff,
                                 name = expression(paste('Biomass (g C', m^-2, ')')))
         )+
-        scale_color_manual('Biomass production rate',
-                           values = c('#97BB43', '#1B9EC9')) +
         scale_fill_manual('Biomass standing stock',
                           values = c('#97BB43', '#1B9EC9')) +
+        scale_color_manual('Biomass production rate',
+                           values = c('#97BB43', '#1B9EC9')) +
         scale_linetype_manual('Light', values = c(2)) +
         theme_classic()+
         xlab('Date')+
         theme(strip.text.y = element_blank(),
               panel.border = element_rect(fill = NA),
               panel.spacing = unit(0, units = 'in'),
-              # legend.position = 'right',
+              # legend.spacing.x = unit(1, 'cm'),
               # legend.justification = 'top')
               # legend.box.margin = margin(0, 5, 0, 5, "cm"),
-              legend.position = 'bottom')+
+              legend.position = 'top')+
         guides(color = guide_legend(title.position = "top", title.hjust = 0,
                                       order = 1),
                fill = guide_legend(title.position = "top", title.hjust = 0,
@@ -479,11 +482,19 @@ ggplot(bm_met, aes(date, fila_prod_gCd))+
    p4 <- bm_met %>%
         mutate(site = factor(site, levels = c('PL', 'DL', 'GR','GC','BM','BN'))) %>%
         group_by(site, year) %>%
+        # filter(date > as.Date('2020-08-07'),
+        #        date < as.Date('2020-10-19') | date > as.Date('2021-07-16'),
+        #        date < as.Date('2021-09-27'))%>%
+       # summarize(start = min(date),
+       #           end = max(date),
+       #           n = n())
         summarize(n = n(),
                   fila_Biomass = max(fila_gm2)/2,
                   epil_Biomass = max(epil_gm2)/2,
-                  fila_cumprod = sum(fila_prod_gCd),
-                  epil_cumprod = sum(epil_prod_gCd)) %>%
+                  fila_cumprod = sum(fila_prod_gCd)/n*100,
+                  epil_cumprod = sum(epil_prod_gCd)/n*100) %>%
+       mutate(bloom = factor(case_when(fila_Biomass > 30 ~ 'Bloom',
+                                       TRUE ~ 'No Bloom'))) %>%
         pivot_longer(cols = starts_with(c('epil', 'fila')),
                      values_to = 'value',
                      names_to = c('biomass', 'measure'),
@@ -497,17 +508,26 @@ ggplot(bm_met, aes(date, fila_prod_gCd))+
                biomass = factor(biomass, levels = c('Filamentous', 'Epilithic')))%>%
         ggplot(aes(x = measure, y = value, fill = biomass)) +
         geom_boxplot(outlier.shape=NA, alpha = 0.4)+
-        geom_point(position = position_jitterdodge(jitter.width = 0.2),
-                   size = 0.8)+
+        geom_point(aes(pch = bloom, group = biomass),
+                   position = position_jitterdodge(jitter.width = 0.25))+
         # geom_jitter(color="black", alpha=0.9) +
         scale_fill_manual('',
                           values = c('#97BB43', '#1B9EC9')) +
         ylab(expression(paste('Mass (g C ', m^-2, ')')))+
         xlab('')+
         theme_classic()+
-        theme(panel.border = element_rect(fill = NA),
-              legend.position = c(0.3, 0.9),
+        theme(legend.title = element_blank(),
+              panel.border = element_rect(fill = NA),
+              legend.spacing.y = unit(-0.1, "cm"),
+              legend.position = c(0.24, 0.79),
               legend.background = element_rect(fill = NA))
+png('figures/biomass_cumulative_and_turnover.png', width = 9, height = 3.5,
+    units = 'in', res = 300)
+    ggpubr::ggarrange(p4, p1,p2, ncol = 3,
+                      labels = c('A', 'B', 'C'),
+                      align = 'h')
+
+dev.off()
 
     p5 <- ggplot(data.frame(a = 1, b = 1), aes(a,b)) +
         geom_point(col = 'white') +
@@ -527,6 +547,62 @@ png('figures/biomass_prod_and_turnover_3panel.png', width = 8, height = 8,
                       ncol = 2, labels = 'A', #label.y = 0.917,
                       widths = c(2,1))
 dev.off()
+png('figures/biomass_prod_and_turnover.png', width = 6, height =8,
+    units = 'in', res = 300)
+    p3
+dev.off()
+png('figures/biomass_turnover_frac.png', width = 3.5, height = 3,
+    units = 'in', res = 300)
+p2
+dev.off()
+
+
+p2 <- bm_met %>%
+    filter(year == 2021, site == 'GC') %>%
+
+    mutate(doy = as.numeric(format(date, '%j')),
+           Date = as.Date(paste0('2020-', doy), format = '%Y-%j'),
+           site = factor(site, levels = c('PL', 'DL', 'GR','GC','BM','BN'))) %>%
+    mutate(fila_gm2 = case_when(fila_gm2 < min_fila_gm2 ~ NA_real_,
+                                TRUE ~ fila_gm2)) %>%
+    select(site, Date, year, light,
+           fila_prod_gCd, fila_gm2, epil_prod_gCd, epil_gm2) %>%
+    pivot_longer(cols = starts_with(c('fila', 'epil')),
+                 values_to = 'value', names_to = c('biomass', 'measure'),
+                 names_pattern = '(fila|epil)_(.*)') %>%
+    pivot_wider(names_from = measure, values_from = value) %>%
+    mutate(gCm2 = gm2/2,
+           biomass = case_when(biomass == 'fila' ~ 'Filamentous',
+                               biomass == 'epil'~'Epilithic'),
+           biomass = factor(biomass, levels = c('Filamentous', 'Epilithic')))%>%
+    filter(biomass == 'Epilithic') %>%
+    ggplot(aes(Date, gCm2, fill = biomass))+
+    geom_area(color = NA, alpha = 0.7)+
+    ylab(expression(paste('Biomass (g C', m^-2, ')')))+
+    scale_fill_manual('Biomass standing stock',
+                      values = c( '#1B9EC9')) +
+    theme_classic()+
+    xlab('Date')+
+    ylim(0,47)+
+    theme(legend.position = 'none')
+# p1 <-
+    bm_met %>%
+    filter(year == 2021, site == 'GC') %>%
+    mutate(doy = as.numeric(format(date, '%j')),
+           Date = as.Date(paste0('2020-', doy), format = '%Y-%j'),
+           fila_cum = cumsum(fila_prod_gCd),
+           epil_cum = cumsum(epil_prod_gCd)) %>%
+    ggplot(aes(Date, fila_cum))+
+    geom_line(color = '#97BB43', size = 1.5)+
+    geom_line(aes(y = epil_cum), color = '#1B9EC9', size = 1.5)+
+    ylab(expression(paste('Biomass production (g C', m^-2, d^-1, ')')))+
+    scale_color_manual('Biomass production rate',
+                       values = c('#97BB43', '#1B9EC9')) +
+    theme_classic()+
+    xlab('Date')
+
+
+
 
 bm_met %>%
     group_by(site, year) %>%
