@@ -64,9 +64,20 @@ bmet <- read_csv('data/model_fits/biomass_metab_model_data.csv')
 
 lme4::lmer(log(GPP) ~log(light) + (1|site), bmet) %>% summary()
 
+M_sum <- met %>% mutate(NEP = GPP + ER) %>%
+    group_by(site, year) %>%
+    summarize(NEP = mean(NEP, na.rm = T)) %>%
+    mutate(trophic = case_when(NEP > 0 ~ 'A',
+                               TRUE ~ ' ')) %>%
+    select(-NEP) %>% ungroup() %>%
+    mutate(date = case_when(year == 2020 ~ as.Date('2020-10-30'),
+                            year == 2021 ~ as.Date('2021-10-28')),
+           GPP = rep(18, 12))
+write_csv(M_sum, 'data/metabolism/auto_sites_figure_labels.csv')
+
 png('figures/metabolism_across_sites.png', width = 6.5, height = 6.5,
     res = 300, units = 'in')
-    met %>%
+    M <- met %>%
         mutate(NEP = ER + GPP) %>%
         filter(is.na(DO_fit) | DO_fit != 'bad') %>%
         ggplot(aes(date, GPP, group = c(site))) +
@@ -84,10 +95,15 @@ png('figures/metabolism_across_sites.png', width = 6.5, height = 6.5,
         facet_grid(site~year, scales = 'free_x') +
         theme_classic() +
         theme(panel.border = element_rect(fill = NA),
-              panel.spacing = unit(0, 'line'))+
+              panel.spacing = unit(0, 'line'),
+              strip.background.y = element_blank(),  # Remove strip background
+              strip.text.y = element_blank()         # Remove strip text (labels)
+              )+
         # ylim(-24,24)+
         ylab(expression(paste('Metabolism (g ', O[2], m^-2, d^-1, ')'))) +
         xlab('Date')
+
+    M + geom_text(data = M_sum, aes(label = trophic), col = 'black')
 dev.off()
 
 png('figures/NEP_all_sites.png', width = 4, height = 4,

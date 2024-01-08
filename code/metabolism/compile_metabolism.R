@@ -19,7 +19,7 @@ file_exts = c('_kb_oipi_1_bdr.rds', '_kb_oipi_05_bdr.rds',
               '_knorm_oipi_05_bdr.rds', '_kfull_0_bdr.rds')
 
 compiled_metab <- data.frame()
-file_ext = file_exts[6]
+file_ext = file_exts[1]
 # Perkins ####
 # fit <- readRDS('data/metabolism/metab_fits/PL_knorm_oipi_2000iter_bdr_005.rds')
 # fit <- readRDS('data/metabolism/metab_fits/binned_ksig0.05/PL_kb_oipi_05.rds')

@@ -121,7 +121,7 @@ labs <- data.frame(response = c('A_GPP_C', 'B_ER_C', 'C_ARf', 'D_NPP_C',
 
 
 png('figures/algal_assemblage_relationships.png',
-    width = 4.5, height = 5.4, units = 'in', res = 300)
+    width = 4.5, height = 5, units = 'in', res = 300)
     npp %>%
         select(site, year, fila_bloom, fila_gm, frac_fila_gm, A_GPP_C = GPP_C, B_ER_C = ER_C,
                C_ARf = ARf, D_NPP_C = NPP_C, E_biomass_C = biomass_C,
@@ -133,12 +133,12 @@ png('figures/algal_assemblage_relationships.png',
                      names_to = 'response',
                      values_to = 'value') %>%
         ggplot(aes(frac_fila_gm, value)) +
-        geom_point(aes(col = fila_gm), size = 1.6) +
-        scale_color_continuous(expression('Filamentous Algae (g m'^{-2}*')'))+
-        # geom_point(aes(shape = fila_bloom,
-        #            col = fila_bloom), size = 1.6) +
-        # scale_color_manual("", values = c('grey75', '#97BB43'))+
-        # scale_shape_manual("", values = c(19,17))+
+        # geom_point(aes(col = fila_gm), size = 1.6) +
+        # scale_color_continuous(expression('Filamentous Algae (g m'^{-2}*')'))+
+        geom_point(aes(shape = fila_bloom,
+                   col = fila_bloom), size = 1.4) +
+        scale_color_manual("", values = c('#111011', '#7FB43A'))+
+        scale_shape_manual("", values = c(19,17))+
         facet_wrap(response~., scales = 'free_y',
                    strip.position = 'left',
                    nrow = 3,
@@ -150,13 +150,20 @@ png('figures/algal_assemblage_relationships.png',
                                             F_days_bio = 'Turnover~Time~(d)'),
                                           default = label_parsed)) +
         labs(y = NULL, x = 'Filamentous fraction of total biomass (%)')+
-        annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+        # annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, col = 'grey50')+
+        scale_x_continuous(expand = c(0.04, 0.04)) +
+        scale_y_continuous(expand = c(0.1, 0.1)) +
         geom_text(data = labs, aes(label = corr, x = -Inf, y = Inf),
                   size = 3, hjust = -0.5, vjust = 3)+
         theme_classic()+
         theme(strip.background = element_blank(),
               strip.placement = "outside",
+              panel.border = element_rect(color = "grey50", fill = NA),
               legend.title = element_text(size = 9, vjust = 0.8),
+              axis.line = element_line(color = "grey50"),     # Color of axis lines
+              axis.text = element_text(color = "grey50"),     # Color of axis labels
+              axis.ticks = element_line(color = "grey50"),    # Color of axis ticks
+              strip.text = element_text(color = "grey10"),
               # legend.title = element_blank(),
               legend.position = 'top')
 
@@ -220,6 +227,11 @@ bm_met %>%
 #            epil_prod_gCd = (0.435 * epil_gm2*light)*14/32 ,
 #            epil_turnover = epil_gm2/2/epil_prod_gCd)
 
+
+bm_met %>% group_by(site, year) %>%
+    summarize(across(ends_with(c('gCd', 'turnover')), ~mean(., na.rm = T))) %>%
+    summary()
+summary(bm_met)
 bm_fila <- filter(bm_met, fila_gm2 > min_fila_gm2)
 
 p1 <- bm_fila %>%
@@ -284,6 +296,13 @@ ggplot(bm_met, aes(date, fila_prod_gCd))+
 #     width = 6.5, height = 6.5,
 #     res = 300, units = 'in')
 coeff = 125
+ann_text2 <- read_csv('data/metabolism/auto_sites_figure_labels.csv') %>%
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')),
+           year = factor(year),
+           Date = case_when(year == 2020 ~ as.Date('2020-10-20'),
+                            TRUE ~ as.Date('2020-10-14')),
+           prod_gCd = rep(0.45, 12), gCm2 = rep(1, 12))
+
 p <- bm_met %>%
     mutate(doy = as.numeric(format(date, '%j')),
            Date = as.Date(paste0('2020-', doy), format = '%Y-%j'),
@@ -301,12 +320,12 @@ p <- bm_met %>%
            biomass = case_when(biomass == 'fila' ~ 'Filamentous',
                                biomass == 'epil'~'Epilithic'),
            biomass = factor(biomass, levels = c('Filamentous', 'Epilithic')))%>%
-
     ggplot(aes(Date, prod_gCd/gCm2, col = biomass))+
     geom_area(aes(Date, gCm2/coeff, fill = biomass), color = NA, alpha = 0.4)+
     geom_line(size = 1.2)+
     geom_line(aes(y = light/2.5, lty = Light), col = 'grey20') +
     facet_grid(site~year, scales = 'free_x', ) +
+    geom_text(data = ann_text2, aes(label = trophic), col = 'black') +
     scale_y_continuous(
         name = expression(paste('Production rate (', d^-1, ')')),
         sec.axis = sec_axis(~.*coeff,
@@ -332,6 +351,10 @@ p <- bm_met %>%
                                order = 2),
            linetype = guide_legend(title.position = 'top', title.hjust = 0,
                                    order = 3))
+png('figures/biomass_prod_and_turnover.png', width = 6, height =8,
+    units = 'in', res = 300)
+p
+dev.off()
 
 ann_text <- data.frame(Date = rep(as.Date('2020-07-16'), 6),
                        prod_gCd = rep(0.48, 6),
@@ -341,6 +364,7 @@ ann_text <- data.frame(Date = rep(as.Date('2020-07-16'), 6),
                                         levels = c('Filamentous','Epilithic')),
                        site = factor(c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'),
                                      levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
+
 
 p3 <- p + geom_text(data = ann_text, aes(label = site), col = 'black')
 
@@ -400,6 +424,9 @@ ggpubr::ggarrange(p4, p1, ncol = 2,
 
 dev.off()
 
+bm_sum %>% group_by(bloom) %>%
+    summarize(across(where(is.numeric), .fns = c(mean = ~mean(.), sd = ~sd(.))))
+
 p5 <- ggplot(data.frame(a = 1, b = 1), aes(a,b)) +
     geom_point(col = 'white') +
     xlab('') + ylab('')+
@@ -417,10 +444,6 @@ ggpubr::ggarrange(p3,
                                     align = 'v'),
                   ncol = 2, labels = 'A', #label.y = 0.917,
                   widths = c(2,1))
-dev.off()
-png('figures/biomass_prod_and_turnover.png', width = 6, height =8,
-    units = 'in', res = 300)
-p3
 dev.off()
 png('figures/biomass_turnover_frac.png', width = 3.5, height = 3,
     units = 'in', res = 300)
