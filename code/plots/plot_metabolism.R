@@ -64,9 +64,7 @@ bmet <- read_csv('data/model_fits/biomass_metab_model_data.csv')
 
 lme4::lmer(log(GPP) ~log(light) + (1|site), bmet) %>% summary()
 
-M_sum <- met %>% mutate(NEP = GPP + ER) %>%
-    group_by(site, year) %>%
-    summarize(NEP = mean(NEP, na.rm = T)) %>%
+M_sum <- met %>% mutate(NEP = GPP + ER, month = month(date))  %>% filter(site == 'GC', month %in% c(7,8,9)) %>% select(site, date, GPP, ER, NEP)
     mutate(trophic = case_when(NEP > 0 ~ 'A',
                                TRUE ~ ' ')) %>%
     select(-NEP) %>% ungroup() %>%

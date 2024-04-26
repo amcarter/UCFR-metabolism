@@ -64,3 +64,38 @@ meas %>% left_join(mdat, by = 'site') %>%
     facet_wrap(year~., ncol = 1, strip.position = 'right') +
     theme_classic()
 dev.off()
+
+
+png('figures/biomass_meas_by_distance.png', width = 10, height = 6, units = 'in',
+    res = 300)
+
+    meas %>% left_join(mdat, by = 'site') %>%
+        mutate(site = case_when(site == 'BM' ~ 'BG',
+                                site == 'GR' ~ 'GAR',
+                                site == 'PL' ~ 'WS',
+                                TRUE ~ site),
+               site = factor(site, levels = c('WS', 'DL', 'GAR', 'GC', 'BG', 'BN')),
+               biomass_type = case_when(biomass_type == 'epil' ~ 'Epilithic',
+                                        biomass_type == 'fila' ~ 'Filamentous')) %>%
+        filter(units == 'gm2') %>%
+        mutate(dist = round(dist))%>%
+        ggplot(aes(factor(site), meas, col = biomass_type))+
+        geom_boxplot(size = 1) +
+        scale_color_discrete("", type = c('#1B9EC9', 'forestgreen'))+
+        labs(y = 'Biomass (g AFDM /m2)', x = 'Site')+
+        ylim(0,150)+
+        facet_wrap(year~., ncol = 1, strip.position = 'right') +
+        theme_bw()+
+        theme(legend.position = "top",
+              legend.text=element_text(size=20),
+              legend.title = element_text(size = 20),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              axis.text = element_text(size = 20),
+              axis.title = element_text(size = 20),
+              axis.text.x = element_text(angle =0, vjust = 0.5, hjust=0.5),
+              plot.title = element_text(hjust = 0.5, size = 20),
+              axis.text.y = element_text(margin = margin(0,0,0,0)),
+              strip.text.y = element_text(size = 20, color = "black", face = "bold"))
+
+dev.off()
