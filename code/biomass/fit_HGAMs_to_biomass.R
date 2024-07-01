@@ -6,7 +6,9 @@ library(mgcv)
 
 biomass <- read_csv('data/biomass_data/biomass_working_data.csv') %>%
     filter(!is.na(site) & site != 'CR') %>%
-    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')),
+    mutate(site = case_when(site == 'BM' ~ 'BG',
+                            TRUE ~ site),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BG', 'BN')),
            year = as.factor(lubridate::year(date)),
            site_year = paste(site, year, sep = '_'))
 
@@ -240,13 +242,13 @@ png('figures/SI/biomass_loggammaGAMs_diagnostics.png', width = 7.5, height = 7.5
         mar = c(3,4,2,2),
         oma = c(0,3,2,0))
     gam.check(fg2_gamma)
-    mtext(expression(paste('biofilm g',m^-2)), 2, line = 45)
+    mtext(expression(paste('epilithon g',m^-2)), 2, line = 45)
     gam.check(fg2_fila_gamma)
-    mtext(expression(paste('fila. g',m^-2)), 2, line = 45)
+    mtext(expression(paste('filamentous g',m^-2)), 2, line = 45)
     gam.check(fg2_chla_gamma)
-    mtext(expression(paste('biofilm chla mg',m^-2)), 2, line = 45)
+    mtext(expression(paste('epilithon chla mg',m^-2)), 2, line = 45)
     gam.check(fg2_fila_chla_gamma)
-    mtext(expression(paste('fila. chla mg',m^-2)), 2, line = 45)
+    mtext(expression(paste('filamentous chla mg',m^-2)), 2, line = 45)
     par(mfrow = c(1,1), new = T)
     mtext('Model fit metrics for Biomass GAMS', line = 2.75)
 dev.off()
@@ -256,13 +258,13 @@ png('figures/biomass_linGAMs_diagnostics.png', width = 7.5, height = 7.5,
         mar = c(3,4,2,2),
         oma = c(0,3,1,0))
     gam.check(fg2)
-    mtext(expression(paste('biofilm g',m^-2)), 2, line = 45)
+    mtext(expression(paste('epilithon g',m^-2)), 2, line = 45)
     gam.check(fg2_fila)
-    mtext(expression(paste('fila. g',m^-2)), 2, line = 45)
+    mtext(expression(paste('filamentous g',m^-2)), 2, line = 45)
     gam.check(fg2_chla)
-    mtext(expression(paste('biofilm chla mg',m^-2)), 2, line = 45)
+    mtext(expression(paste('epilithon chla mg',m^-2)), 2, line = 45)
     gam.check(fg2_fila_chla)
-    mtext(expression(paste('fila. chla mg',m^-2)), 2, line = 45)
+    mtext(expression(paste('filamentous chla mg',m^-2)), 2, line = 45)
 dev.off()
 
 qq = as_tibble(lapply(s_preds_lin, c)) %>% select(-site_year)
@@ -279,7 +281,9 @@ write_csv(k_check_gamma, 'data/biomass_data/log_gamma_gam_smoothness_parameter_c
 qq <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv')
 # plot GAMS
 qq <- qq %>%
-    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+    mutate(site = case_when(site == 'BM' ~ 'BG',
+                            TRUE ~ site),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BG', 'BN'))) %>%
     pivot_longer(cols = starts_with(c('epil', 'fila')),
              names_to = c('biomass_type', 'units', 'stat'),
              names_pattern = '([a-z]+)_([a-z0-9_]+)_([a-z]+)',
@@ -344,13 +348,19 @@ meas_mass <- filter(meas, units == 'gm2')
 #     ylab(expression('Algal Standing Crop (mg chl a '~ m^-2*')')) +
 #     theme_bw()
 meas_mass2 <- mutate(meas_mass,
+                     biomass_type = case_when(biomass_type == 'epil'~ 'Epilithon',
+                                              biomass_type == 'fila' ~ 'Filamentous'),
                      meas = case_when(meas < delta ~ delta,
                                       TRUE ~ meas))
 meas_chl2 <- mutate(meas_chl,
+                    biomass_type = case_when(biomass_type == 'epil'~ 'Epilithon',
+                                             biomass_type == 'fila' ~ 'Filamentous'),
                     meas = case_when(meas < delta ~ delta,
                                      TRUE ~ meas))
 mm <- qq %>% filter(units == 'gm2') %>%
-    mutate(fit = case_when(fit < delta ~ delta,
+    mutate(biomass_type = case_when(biomass_type == 'epil'~ 'Epilithon',
+                                    biomass_type == 'fila' ~ 'Filamentous'),
+           fit = case_when(fit < delta ~ delta,
                            TRUE ~ fit),
            fit_high = fit + se,
            fit_low = fit - se,
@@ -362,16 +372,18 @@ mm <- qq %>% filter(units == 'gm2') %>%
                     fill = biomass_type), alpha = 0.4, color = NA)+
     geom_point(data = meas_mass2, aes(date, meas, col = biomass_type))+
     facet_grid(site~year, scales = 'free_x') +
-    scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
-    scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
+    scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
+    scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
     scale_y_log10(limits = c(0.3, 600))+
     xlab('Date') +
-    ylab(expression('Algal Standing Crop (AFDM g '~ m^-2*')')) +
+    ylab(expression('Algal Biomass (AFDM g '~ m^-2*')')) +
     theme_classic()+
     theme(panel.border = element_rect(fill = NA),
           panel.spacing = unit(0, 'line'))
 cc <- qq %>%
-    mutate(fit = case_when(fit < delta ~ delta,
+    mutate(biomass_type = case_when(biomass_type == 'epil'~ 'Epilithon',
+                                    biomass_type == 'fila' ~ 'Filamentous'),
+           fit = case_when(fit < delta ~ delta,
                            TRUE ~ fit),
            fit_high = fit + se,
            fit_low = fit - se,
@@ -384,11 +396,11 @@ cc <- qq %>%
                     fill = biomass_type), alpha = 0.4, color = NA)+
     geom_point(data = meas_chl2, aes(date, meas, col = biomass_type))+
     facet_grid(site~year, scales = 'free_x') +
-    scale_color_discrete(type = c('#1B9EC9', '#97BB43'))+
-    scale_fill_discrete(type = c('#1B9EC9', '#97BB43'))+
+    scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
+    scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
     scale_y_log10(limits = c(0.3, 1000))+
     xlab('Date') +
-    ylab(expression('Algal Standing Crop (mg chl a '~ m^-2*')')) +
+    ylab(expression('Algal Chlorophyll (mg chl a '~ m^-2*')')) +
     theme_classic()+
     theme(panel.border = element_rect(fill = NA),
           panel.spacing = unit(0, 'line'))
@@ -397,7 +409,7 @@ png('figures/biomass_log_gamma_gams_comb_zeros.png', width = 7.5, height = 5, un
     res = 300)
 
     ggpubr::ggarrange(mm, cc, nrow = 1, common.legend = TRUE,
-                      labels = c('a', 'b'))
+                      labels = c('(a)', '(b)'))
 dev.off()
 
 # trim estimates so that they aren't more than 2 weeks from an actual measurement

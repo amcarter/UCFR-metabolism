@@ -59,6 +59,9 @@ bm_sum <- bm %>%
     ungroup() %>%
     mutate(year = year(date))
 
+sum(bm_sum$n_samp[which(bm_sum$site!='CR')])
+bm_sum %>% group_by(site) %>%
+    summarize(ndays = n())
 # pairwise_sum = function(x, y){
 #     z = mapply(function(xx, yy) sum(xx, yy, na.rm=T), x, y)
 #     z[is.na(x) & is.na(y)] = NA_real_

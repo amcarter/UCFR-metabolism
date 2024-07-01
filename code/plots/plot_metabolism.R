@@ -7,7 +7,9 @@ source('code/metabolism/functions_examine_SM_output.R')
 met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv') %>%
 # met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv') %>%
 # metabolism_compiled_all_sites_2000iter_bdr_kss05.csv') %>%
-    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
+    mutate(site = case_when(site == 'BM' ~ 'BG',
+                            TRUE ~ site),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BG', 'BN')))
 
 good_met <- met %>%
     select(-errors) %>%
@@ -31,14 +33,18 @@ good_met <- met %>%
 #
 # write_csv(dat, 'data/prepared_data/compiled_prepared_data.csv')
 dat <- read_csv('data/prepared_data/compiled_prepared_data.csv')%>%
-    mutate(site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN')))
-bmet <- read_csv('data/model_fits/biomass_metab_model_data.csv')
+    mutate(site = case_when(site == 'BM' ~ 'BG',
+                            TRUE ~ site),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BG', 'BN')))
+bmet <- read_csv('data/model_fits/biomass_metab_model_data.csv') %>%
+    mutate(site = case_when(site == 'BM' ~ 'BG',
+                            TRUE ~ site),
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BG', 'BN')))
 
     bmet %>%
         mutate(NEP = ER + GPP,
                doy = as.numeric(format(date, '%j')),
-               bmass = fila_chla_mgm2_fit+ epil_chla_mgm2_fit,
-               site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BM', 'BN'))) %>%
+               bmass = fila_chla_mgm2_fit+ epil_chla_mgm2_fit) %>%
         ggplot(aes(GPP, ER, col = site)) +
         geom_point() +
         # facet_grid(site~year) +
@@ -64,15 +70,35 @@ bmet <- read_csv('data/model_fits/biomass_metab_model_data.csv')
 
 lme4::lmer(log(GPP) ~log(light) + (1|site), bmet) %>% summary()
 
-M_sum <- met %>% mutate(NEP = GPP + ER, month = month(date))  %>% filter(site == 'GC', month %in% c(7,8,9)) %>% select(site, date, GPP, ER, NEP)
+M_sum <- met %>%
+    mutate(NEP = GPP + ER, month = month(date))  %>%
+    group_by(site, year) %>%
+    summarize(PR = mean(-GPP/ER, na.rm = T),
+              PR.sd = sd(-GPP/ER, na.rm = T),
+              GPP = mean(GPP, na.rm = T),
+              ER = mean(ER, na.rm = T),
+              NEP = GPP + ER
+              ) %>%
+    # filter(site == 'GC', month %in% c(7,8,9)) %>% select(site, date, GPP, ER, NEP)
     mutate(trophic = case_when(NEP > 0 ~ 'A',
-                               TRUE ~ ' ')) %>%
+                               TRUE ~ ' '),
+           PR = as.character(round(PR, 2)),
+           PR.sd = as.character(round(PR.sd, 2)),
+           PR_lab = (paste("PR = ", PR , "\U00B1" , PR.sd)))%>%
     select(-NEP) %>% ungroup() %>%
-    mutate(date = case_when(year == 2020 ~ as.Date('2020-10-30'),
-                            year == 2021 ~ as.Date('2021-10-28')),
-           GPP = rep(18, 12))
-write_csv(M_sum, 'data/metabolism/auto_sites_figure_labels.csv')
+    mutate(date = case_when(year == 2020 ~ as.Date('2020-08-08'),
+                            year == 2021 ~ as.Date('2021-09-17')),
+           GPP = rep(-22, 12))
 
+
+met %>% group_by(site, year) %>%
+    summarize(PR_cor = cor(GPP, ER, use = "complete.obs"),
+              NEP = mean(GPP + ER, na.rm = T)) %>%
+    arrange(PR_cor)
+    summary()
+
+# write_csv(M_sum, 'data/metabolism/auto_sites_figure_labels.csv')
+#
 png('figures/metabolism_across_sites.png', width = 6.5, height = 6.5,
     res = 300, units = 'in')
     M <- met %>%
@@ -94,15 +120,19 @@ png('figures/metabolism_across_sites.png', width = 6.5, height = 6.5,
         theme_classic() +
         theme(panel.border = element_rect(fill = NA),
               panel.spacing = unit(0, 'line'),
-              strip.background.y = element_blank(),  # Remove strip background
-              strip.text.y = element_blank()         # Remove strip text (labels)
+              # strip.background.y = element_blank(),  # Remove strip background
+              # strip.text.y = element_blank()         # Remove strip text (labels)
               )+
         # ylim(-24,24)+
         ylab(expression(paste('Metabolism (g ', O[2], m^-2, d^-1, ')'))) +
         xlab('Date')
 
-    M + geom_text(data = M_sum, aes(label = trophic), col = 'black')
+    # M + geom_text(data = M_sum, aes(label = trophic), col = 'black')
+
+    M + geom_text(data = M_sum, aes(label = PR_lab),
+                   col = 'black', size = 3.2)
 dev.off()
+
 
 png('figures/NEP_all_sites.png', width = 4, height = 4,
     res = 300, units = 'in')

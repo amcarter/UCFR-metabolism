@@ -91,7 +91,8 @@ dev.off()
 
 NPP <- met %>%
     group_by(site, year) %>%
-    summarize(NPP = mean(NPP), NPP2 = mean(NPP2), GPP = mean(GPP), ER = mean(ER)) %>%
+    summarize(NPP = mean(NPP),
+              GPP = mean(GPP), ER = mean(ER)) %>%
     left_join(q90, by = c('site', 'year'))
 
 ggplot(NPP, aes(ER, ARf, col = factor(year))) + geom_point(size = 2) +theme_minimal()

@@ -7,7 +7,7 @@ biomass <- read_csv('data/biomass_data/biomass_working_data.csv') %>%
            year = as.factor(lubridate::year(date)),
            site_year = paste(site, year, sep = '_'))
 
-glimpse(biomass)
+head(biomass)
 
 
 bb <- biomass %>% group_by(site, date, year) %>%
