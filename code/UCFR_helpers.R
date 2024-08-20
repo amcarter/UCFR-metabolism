@@ -6,6 +6,17 @@ library(loo)
 library(tidyverse)
 
 
+
+calculate_ts_mean_se <- function(ts){
+    ts <- zoo::na.approx(ts)
+    rho <- acf(ts, plot = FALSE)[[1]][2]
+    n <- length(ts)
+    neff <- n*(1-rho)/(1+rho)
+    sem <- sd(ts/sqrt(neff))
+    return(sem)
+
+}
+
 rle2 <- function(x){ # function for breaking site years to restart AR model
 
     r <- rle(x)

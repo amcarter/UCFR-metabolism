@@ -387,7 +387,6 @@ p
 dev.off()
 
 
-
 png('figures/percent_standing_crop_and_prod.png', width = 6, height = 3,
     units = 'in', res = 300, type = 'cairo')
 met_fig_dat <- bm_met %>%
@@ -599,28 +598,53 @@ bm_met %>%
     xlab('Date')
 
 
+# Numbers for results:
+dd <- bm_met %>% group_by(site, year) %>%
+    summarize(NPP = mean(NPP, na.rm = T )*12/32,
+              epil_prod_gCd = mean(epil_prod_gCd, na.rm = T),
+              fila_prod_gCd = mean(fila_prod_gCd, na.rm = T))
+summary(dd)
+sd(dd$NPP)/sqrt(12)
 
+mean(bm_met$epil_prod_gCd, na.rm = T)
+calculate_ts_mean_se(bm_met$epil_prod_gCd)
+mean(bm_met$fila_prod_gCd, na.rm = T)
+calculate_ts_mean_se(bm_met$fila_prod_gCd)
 
-bm_met %>%
+bm_rate <- bm_met %>%
     group_by(site, year) %>%
     mutate(fila_rate = fila_prod_gCd/(fila_gm2/2),
            epil_rate = epil_prod_gCd/(epil_gm2/2)) %>%
-    filter(fila_gm2 >= min_fila_gm2) %>%
-    summary()
-bm_met %>%
+    filter(fila_gm2 >= min_fila_gm2)
+summary(bm_rate)
+
+calculate_ts_mean_se(bm_rate$epil_rate)
+calculate_ts_mean_se(bm_rate$fila_rate)
+
+bm_prod <- bm_met %>%
     group_by(site, year) %>%
-    filter((year == 2020 & site %in% c('GR', 'GC'))|
-               (year == 2021 & site %in% c('GC', 'BN','BM')))%>%
     summarize(n = n(),
               fila_Biomass = max(fila_gm2)/2,
               epil_Biomass = max(epil_gm2)/2,
               fila_prod = mean(fila_prod_gCd),
               epil_prod = mean(epil_prod_gCd),
-              fila_cumprod = sum(fila_prod_gCd),
-              epil_cumprod = sum(epil_prod_gCd)) %>%
+              fila_cumprod = sum(fila_prod_gCd)*100/n,
+              epil_cumprod = sum(epil_prod_gCd)*100/n) %>%
     mutate(n_epil = epil_cumprod/epil_Biomass,
-           n_fila = fila_cumprod/fila_Biomass)%>%
-    summary()
+           n_fila = fila_cumprod/fila_Biomass)
+
+summary(bm_prod)
+sd(bm_prod$epil_cumprod)/sqrt(12)
+
+bm_bloom <-  filter(bm_prod, (year == 2020 & site %in% c('GR', 'GC'))|
+               (year == 2021 & site %in% c('GC', 'BN','BG')))
+bm_notbloom <-  filter(bm_prod, (year == 2020 & !(site %in% c('GR', 'GC')))|
+               (year == 2021 & !(site %in% c('GC', 'BN','BG'))))
+
+summary(bm_bloom)
+sd(bm_bloom$fila_cumprod)/sqrt(5)
+summary(bm_notbloom)
+sd(bm_notbloom$fila_cumprod)/sqrt(7)
 
 bm_met %>%
     filter(!(site %in% c('DL', 'PL') ))%>%

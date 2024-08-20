@@ -1,76 +1,48 @@
 UCFR todo:
 
-INTRODUCTION
-- Write the 2-3 main things this paper is doing (0.5)
-- turn those sentences into a final paragraph 'here we' (1)
-- Outline the main points that need to be made leading up to that (0.5)
-- edit the introduction other paragraphs (2)
+Figures:
+	- edit so all are consistent site names/placement ect.
+	1. incorporate site abbreviations in all.
+	2. add site names and P:R ratios (1.12 +- 0.3 to each panel. add info to caption.
+	3. Put the panel letter labels in parentheses, name axes algal biomass standing crop and chla standing crop. make both end at 100. remove underscore from legend.
+4. see bob's written comments.
+	make all panel labels consistent
+change GPP and ER to P and R
+ 
+Methods:
+	- go through Maury's document of conventions, etc.
+-find the units for light
 
-METHODS
-- Describe oxygen sensor deployment, calib, maintenance (1)
-- write stan fitting models section (0.5)
-- Edit time series model fitting and selection to reflect new models (1)
-- Edit the biomass section and move it up (1)
-- combine all instances of mentioning R version, Stan (0.5)
+Results
+- march through the results sequentially
+1) average C flux
+2) cumulative flux for fil and for epi
+3) even during blooms, did cumulative flux was less than the average epi flux 
+4) epi = 29% of standing crop but 72% of prod
+5) results in very different turnover times
 
-RESULTS
-- outline main results points as paragraphs (1)
-- edit the algal biomass production section (1)
-- edit the time series model fitting section (1)
-- look up how to talk about HGAM fits (1)
-- remake model tables (1.5)
+Writing:
+- new title
+- what to do about theory in the introduction?
+- find fluxnet paper to cite
+	- check maury's paragraph on UCFR for previous pubication
+- change turnover time to residence time (or vise versa)
+- edit introduction
+- add information about discharge by depth relationship to metabolism extimation section
+- shorten/tighten metabolism estimation section.
+	- move GAM code to SI
+- sufficiently link the site to site differences in fiGs 2-3 to the contents of figs 4-6.
+- add in P:R and ER x GPP correlation To the results.
 
-DISCUSSION
-		- outline main discussion points (1)
-		- structure into paragraphs and think about an order (1)
-- draft discussion (3)
-- write future research/implications paragraph (1) 
-
-FIGURES
-- make a new site map (or delegate) (2)
-
-SI
-- add captions to SI figures (1)
-- Make SI model table (1)
-
-OVERALL
-- use consistent parameter names throughout
-- reference models by model number
-- make all results past tense
-- check ref formatting and missing refs
-
-ANALYSIS
--finish fitting models
--make figure for model fit
-
-POSTER
-		-design layout (1)
-- make partitioned GPP plot (1)
-- make autotrophic respiration explanation panel (1)
-- outline main points from building biomass side and add equation(1.5)
-- fix light biomass example (0.5)
-- add individual lines to posterior fits (1)
-- write main points and equations for model panel (1.5)
-- add graphic explanation of model (1)
-- format and futz(1)
+check whole document:
+- no repeated acronym definitions
+- all acronyms are defined
+- all results are in past tense
+- all figures are in order
+- don't present data without a reference to a figure or a table
+- don't provide material in the figures that isn't referenced in the text
+- no methods statements in the results
+- consistency with variable names and units
 
 
-OLD:___________________________________________________________________________
-DATA ANALYSIS
-- fit biomass x chl a relationship with standardized axis regression
-- Compare cumulative GPP to biomass (maybe...)
-
-FIT MODELS
-- determine if gamma fit is better than linear
-- rerun model fits accordingly
-- recode models to all be timeseries hypotheses
-- code in stan to include biomass sampler
-- look at the residuals through time
-
-WRITING
-- Write up methods:
-	- fitting GAMS
-	- fitting stan models
-- Write up results including:
-	- comparison of Chla and biomass models
 
