@@ -8,17 +8,11 @@ library(dataRetrieval)
 library(lubridate)
 
 ##Load depth data
-setwd("C:/Users/alice.carter/git/UCFR-metabolism")
 site_dat <- read_csv('data/site_data/site_data.csv')%>%
     filter(!is.na(sitecode))
-UCFR_depth <- read_csv("data/site_data/UCFR_depth_summary.csv")
-UCFR_depth$date <- as.Date(UCFR_depth$date, format="%m-%d-%Y")
-start.20 <-as.Date("2020-07-13")
-end.21 <-as.Date("2021-11-01")
+start <-as.Date("2024-06-10")
+end <-as.Date("2024-09-13")
 
-##OPTIONAL-Make BG and BN the same data since they are very close together
-#BM.index<-which(UCFR_depth$site=="BM")
-#UCFR_depth[BM.index,]$site<-"BN"
 
 ## Download average daily Discharge directly from USGS for each gage
 dailyflow <- vector("list", 6) # 6 = number of sites
@@ -26,25 +20,28 @@ for (i in 1:6){
     dailyflow[[i]] <- readNWISdata(sites = site_dat$nwis_code[i], #download
                          service = "dv",
                          parameterCd = "00060",
-                         startDate = "2020-7-15",
-                         endDate = "2021-10-31")
+                         startDate = start,
+                         endDate = end)
 
-    dailyflow[[i]]$dateTime <- as.Date(dailyflow[[i]]$dateTime) #reformat date
-    dailyflow[[i]]$q.m3s<-dailyflow[[i]]$X_00060_00003/35.31 #transform from cubic feet per second to cubic meters per second
-    names(dailyflow[[i]])<-c("agency", "site", "date","q.cfs","code", "tz", "q.cms") # change column header names
+    dailyflow[[i]]$dateTime <- as.Date(dailyflow[[i]]$dateTime) # reformat date
+    dailyflow[[i]]$q.m3s<-dailyflow[[i]]$X_00060_00003/35.31 # transform from cubic feet per second to cubic meters per second
+    names(dailyflow[[i]])<-c("agency", "site", "date","q.cfs","code", "tz", "q.cms") # change column names
     dailyflow[[i]]<-select(dailyflow[[i]],
-                           c(-'agency', -'site', -'q.cfs', -'code', -'tz')) # remove unecessary data
+                           c(-'agency', -'site', -'q.cfs', -'code', -'tz')) # remove unnecessary data
     dailyflow[[i]]$site<-rep(site_dat$sitecode[[i]],
-                             length(dailyflow[[i]]$date)) # add column with site name
+                             length(dailyflow[[i]]$date)) # add site column
 }
 
 
 ## Turn list into data frame in long format
 daily.q <- do.call(rbind.data.frame, dailyflow)
 
+# subset based on desired dates
 daily.q.sub <- filter(daily.q, date >= start.20  & date <= end.21)
-write_csv(daily.q.sub, 'data/site_data/discharge_UCFRsites_2020.csv')
+# write_csv(daily.q.sub, 'data/site_data/discharge_UCFRsites_2020.csv')
 
+################################################################################
+# code to fit the depth model##
 ## Join discharge with depth and width data (by date)
 data.sub <- left_join(daily.q.sub, UCFR_depth)
 data <- left_join(daily.q, UCFR_depth)
@@ -87,10 +84,8 @@ ggplot(data=data, aes(x=log(q.cms), y=log(depth.m), color=site))+
 
 ####Analysis
 # use powel center database to set a prior for the depth Q scaling coefficient:
-sp <- read_tsv('../loticlentic_synthesis/data/powell_data_import/site_data/site_data.tsv')
-glimpse(sp)
-mean_f <- mean(sp$dvqcoefs.f, na.rm = T)    # 0.44686
-sd_f <- sd(sp$dvqcoefs.f, na.rm = T)        # 0.07805
+mean_f <- mean(0.44686, na.rm = T)    # 0.44686
+sd_f <- sd(0.07805, na.rm = T)        # 0.07805
 
 data <- data %>%
     mutate(logQ = log(q.cms),
@@ -144,12 +139,12 @@ write_csv(fits, 'data/site_data/depth_discharge_relationships_allsites.csv')
 site_dat
 plot(site_dat$`Distance downstream (km)`, data.frame(coef)$Estimate.Intercept)
 
-# ####Individual analysis ####
-# data.GR<-subset(data, site=="GR")
-# model<-lm(log(depth.m)~ log(q.cms), data=data.GR)
-# summary(model)
-#
-# ####Individual analysis
-# data.GR<-subset(data, site=="DL")
-# model<-lm(log(depth.m)~ log(q.cms), data=data.GR)
-# summary(model)
+################################################################################
+# Apply model to get depth #
+fits <- read_csv('data/site_data/depth_discharge_relationships_allsites.csv')
+
+flow_depth <- tibble(daily.q) %>%
+    mutate(logQ = log(q.cms)) %>%
+    left_join(select(fits, site, intercept, slope), by = 'site') %>%
+    mutate(logD = intercept + slope * logQ,
+           depth_m = exp(logD))
