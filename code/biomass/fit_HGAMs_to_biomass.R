@@ -63,74 +63,98 @@ for(site in unique(biomass$site)){
     preds$site = site
     s_preds <- bind_rows(s_preds, preds)
 }
-s_preds_lin <- s_preds_gamma <-
-    mutate(s_preds,
-           site_year = as.factor(paste(site, year, sep = '_'))) %>%
-    tibble()
+s_preds$site_year <- paste(s_preds$site, s_preds$year, sep = "_")
 
 link_fn = 'log' # gamma link function, log or inverse?
 delta = 0.5
 par(mfrow = c(2,2))
 
+hist(biomass$epilithon_gm2)
+hist(log(biomass$epilithon_gm2 + min_vals$min[min_vals$biomass == 'epilithon_gm2'] ))
+hist(biomass$filamentous_gm2)
+hist(log(biomass$filamentous_gm2 + min_vals$min[min_vals$biomass == 'filamentous_gm2'] ))
+
 # try it for all sites
 biomass$site_year <- factor(biomass$site_year)
 fg2_gamma <- gam(epilithon_gm2 +
                      min_vals$min[min_vals$biomass == 'epilithon_gm2'] ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML',
-              family = Gamma(link = link_fn))
-
-fg2 <- gam(epilithon_gm2 ~ s(doy) +
-               s(doy, site_year, bs = 'fs'),
-           data = biomass, method = 'REML', family = 'gaussian')
-
-gam.check(fg2)
+                     s(doy, site_year, bs = 'fs'),
+                 data = biomass, method = 'REML',
+                 family = Gamma(link = link_fn))
 
 gam.check(fg2_gamma)
-AIC(fg2)
 AIC(fg2_gamma)
 
-pp_lin <- mgcv::predict.gam(fg2, s_preds_lin, se.fit = TRUE)
-pp_gamma <- mgcv::predict.gam(fg2_gamma, s_preds_gamma, type = 'response',
-                        se.fit = TRUE)
+# pp_lin <- mgcv::predict.gam(fg2, s_preds_lin, se.fit = TRUE)
+pp_gamma <- mgcv::predict.gam(fg2_gamma, s_preds, type = 'response',
+                              se.fit = TRUE)
 
-s_preds_lin <- mutate(s_preds_lin,
-                      epil_gm2_fit = c(pp_lin$fit),
-                      epil_gm2_se = c(pp_lin$se.fit))
-s_preds_gamma <- mutate(s_preds_gamma,
-                        epil_gm2_fit = c(pp_gamma$fit) -
-                            min_vals$min[min_vals$biomass == 'epilithon_gm2'],
-                        epil_gm2_se = c(pp_gamma$se.fit))
+# s_preds_lin <- mutate(s_preds_lin,
+#                       epil_gm2_fit = c(pp_lin$fit),
+#                       epil_gm2_se = c(pp_lin$se.fit))
+s_preds <- mutate(s_preds,
+                  epil_gm2_fit = c(pp_gamma$fit) -
+                      min_vals$min[min_vals$biomass == 'epilithon_gm2'],
+                  epil_gm2_se = c(pp_gamma$se.fit))
 
 # filamentous
-fg2_fila_gamma <- gam(filamentous_gm2 +
-                          min_vals$min[min_vals$biomass == 'filamentous_gm2'] ~ s(doy) +
-                          s(doy, site_year, bs = 'fs'),
-                      data = biomass, method = 'REML',
-                      family = Gamma(link = link_fn))
+# fg2_fila <- gam(filamentous_gm2 ~ s(doy) +
+#                     s(doy, site_year, bs = 'fs'),
+#                 data = biomass, method = 'REML', family = 'gaussian')
 
-fg2_fila <- gam(filamentous_gm2 ~ s(doy) +
-                    s(doy, site_year, bs = 'fs'),
-                data = biomass, method = 'REML', family = 'gaussian')
+# fg2_fila_gamma <- gam(filamentous_gm2 +
+#                           min_vals$min[min_vals$biomass == 'filamentous_gm2'] ~
+#                           s(doy, k = 20) +
+#                           s(doy, site_year, bs = 'fs', k = 20),
+#                       data = biomass, method = 'REML',
+#                       family = Gamma(link = link_fn))
+# Presence/absence model
+biomass$present <- as.numeric(biomass$filamentous_gm2 > 0)
+fg2_fila_binom <- gam(present ~ s(doy, site_year, bs = 'fs', k = 4),
+            data = biomass, family = binomial)
+gam.check(fg2_fila_binom)
 
-AIC(fg2_fila)
-AIC(fg2_fila_gamma)
-
-gam.check(fg2_fila)
+# Gamma model on positives only
+fg2_fila_gamma <- gam(filamentous_gm2 ~ s(doy, k = 20) +
+                           s(doy, site_year, bs = 'fs', k = 10),
+            data = subset(biomass, filamentous_gm2 > 0),
+            family = Gamma(link = "log"), method = 'REML')
 gam.check(fg2_fila_gamma)
+# biomass_sub$residuals <- residuals(fg2_fila_gamma)
+# ggplot(biomass_sub, aes(doy, residuals, col = site_year)) +
+#     geom_point() +
+#     geom_line()
+
+# pp_lin <- mgcv::predict.gam(fg2_fila, s_preds_lin, se.fit = TRUE)
+pp_binom <- mgcv::predict.gam(fg2_fila_binom, newdata = s_preds,
+                          type = "response", se.fit = TRUE)
+pp_gamma1 <- mgcv::predict.gam(fg2_fila_gamma, type = 'response',
+                              s_preds, se.fit = TRUE)
+pp_gamma1$fit <- if_else(is.na(pp_gamma1$fit), 1, pp_gamma1$fit)
+pp_gamma1$se.fit <- if_else(is.na(pp_gamma1$se.fit), 1, pp_gamma1$se.fit)
+pp_gamma <- data.frame(fit = pp_binom$fit * pp_gamma1$fit,
+                       se.fit = sqrt((pp_binom$fit^2 * pp_gamma1$se.fit^2) +
+                                         (pp_gamma1$fit^2 * pp_binom$se.fit^2) +
+                                         (pp_binom$se.fit^2 * pp_gamma1$se.fit^2)))
+
+s_preds %>%
+    mutate(pred_binom = pp_binom$fit) %>%
+    ggplot(aes(doy, pred_binom)) +
+    geom_line() +
+    geom_point(data = biomass, aes(y = present), col = "green")+
+    facet_grid(site~year)
+
+s_preds <- mutate(s_preds,
+                  fila_gm2_fit = c(pp_gamma$fit),
+                  fila_gm2_se = c(pp_gamma$se.fit))
 
 
-pp_lin <- mgcv::predict.gam(fg2_fila, s_preds_lin, se.fit = TRUE)
-pp_gamma <- mgcv::predict.gam(fg2_fila_gamma, type = 'response',
-                              s_preds_gamma, se.fit = TRUE)
+ggplot(s_preds, aes(doy, fila_gm2_fit)) +
+    geom_line() +
+    geom_point(data = biomass, aes(y = filamentous_gm2), col = "green")+
+    facet_grid(site~year)
 
-s_preds_lin <- mutate(s_preds_lin,
-                      fila_gm2_fit = c(pp_lin$fit),
-                      fila_gm2_se = c(pp_lin$se.fit))
-s_preds_gamma <- mutate(s_preds_gamma,
-                        fila_gm2_fit = c(pp_gamma$fit)-
-                            min_vals$min[min_vals$biomass == 'filamentous_gm2'],
-                        fila_gm2_se = c(pp_gamma$se.fit))
+
 
 
 # chlorophyll
@@ -139,79 +163,69 @@ fg2_chla_gamma <- gam(epilithon_chla_mgm2 +
                           s(doy, site_year, bs = 'fs'),
                       data = biomass, method = 'REML',
                       family = Gamma(link = link_fn))
-fg2_chla <- gam(epilithon_chla_mgm2 ~ s(doy) +
-                  s(doy, site_year, bs = 'fs'),
-              data = biomass, method = 'REML', family = 'gaussian')
-
-gam.check(fg2_chla)
+# fg2_chla <- gam(epilithon_chla_mgm2 ~ s(doy) +
+#                   s(doy, site_year, bs = 'fs'),
+#               data = biomass, method = 'REML', family = 'gaussian')
+#
+# gam.check(fg2_chla)
 gam.check(fg2_chla_gamma)
 
-AIC(fg2_chla_gamma)
-AIC(fg2_chla)
-
-pp_gamma <- mgcv::predict.gam(fg2_chla_gamma, s_preds_gamma,
+# AIC(fg2_chla_gamma)
+# AIC(fg2_chla)
+#
+pp_gamma <- mgcv::predict.gam(fg2_chla_gamma, s_preds,
                               type ='response', se.fit = TRUE)
-pp_lin <- mgcv::predict.gam(fg2_chla, s_preds_lin, se.fit = TRUE)
+# pp_lin <- mgcv::predict.gam(fg2_chla, s_preds_lin, se.fit = TRUE)
 
-s_preds_lin <- mutate(s_preds_lin,
-                      epil_chla_mgm2_fit = c(pp_lin$fit),
-                      epil_chla_mgm2_se = c(pp_lin$se.fit))
-s_preds_gamma <- mutate(s_preds_gamma,
-                        epil_chla_mgm2_fit = c(pp_gamma$fit) -
-                            min_vals$min[min_vals$biomass == 'epilithon_chla_mgm2'],
-                        epil_chla_mgm2_se = c(pp_gamma$se.fit))
+# s_preds_lin <- mutate(s_preds_lin,
+#                       epil_chla_mgm2_fit = c(pp_lin$fit),
+#                       epil_chla_mgm2_se = c(pp_lin$se.fit))
+s_preds <- mutate(s_preds,
+                  epil_chla_mgm2_fit = c(pp_gamma$fit) -
+                      min_vals$min[min_vals$biomass == 'epilithon_chla_mgm2'],
+                  epil_chla_mgm2_se = c(pp_gamma$se.fit))
 
 # filamentous
-fg2_fila_chla_gamma <- gam(filamentous_chla_mgm2 +
-                               min_vals$min[min_vals$biomass == 'filamentous_chla_mgm2']~ s(doy) +
-                               s(doy, site_year, bs = 'fs'),
-                           data = biomass, method = 'REML',
-                           family = Gamma(link = link_fn))
-fg2_fila_chla <- gam(filamentous_chla_mgm2 ~ s(doy) +
-                        s(doy, site_year, bs = 'fs'),
-                     data = biomass, method = 'REML', family = 'gaussian')
-
-gam.check(fg2_fila_chla)
+biomass$present <- as.numeric(biomass$filamentous_chla_mgm2 > 0)
+fg2_fila_chla_binom <- gam(present ~ s(doy, site_year, bs = 'fs', k = 4),
+                       data = biomass, family = binomial)
+gam.check(fg2_fila_chla_binom)
+# Gamma model on positives only
+fg2_fila_chla_gamma <- gam(filamentous_chla_mgm2 ~ s(doy) +
+                           s(doy, site_year, bs = 'fs'),
+                       data = subset(biomass, filamentous_chla_mgm2 > 0),
+                       family = Gamma(link = "log"), method = 'REML')
 gam.check(fg2_fila_chla_gamma)
-AIC(fg2_fila_chla)
-AIC(fg2_fila_chla_gamma)
+# biomass_sub$residuals <- residuals(fg2_fila_chla_gamma)
+# ggplot(biomass_sub, aes(doy, residuals, col = site_year)) +
+#     geom_point() +
+#     geom_line()
+
+pp_binom <- mgcv::predict.gam(fg2_fila_chla_binom, newdata = s_preds,
+                          type = "response", se.fit = TRUE)
+pp_gamma1 <- mgcv::predict.gam(fg2_fila_chla_gamma, type = 'response',
+                               s_preds, se.fit = TRUE)
+pp_gamma1$fit <- if_else(is.na(pp_gamma1$fit), 1, pp_gamma1$fit)
+pp_gamma1$se.fit <- if_else(is.na(pp_gamma1$se.fit), 1, pp_gamma1$se.fit)
+pp_gamma <- data.frame(fit = pp_binom$fit * pp_gamma1$fit,
+                       se.fit = sqrt((pp_binom$fit^2 * pp_gamma1$se.fit^2) +
+                                         (pp_gamma1$fit^2 * pp_binom$se.fit^2) +
+                                         (pp_binom$se.fit^2 * pp_gamma1$se.fit^2)))
+
+s_preds <- mutate(s_preds,
+                  fila_chla_mgm2_fit = c(pp_gamma$fit),
+                  fila_chla_mgm2_se = c(pp_gamma$se.fit))
+
+s_preds %>%
+    mutate(pred_binom = pp_binom$fit) %>%
+    ggplot(aes(doy, pred_binom)) +
+    geom_line() +
+    geom_point(data = biomass, aes(y = present), col = "green")+
+    facet_grid(site~year)
 
 
-pp_gamma <- mgcv::predict.gam(fg2_fila_chla_gamma, s_preds_gamma,
-                              type ='response', se.fit = TRUE)
-pp_lin <- mgcv::predict.gam(fg2_fila_chla, s_preds_lin, se.fit = TRUE)
-
-s_preds_lin <- mutate(s_preds_lin,
-                      fila_chla_mgm2_fit = c(pp_lin$fit),
-                      fila_chla_mgm2_se = c(pp_lin$se.fit))
-s_preds_gamma <- mutate(s_preds_gamma,
-                        fila_chla_mgm2_fit = c(pp_gamma$fit)-
-                            min_vals$min[min_vals$biomass == 'filamentous_chla_mgm2'],
-                        fila_chla_mgm2_se = c(pp_gamma$se.fit))
 
 # Calculate fit metrics for the smoothness parameter
-k1 <- k.check(fg2) %>% data.frame() %>%
-    mutate(model = 'biofilm AFDM',
-           smooth_par = c('s(doy)', 's(doy, site_year)')) %>%
-    relocate(model, smooth_par)
-rownames(k1) <- NULL
-k2 <- k.check(fg2_fila) %>% data.frame() %>%
-    mutate(model = 'filamentous AFDM',
-           smooth_par = c('s(doy)', 's(doy, site_year)')) %>%
-    relocate(model, smooth_par)
-rownames(k2) <- NULL
-k3 <- k.check(fg2_chla) %>% data.frame() %>%
-    mutate(model = 'biofilm chla',
-           smooth_par = c('s(doy)', 's(doy, site_year)')) %>%
-    relocate(model, smooth_par)
-rownames(k3) <- NULL
-k4 <- k.check(fg2_fila_chla) %>% data.frame() %>%
-    mutate(model = 'filamentous chla',
-           smooth_par = c('s(doy)', 's(doy, site_year)')) %>%
-    relocate(model, smooth_par)
-rownames(k4) <- NULL
-k_check <- bind_rows(k1, k2, k3, k4)
-
 # gamma model
 k1 <- k.check(fg2_gamma) %>% data.frame() %>%
     mutate(model = 'biofilm AFDM',
@@ -252,26 +266,26 @@ png('figures/SI/biomass_loggammaGAMs_diagnostics.png', width = 7.5, height = 7.5
     par(mfrow = c(1,1), new = T)
     mtext('Model fit metrics for Biomass GAMS', line = 2.75)
 dev.off()
-png('figures/biomass_linGAMs_diagnostics.png', width = 7.5, height = 7.5,
-    units = 'in', res = 300)
-    par(mfrow = c(4,4),
-        mar = c(3,4,2,2),
-        oma = c(0,3,1,0))
-    gam.check(fg2)
-    mtext(expression(paste('epilithon g',m^-2)), 2, line = 45)
-    gam.check(fg2_fila)
-    mtext(expression(paste('filamentous g',m^-2)), 2, line = 45)
-    gam.check(fg2_chla)
-    mtext(expression(paste('epilithon chla mg',m^-2)), 2, line = 45)
-    gam.check(fg2_fila_chla)
-    mtext(expression(paste('filamentous chla mg',m^-2)), 2, line = 45)
-dev.off()
+# png('figures/biomass_linGAMs_diagnostics.png', width = 7.5, height = 7.5,
+#     units = 'in', res = 300)
+#     par(mfrow = c(4,4),
+#         mar = c(3,4,2,2),
+#         oma = c(0,3,1,0))
+#     gam.check(fg2)
+#     mtext(expression(paste('epilithon g',m^-2)), 2, line = 45)
+#     gam.check(fg2_fila)
+#     mtext(expression(paste('filamentous g',m^-2)), 2, line = 45)
+#     gam.check(fg2_chla)
+#     mtext(expression(paste('epilithon chla mg',m^-2)), 2, line = 45)
+#     gam.check(fg2_fila_chla)
+#     mtext(expression(paste('filamentous chla mg',m^-2)), 2, line = 45)
+# dev.off()
 
-qq = as_tibble(lapply(s_preds_lin, c)) %>% select(-site_year)
-write_csv(qq, 'data/biomass_data/linear_gam_fits_biomass.csv')
-write_csv(k_check, 'data/biomass_data/linear_gam_smoothness_parameter_checks.csv')
+# qq = as_tibble(lapply(s_preds_lin, c)) %>% select(-site_year)
+# write_csv(qq, 'data/biomass_data/linear_gam_fits_biomass.csv')
+# write_csv(k_check, 'data/biomass_data/linear_gam_smoothness_parameter_checks.csv')
 
-qq = as_tibble(lapply(s_preds_gamma, c)) %>% select(-site_year) %>%
+qq = as_tibble(lapply(s_preds, c)) %>% select(-site_year) %>%
     mutate(across(starts_with(c('epil', 'fila')),
                               ~case_when(. < 0 ~ 0,
                                          TRUE ~ .)))

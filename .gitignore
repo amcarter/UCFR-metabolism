@@ -7,3 +7,7 @@ code/download_prep_data/light/MODIS
 .Rproj.user
 todo_ucfr.txt
 .xlsx
+.DS_store
+*.docx
+*.pdf
+
