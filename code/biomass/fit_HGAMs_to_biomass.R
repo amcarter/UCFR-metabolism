@@ -76,14 +76,17 @@ hist(log(biomass$filamentous_gm2 + min_vals$min[min_vals$biomass == 'filamentous
 
 # try it for all sites
 biomass$site_year <- factor(biomass$site_year)
+biomass$year <- factor(biomass$year)
+biomass$site <- factor(biomass$site)
 fg2_gamma <- gam(epilithon_gm2 +
                      min_vals$min[min_vals$biomass == 'epilithon_gm2'] ~ s(doy) +
                      s(doy, site_year, bs = 'fs'),
                  data = biomass, method = 'REML',
                  family = Gamma(link = link_fn))
-
+AIC(fg2_gamma) # s(doy) = 2965.128; s(doy, year) = 2969.329, vs 2970.138
+summary(fg2_gamma) #42.8%
 gam.check(fg2_gamma)
-AIC(fg2_gamma)
+sqrt(mean((fitted(fg2_gamma) - biomass$epilithon_gm2)^2)) # 8.68
 
 # pp_lin <- mgcv::predict.gam(fg2, s_preds_lin, se.fit = TRUE)
 pp_gamma <- mgcv::predict.gam(fg2_gamma, s_preds, type = 'response',
@@ -112,14 +115,20 @@ s_preds <- mutate(s_preds,
 biomass$present <- as.numeric(biomass$filamentous_gm2 > 0)
 fg2_fila_binom <- gam(present ~ s(doy, site_year, bs = 'fs', k = 4),
             data = biomass, family = binomial)
-gam.check(fg2_fila_binom)
 
+AIC(fg2_fila_binom) # 315 vs 315
+gam.check(fg2_fila_binom)
+summary(fg2_fila_binom) #62.8%
+sqrt(mean((fitted(fg2_fila_binom) - biomass$present)^2)) #0.29
 # Gamma model on positives only
-fg2_fila_gamma <- gam(filamentous_gm2 ~ s(doy, k = 20) +
+fg2_fila_gamma <- gam(filamentous_gm2 ~ s(doy, year, bs = 'fs') +
                            s(doy, site_year, bs = 'fs', k = 10),
             data = subset(biomass, filamentous_gm2 > 0),
             family = Gamma(link = "log"), method = 'REML')
+AIC(fg2_fila_gamma) # s(doy) = 2392; s(doy, year) = 2390.851 cs 2388.598
+sqrt(mean((fitted(fg2_fila_gamma) - biomass$filamentous_gm2[biomass$filamentous_gm2>0])^2)) # 55.7
 gam.check(fg2_fila_gamma)
+summary(fg2_fila_gamma) #55.3%
 # biomass_sub$residuals <- residuals(fg2_fila_gamma)
 # ggplot(biomass_sub, aes(doy, residuals, col = site_year)) +
 #     geom_point() +
@@ -159,10 +168,15 @@ ggplot(s_preds, aes(doy, fila_gm2_fit)) +
 
 # chlorophyll
 fg2_chla_gamma <- gam(epilithon_chla_mgm2 +
-                          min_vals$min[min_vals$biomass == 'epilithon_chla_mgm2']~ s(doy) +
+                          min_vals$min[min_vals$biomass == 'epilithon_chla_mgm2']~
+                          s(doy, year, bs = "fs") +
                           s(doy, site_year, bs = 'fs'),
                       data = biomass, method = 'REML',
                       family = Gamma(link = link_fn))
+AIC(fg2_chla_gamma) # s(doy) = 3820; s(doy, year) = 3817.509, vs 3815.476
+summary(fg2_chla_gamma) #48.9%
+sqrt(mean((fitted(fg2_chla_gamma) - biomass$epilithon_chla_mgm2)^2)) # 18.9
+
 # fg2_chla <- gam(epilithon_chla_mgm2 ~ s(doy) +
 #                   s(doy, site_year, bs = 'fs'),
 #               data = biomass, method = 'REML', family = 'gaussian')
@@ -189,13 +203,22 @@ s_preds <- mutate(s_preds,
 biomass$present <- as.numeric(biomass$filamentous_chla_mgm2 > 0)
 fg2_fila_chla_binom <- gam(present ~ s(doy, site_year, bs = 'fs', k = 4),
                        data = biomass, family = binomial)
+AIC(fg2_fila_chla_binom)
 gam.check(fg2_fila_chla_binom)
+summary(fg2_fila_chla_binom) #59.5%
+sqrt(mean((fitted(fg2_fila_chla_binom) - biomass$present)^2)) #0.30
+
 # Gamma model on positives only
-fg2_fila_chla_gamma <- gam(filamentous_chla_mgm2 ~ s(doy) +
+fg2_fila_chla_gamma <- gam(filamentous_chla_mgm2 ~ s(doy, year, bs = "fs") +
                            s(doy, site_year, bs = 'fs'),
                        data = subset(biomass, filamentous_chla_mgm2 > 0),
                        family = Gamma(link = "log"), method = 'REML')
+AIC(fg2_fila_chla_gamma) # s(doy) = 2714 s(doy, year) = 2714.772 vs 2719.691
 gam.check(fg2_fila_chla_gamma)
+summary(fg2_fila_chla_gamma) # 49.9%
+sqrt(mean((fitted(fg2_fila_chla_gamma) -
+               biomass$filamentous_chla_mgm2[biomass$filamentous_chla_mgm2 >0])^2)) # 82.7
+
 # biomass_sub$residuals <- residuals(fg2_fila_chla_gamma)
 # ggplot(biomass_sub, aes(doy, residuals, col = site_year)) +
 #     geom_point() +

@@ -3,7 +3,21 @@ library(tidyverse)
 library(lubridate)
 
 met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv')# %>%
-# met <- read_csv('data/metabolism/metabolism_compiled_all_sites_2000iter_bdr_kss005.csv') %>%
+metse <- read_csv('data/metabolism/metabolism_compiled_all_sites_kb_oipi_05_bdr.csv') %>%
+    mutate(GPP.plus = GPP.upper - GPP,
+           GPP.minus = GPP - GPP.lower,
+           ER.plus = ER.upper - ER,
+           ER.minus = ER - ER.lower) %>%
+    select(site, date, ends_with(c("plus", "minus")))
+
+met <- left_join(met, metse, by = c("site", "date")) %>%
+    mutate(GPP.upper = GPP + GPP.plus,
+           GPP.lower = GPP - GPP.minus,
+           ER.upper = ER + ER.plus,
+           ER.lower = ER - ER.minus) %>%
+    select(-ends_with(c("plus", "minus")))
+
+write_csv(met, "data/metabolism/metabolism_compiled_all_sites_mle_fixedK_correctedSE.csv")
 #     mutate(across(starts_with(c('GPP', 'ER', 'K600'), ignore.case = FALSE),
 #                   ~case_when(DO_fit == 'bad' ~ NA_real_,
 #                             TRUE ~ .)))

@@ -4,7 +4,7 @@ library(tidyverse)
 library(lubridate)
 source('code/metabolism/functions_examine_SM_output.R')
 
-met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv') %>%
+met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK_correctedSE.csv') %>%
 # met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv') %>%
 # metabolism_compiled_all_sites_2000iter_bdr_kss05.csv') %>%
     mutate(site = case_when(site == 'BM' ~ 'BG',
@@ -70,15 +70,25 @@ bmet <- read_csv('data/model_fits/biomass_metab_model_data.csv') %>%
 
 lme4::lmer(log(GPP) ~log(light) + (1|site), bmet) %>% summary()
 
+met <- met %>%
+    mutate(NEP = GPP + ER,
+           GPP.se = (GPP.upper - GPP.lower)/(2*1.96),
+           ER.se = (ER.upper - ER.lower)/(2*1.96),
+           NEP.se = sqrt(GPP.se^2 + ER.se^2 + GPP.se*ER.se),
+           PR = -GPP/ER,
+           PR.se = PR * sqrt((GPP.se/GPP)^2 + (ER.se/ER)^2 -
+                                 2*(GPP.se * ER.se)/(GPP * ER)),
+           month = month(date))
 M_sum <- met %>%
-    mutate(NEP = GPP + ER, month = month(date))  %>%
     group_by(site, year) %>%
-    summarize(PR = mean(-GPP/ER, na.rm = T),
-              PR.sd = sd(-GPP/ER, na.rm = T),
+    summarize(PR = mean(PR, na.rm = T),
+              PR.sd = sd(GPP/ER, na.rm = T),
+              GPP.sd = sd(GPP, na.rm = T),
+              ER.sd = sd(ER, na.rm = T),
+              NEP.sd = sd(NEP, na.rm = T),
               GPP = mean(GPP, na.rm = T),
               ER = mean(ER, na.rm = T),
-              NEP = GPP + ER
-              ) %>%
+              NEP = GPP + ER) %>%
     # filter(site == 'GC', month %in% c(7,8,9)) %>% select(site, date, GPP, ER, NEP)
     mutate(trophic = case_when(NEP > 0 ~ 'A',
                                TRUE ~ ' '),
@@ -88,14 +98,13 @@ M_sum <- met %>%
     select(-NEP) %>% ungroup() %>%
     mutate(date = case_when(year == 2020 ~ as.Date('2020-08-08'),
                             year == 2021 ~ as.Date('2021-09-17')),
-           GPP = rep(-22, 12))
+           GPP = rep(-21, 12))
 
 
 met %>% group_by(site, year) %>%
     summarize(PR_cor = cor(GPP, ER, use = "complete.obs"),
               NEP = mean(GPP + ER, na.rm = T)) %>%
     arrange(PR_cor)
-    summary()
 
 # write_csv(M_sum, 'data/metabolism/auto_sites_figure_labels.csv')
 #
@@ -106,24 +115,20 @@ png('figures/metabolism_across_sites.png', width = 6.5, height = 6.5,
         filter(is.na(DO_fit) | DO_fit != 'bad') %>%
         ggplot(aes(date, GPP, group = c(site))) +
         geom_hline(yintercept = 0, size = 0.5, col = 'grey75')+
-        geom_line(col = '#007828') +
-        geom_point(col = '#007828', size = 0.7) +
-        geom_errorbar(aes(ymin = GPP.lower, ymax = GPP.upper),
-                      col = '#007828') +
-        # geom_point() +
-        geom_line(aes(y = ER), col = '#A84F06') +
-        geom_line(aes(y = NEP), col = 'black') +
-        geom_point(aes(y = ER), col = '#A84F06', size = 0.7) +
-        geom_errorbar(aes(ymin = ER.lower, ymax = ER.upper),
-                      col = '#A84F06') +
+        geom_line(col = 'grey30') +
+        geom_ribbon(aes(ymin = GPP.lower, ymax = GPP.upper),
+                      fill = '#007828', alpha = 0.6) +
+        geom_line(aes(y = ER), col = 'grey30') +
+        geom_line(aes(y = NEP), col = 'grey30') +
+        geom_ribbon(aes(ymin = ER.lower, ymax = ER.upper),
+                      fill = '#A84F06', alpha = 0.6 ) +
+        geom_ribbon(aes(ymin = NEP - 1.96*NEP.se, ymax = NEP + 1.96*NEP.se),
+                      fill = 'grey', alpha = 0.6 ) +
         facet_grid(site~year, scales = 'free_x') +
         theme_classic() +
         theme(panel.border = element_rect(fill = NA),
-              panel.spacing = unit(0, 'line'),
-              # strip.background.y = element_blank(),  # Remove strip background
-              # strip.text.y = element_blank()         # Remove strip text (labels)
-              )+
-        # ylim(-24,24)+
+              panel.spacing = unit(0, 'line'))+
+        ylim(-22.5,22)+
         ylab(expression(paste('Metabolism (g ', O[2], m^-2, d^-1, ')'))) +
         xlab('Date')
 

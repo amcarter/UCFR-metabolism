@@ -1,24 +1,31 @@
 library(tidyverse)
 library(rstan)
 library(lme4)
-
+library(brms)
 # Growth rate calculations ####
 
 # read in datasets:
-met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK.csv') %>%
+met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK_correctedSE.csv') %>%
     mutate(site = case_when(site == 'BM' ~ 'BG',
                             TRUE ~ site),
-           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BG', 'BN')))
+           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BG', 'BN')),
+           year = factor(year),
+           GPP.se = (GPP.upper - GPP.lower)/(2*1.96),
+           ER.se = (ER.upper - ER.lower)/(2*1.96))
 
-q90 <- read_csv('data/quantile_PR_fits_summary.csv') %>%
+q90 <- read_csv('data/quantile_PR_fits_summary_brms.csv') %>%
     mutate(site = case_when(site == 'BM' ~ 'BG',
-                            TRUE ~ site))
-met <- left_join(met, select(q90, site, year, ARf), by = c('site', 'year')) %>%
+                            TRUE ~ site),
+           year = factor(year))
+met <- left_join(met, select(q90, site, year, ARf = slope, ARf.se = slope.se), by = c('site', 'year')) %>%
     mutate(year = factor(year),
            NPP = GPP * (1-ARf),
+           NPP.se = sqrt(GPP.se ^2 + ARf.se^2),
            # NPP_globalARf = GPP * (1 + beta[2,1]),
            AR = -GPP *(ARf),
-           HR = ER - AR) %>%
+           AR.se = sqrt(GPP.se^2 + ARf.se^2),
+           HR = ER - AR,
+           HR.se = sqrt(ER.se^2 + AR.se^2)) %>%
     select(-msgs.fit, -warnings, -errors, -K600, -DO_fit)
 
 biogams <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv')
@@ -29,9 +36,12 @@ light <- read_csv('data/site_data/daily_modeled_light_all_sites.csv') %>%
 
 # create data frame for models
 bm_met <- select(biogams, site, date, epil_gm2_fit, fila_gm2_fit,
-                 epil_chla_mgm2_fit, fila_chla_mgm2_fit) %>%
+                 epil_chla_mgm2_fit, fila_chla_mgm2_fit,
+                 epil_gm2_se, fila_gm2_se,
+                 epil_chla_mgm2_se, fila_chla_mgm2_se) %>%
     rename_with(~gsub('_fit', '', .x)) %>%
-    left_join(select(ungroup(met), site, date, year, GPP, ER, ARf, NPP),
+    left_join(select(ungroup(met), site, date, year, GPP, ER, ARf, NPP,
+                     GPP.se, ER.se, ARf.se, NPP.se),
               by = c('site', 'date')) %>%
     left_join(select(light, site, date, PAR_surface)) %>%
     mutate(light = PAR_surface/max(PAR_surface)) %>%
@@ -44,7 +54,7 @@ mod2 <- lm(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
 mod3 <- lm(NPP/light ~ 0 + epil_gm2 + fila_gm2, bm_met)
 
 modmix <- lme4::lmer(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2 +
-                         (0+epil_chla_mgm2|site) + (0+fila_chla_mgm2|site),
+                         (0+epil_chla_mgm2+fila_chla_mgm2|site),
                      data = bm_met,
                      REML = FALSE,
                      control = lmerControl(optimizer ="Nelder_Mead"))
@@ -53,9 +63,64 @@ summary(modmix)
 ranef(modmix)
 
 # build model using brms:
-modmix_brm <- brms::brm(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2 +
-                            (0 + epil_chla_mgm2|site) + (0 + fila_chla_mgm2|site),
-                        data = bm_met)
+bm_met <- bm_met %>%
+    mutate(NPPL = NPP/light)
+
+hist(bm_met$NPPL)
+hist(log(bm_met$NPPL))
+hist(bm_met$epil_chla_mgm2)
+hist(bm_met$fila_chla_mgm2)
+bm_met$siteyear = as.factor(paste0(bm_met$site, bm_met$year))
+
+bfmix <- bf(NPPL|se(NPP.se) ~ 0 + me(epil_chla_mgm2, epil_chla_mgm2_se) +
+                 me(fila_chla_mgm2, fila_chla_mgm2_se) +
+                (0 + me(epil_chla_mgm2, epil_chla_mgm2_se) +
+                     me(fila_chla_mgm2, fila_chla_mgm2_se)|siteyear))
+get_prior(bfmix, data = bm_met, family = gaussian(link = "log"))
+
+mean(bm_met$epil_chla_mgm2_se)
+mean(bm_met$fila_chla_mgm2_se)
+
+priors <- c(
+    prior(lognormal(-1.6, 1), class = "b", coef = "mefila_chla_mgm2fila_chla_mgm2_se"),
+    prior(lognormal(-0.9, 1), class = "b", coef = "meepil_chla_mgm2epil_chla_mgm2_se"),
+    prior(normal(5, 5), class = "meanme", coef = "meepil_chla_mgm2"),
+    prior(normal(15, 5), class = "meanme", coef = "mefila_chla_mgm2"),
+    prior(normal(0, 0.1), class = "sd")
+)
+
+init_func <- function(chain_id=1) {
+    list ( beta  =  0.3 ,
+           sigma  =  0.1,
+           cor = 0.2,
+           b = 0.3,
+           meanme = 0.8,
+           sd = 0.1,
+           sdme = 0.1)
+}
+
+init_func(chain_id = 1)
+init_list <- list(
+    init_func(chain_id = 1),
+    init_func(chain_id = 2),
+    init_func(chain_id = 3),
+    init_func(chain_id = 4)
+)
+
+modmix_brm <- brms::brm(bfmix,
+# modmix_brm <- brms::stancode(bfmix,
+                        data = bm_met,
+                        family = gaussian(),
+                        prior = priors,
+                        iter = 1000,
+                        control = options(max_treedepth = 18,
+                                          adapt_delta = 0.95),
+                        chains = 4, cores = 4)
+
+saveRDS(modmix_brm, "data/model_fits/brms_NPP_partition.rds")
+modmix_brm <- readRDS("data/model_fits/brms_NPP_partition.rds")
+summary(modmix_brm)
+
 
 bm_met %>%
     mutate(preds = predict(mod2, newdata = bm_met)) %>%
