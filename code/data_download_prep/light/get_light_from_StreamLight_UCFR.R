@@ -21,7 +21,7 @@ sitedat <- read_csv('data/site_data/site_data.csv') %>%
            Site_ID = paste0('nwis_', nwis_code))
 # Download and Process NLDAS data for incoming radiation ####
 # Set the download location (add your own directory)
-base_dir <- "C:/Users/alice.carter/git/UCFR-metabolism"
+base_dir <- "/Users/alicecarter/git/UCFR-metabolism"
 working_dir <- paste0(base_dir, '/code/data_download_prep/light/NLDAS')
 
 # for multiple sites
@@ -76,7 +76,7 @@ write.table(
 
 # Save the zip file downloaded from AppEEARS
 # Unpack the data after downloading
-working_dir <- "C:/Users/alice.carter/git/UCFR-metabolism/code/data_download_prep/light/MODIS"
+working_dir <- "/Users/alicecarter/git/UCFR-metabolism/code/data_download_prep/light/MODIS"
 setwd(working_dir)
 
 # do this manually because this function doesn't seem to work
@@ -184,12 +184,12 @@ predicted <- readRDS(paste(working_dir, '/BN_predicted.rds', sep = ''))
 predicted %>%
   mutate(date = as.Date(local_time)) %>%
   group_by(date) %>%
-  summarize(par_surface = sum(PAR_surface),
-            par_inc = sum(PAR_inc)) %>%
+  summarize(par_bc = sum(PAR_bc * 60 * 60) * 2.04 / 10^6,
+            par_inc = sum(PAR_inc * 60 * 60) * 2.04 / 10^6) %>%
   ungroup() %>%
   ggplot(aes(date, par_inc)) +
     geom_point(col = 'grey') +
-    geom_point(aes(y = par_surface), col = 'gold') +
+    geom_point(aes(y = par_bc), col = 'gold') +
     theme_minimal()
 
 # Combine the outputs into one file
@@ -201,26 +201,26 @@ for(site in as.character(site_parm[,'Site_ID'])){
 
   pred <- readRDS(paste(working_dir, '/', site, '_predicted.rds', sep = ''))
   ss <- pred %>%
-  dplyr::select(local_time, LAI, PAR_inc, PAR_surface) %>%
-  mutate(date = as.Date(local_time, tz = 'America/Denver'),
-         site = site)
+      dplyr::select(local_time, LAI, PAR_inc, PAR_bc) %>%
+      mutate(date = as.Date(local_time, tz = 'America/Denver'),
+             site = site)
   dat_daily <- bind_rows(dat_daily, ss)
 
   ss <- ss %>%
   group_by(site, date) %>%
   summarize(light_hrs = length(which(PAR_inc>0)),
             LAI = mean(LAI, na.rm = T),
-            PAR_inc = sum(PAR_inc),
-            PAR_surface = sum(PAR_surface)) %>%
+            PAR_inc_Jm2 = sum(PAR_inc * 60 * 60) * 2.04 / 10^6,
+            PAR_bc_Jm2 = sum(PAR_bc * 60 * 60) * 2.04 / 10^6) %>%
   ungroup()
 
   dat <- bind_rows(dat, ss)
 }
 dat %>%
-ggplot(aes(date, PAR_surface, col = site)) +
+ggplot(aes(date, PAR_inc_Jm2, col = site)) +
   geom_point()
 
-write_csv(dat, 'C:/Users/alice.carter/git/UCFR-metabolism/data/site_data/daily_modeled_light_all_sites.csv')
-write_csv(dat_daily, 'C:/Users/alice.carter/git/UCFR-metabolism/data/site_data/hourly_modeled_light_all_sites.csv')
+write_csv(dat, '/Users/alicecarter/git/UCFR-metabolism/data/site_data/daily_modeled_light_all_sites.csv')
+write_csv(dat_daily, '/Users/alicecarter/git/UCFR-metabolism/data/site_data/hourly_modeled_light_all_sites.csv')
 dat <- read_csv('C:/Users/alice.carter/git/UCFR-metabolism/data/site_data/daily_modeled_light_all_sites.csv')
 

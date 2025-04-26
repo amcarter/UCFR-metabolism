@@ -38,10 +38,14 @@ biogams <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv') %>%
            filac = log(fila_chla_mgm2_fit + 1),
            filacse = abs(fila_chla_mgm2_se/(fila_chla_mgm2_fit+1)))
 
+# need to get light into the correct units! ####
 light <- read_csv('data/site_data/daily_modeled_light_all_sites.csv') %>%
     mutate(site = case_when(site == 'BM' ~ 'BG',
                             TRUE ~ site))
-
+ggplot(light, aes(date, PAR_bc_Jm2, col = site)) +
+    geom_line()
+ggplot(light, aes(date, LAI, col = site)) +
+    geom_line()
 
 # create data frame for models
 bm_met <- select(biogams, site, date, epil_gm2_fit, fila_gm2_fit,
@@ -54,8 +58,8 @@ bm_met <- select(biogams, site, date, epil_gm2_fit, fila_gm2_fit,
     left_join(select(ungroup(met), site, date, year, GPP, ER, ARf, NPP,
                      GPP.se, ER.se, ARf.se, NPP.se),
               by = c('site', 'date')) %>%
-    left_join(select(light, site, date, PAR_surface)) %>%
-    mutate(light = PAR_surface/max(PAR_surface),
+    left_join(select(light, site, date, PAR_bc_Jm2)) %>%
+    mutate(light = PAR_bc_Jm2/max(PAR_bc_Jm2),
            epilcl = epilc*light,
            epilcsel = epilcse*light,
            filacl = filac*light,
@@ -65,13 +69,178 @@ bm_met <- select(biogams, site, date, epil_gm2_fit, fila_gm2_fit,
     filter(!is.na(GPP))
 
 # write_csv(bm_met, "data_for_model.csv")
-bm_met <- read_csv("data_for_model.csv")
+# bm_met <- read_csv("data_for_model.csv")
 
-# different model versions
-mod <- lm(GPP ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
+# Simulate data ####
+N = nrow(bm_met)
+
+B_f = rgamma(N, shape = mean(bm_met$fila_chla_mgm2)^2/sd(bm_met$fila_chla_mgm2),
+             rate = mean(bm_met$fila_chla_mgm2)/sd(bm_met$fila_chla_mgm2))
+B_e = rgamma(N, shape = mean(bm_met$epil_chla_mgm2)^2/sd(bm_met$epil_chla_mgm2),
+             rate = mean(bm_met$epil_chla_mgm2)/sd(bm_met$epil_chla_mgm2))
+B_f_se = rgamma(N, 1, 4)
+B_e_se = rgamma(N, 1, 2)
+
+
+site = factor(bm_met$site)
+light = bm_met$PAR_bc_Jm2
+
+# define coefficients:
+mu_f = 0.1
+sigma_f = 0.02
+mu_fj = rnorm(6, mu_f, sigma_f)
+mu_e = 0.5
+K_Bf = 0.2
+K_I = 5
+sigma = 1
+
+# Simulate NPP:
+# NPP = (mu_f * B_f * (1/(1 + K_Bf * B_f)) + mu_e * B_e) * (light/(K_I + light)) +
+NPP = (mu_fj[site] * B_f + mu_e * B_e) * (light/(K_I + light)) +
+    rnorm(N, 0, sigma)
+
+plot(NPP~B_f)
+abline(0, mu_f)
+
+# test brms model:
+dd <- data.frame(NPP = NPP,
+                 B_e = B_e,
+                 B_f = B_f,
+                 light = light)
+# bb <- brm(NPP ~ 0 + B_e + B_f, data = dd)
+
+# Fit STAN model ####
+# Prepare data for Stan
+sim_list <- list(
+    N = nrow(bm_met),
+    NPP = NPP,
+    Mme = 2,
+    NCme = 1,
+    B_f_mean = B_f,
+    B_e_mean = B_e,
+    B_f_se = B_f_se,
+    B_e_se = B_e_se
+    # light = light
+)
+
+# Compile the Stan model
+summary(lm(NPP ~ 0 + B_e + B_f))
+stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error.stan")
+stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error2.stan")
+
+# init_list = list(list(mu_f = 0.2,
+#                       sigma_f = 0.1),
+#                  list(mu_f = 0.3,
+#                       sigma_f = 0.05),
+#                  list(mu_f = 0.25,
+#                       sigma_f = 0.12),
+#                  list(mu_f = 0.22,
+#                       sigma_f = 0.08))
+
+# Run the Stan model
+fit_sim <- sampling(stan_model,
+                    data = sim_list,
+                    iter = 2000,
+                    # init = init_list,
+                    chains = 4,
+                    cores = 4)
+
+# Evaluate the output
+summary(bb)
+summary(fit_sim, pars = c("mu_f", "mu_e", "K_I", "sigma"))
+summary(fit_sim, pars = c("mu_f", "sigma_f", "mu_e", "K_I", "sigma"))
+traceplot(fit_sim, pars = c("mu_f", "mu_e", "K_I", "sigma"))
+plot(fit_sim, pars = c("mu_f", "mu_e", "K_Bf", "K_I", "sigma"))
+pairs(fit_sim, pars = c("mu_f", "mu_e", "K_Bf", "K_I", "sigma"))
+
+sim_ppreds <- summary(fit_sim)$summary %>%
+    data.frame() %>%
+    mutate(param = rownames(summary(fit_sim)$summary))
+
+plot(density(sim_ppreds$mean), xlim = c(0, 30), lty = 2)
+lines(density(NPP))
+
+# Fit model on real data####
+lm(NPP/light ~ 0 + fila_chla_mgm2 + epil_chla_mgm2, data = bm_met)
+
+dat_list <- list(
+    N = nrow(bm_met),
+    Mme = 2,
+    NCme = 1,
+    NPP = bm_met$NPP,
+    B_f_mean = bm_met$fila_chla_mgm2,
+    B_e_mean = bm_met$epil_chla_mgm2,
+    B_f_se = bm_met$fila_chla_mgm2_se,
+    B_e_se = bm_met$epil_chla_mgm2_se
+    )
+    # light = bm_met$PAR_bc_Jm2)
+
+fit <- sampling(stan_model,
+                data = dat_list,
+                iter = 3000,
+                control = list(max_treedepth = 15),
+                chains = 4,
+                cores = 4)
+
+summary(fit)
+summary(modmix_brma)
+fit@stanmodel
+traceplot(fit)
+meanme <- c(7.2e-8, 25)
+sdme <- c(7.46e-7, 8.19)
+
+bfmix <- bf(NPP ~ 0 +  me(fila_chla_mgm2, fila_chla_mgm2_se) + me(epil_chla_mgm2, epil_chla_mgm2_se) )
+
+get_prior(bfmix, data = bm_met, family = gaussian)
+
+priorsa <- c(
+    prior(normal(0, 0.1), class = "b", coef = "mefila_chla_mgm2fila_chla_mgm2_se"),
+    prior(normal(0, 0.3), class = "b", coef = "meepil_chla_mgm2epil_chla_mgm2_se"),
+    prior(normal(0, 1), class = "meanme"))
+
+brms::stancode(bfmix, data = bm_met, family = gaussian, prior = priorsa)
+
+modmix_brma <- brms::brm(bfmix,
+                         data = bm_met,
+                         prior = priorsa,
+                         iter = 4000,
+                         control = options(max_treedepth = 16,
+                                           adapt_delta = 0.9),
+                         chains = 4, cores = 4)
+
+
+summary(modmix_brma)
+mean(bm_met$epil_chla_mgm2)
+mean(bm_met$fila_chla_mgm2)
+Lme <- matrix(data = c(1,0, 0.7, 0.96), ncol = 2)
+zme <- matrix(data = c(0.17,0.2,0.188,0.241,
+                       1,1,1,1), ncol = 2)
+
+matrix(c(rep(meanme[1], 4), rep(meanme[2], 4)), ncol = 2) + t((diag(sdme) %*% Lme) %*% t(zme))
+bm_met %>% select(fila_chla_mgm2, epil_chla_mgm2)
+
+summary(fit, pars = c("mu_f", "mu_e", "K_I", "sigma"))
+traceplot(fit, pars = c("mu_f", "mu_e", "K_I", "sigma"))
+traceplot(fit, pars = c("mu_f", "mu_e", "K_I", "sigma"))
+summary(fit, pars = c("mu_f", "sigma_f", "mu_e", "sigma_e", "K_I", "sigma"))
+traceplot(fit, pars = c("mu_f", "sigma_f", "mu_e", "sigma_e", "K_I", "sigma"))
+pairs(fit, pars = c("mu_f", "mu_e", "K_I", "sigma"))
+
+fit_ppreds <- summary(fit)$summary %>%
+    data.frame() %>%
+    mutate(param = rownames(summary(fit)$summary))
+
+plot(density(fit_ppreds$mean), xlim = c(-5, 20), lty = 2)
+lines(density(bm_met$NPP))
+
+NPP_meas <- bm_met$NPP
+shinystan::launch_shinystan(fit)
+
++ epil_chla_mgm2 + fila_chla_mgm2, bm_met)
 mod1 <- lm(NPP ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
-mod2 <- lm(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
-mod3 <- lm(NPP/light ~ 0 + epil_gm2 + fila_gm2, bm_met)
+mod2 <- lm(NPP ~ 0 + epil_chla_mgm2_l + fila_chla_mgm2_l, bm_met)
+mod3 <- lm(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
+mod4 <- lm(NPP/light ~ 0 + epil_gm2 + fila_gm2, bm_met)
 
 modmix1 <- lme4::lmer(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2 +
                          (0+epil_chla_mgm2+fila_chla_mgm2|site),
@@ -169,33 +338,34 @@ text(2.5, 0.18, "p(turnover time < 1 day)", col = "purple", cex = 0.8)
 abline(v = median_epil, lty = 2)
 dev.off()
 
-
+example(stan_model, package = "rstan", run.dontrun = TRUE)
 # Fit BRMS models: ####
 # Model 1: NPPL = (epil) + (fila)) * L
+bfmix <- bf(NPP ~ 0 +  me(fila_chla_mgm2, fila_chla_mgm2_se) + me(epil_chla_mgm2, epil_chla_mgm2_se) )
 bfmix <- bf(NPPL ~ 0 +  me(epil_chla_mgm2, epil_chla_mgm2_se) + me(fila_chla_mgm2, fila_chla_mgm2_se) +
                 (0 + me(epil_chla_mgm2, epil_chla_mgm2_se) + me(fila_chla_mgm2, fila_chla_mgm2_se)|siteyear))
 
 get_prior(bfmix, data = bm_met, family = gaussian)
+brms::stancode(bfmix, data = bm_met, family = gaussian, prior = priorsa)
 
 priorsa <- c(
-    prior(normal(0, 0.1), class = "b", coef = "mefilaclfilacsel"),
-    prior(normal(0, 0.3), class = "b", coef = "meepilclepilcsel"),
-    prior(normal(0, 0.2), class = "sd")
-)
+    prior(normal(0, 0.1), class = "b", coef = "mefila_chla_mgm2fila_chla_mgm2_se"),
+    prior(normal(0, 0.3), class = "b", coef = "meepil_chla_mgm2epil_chla_mgm2_se"),
+    prior(normal(0, 1), class = "meanme"))
+
 priorsb <- c(
     prior(lognormal(-2.5, 1), class = "b", coef = "mefilaclfilacsel"),
     prior(lognormal(-1.2, 1), class = "b", coef = "meepilclepilcsel"),
     prior(normal(0, 0.2), class = "sd")
 )
 
-# modmix_brma <- brms::brm(bfmix,
-#                         data = bm_met,
-#                         family = gaussian(link = "identity"),
-#                         prior = priorsa,
-#                         iter = 6000,
-#                         control = options(max_treedepth = 16,
-#                                           adapt_delta = 0.9),
-#                         chains = 4, cores = 4)
+modmix_brma <- brms::brm(bfmix,
+                        data = bm_met,
+                        prior = priorsa,
+                        iter = 4000,
+                        control = options(max_treedepth = 16,
+                                          adapt_delta = 0.9),
+                        chains = 4, cores = 4)
 # saveRDS(modmix_brma, "data/model_fits/brms_NPPL_partition_linElinF_gaussPrior.rds")
 modL_linElinF_gauss <- readRDS("data/model_fits/model_fits/brms_NPPL_partition_linElinF_gaussPrior.rds")
 summary(modL_linElinF_gauss)
