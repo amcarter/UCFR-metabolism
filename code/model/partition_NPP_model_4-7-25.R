@@ -73,14 +73,18 @@ bm_met <- select(biogams, site, date, epil_gm2_fit, fila_gm2_fit,
 
 # Simulate data ####
 N = nrow(bm_met)
-
+meanme <- c(40, 30)
+sdme <- c(12, 8)
 B_f = rgamma(N, shape = mean(bm_met$fila_chla_mgm2)^2/sd(bm_met$fila_chla_mgm2),
              rate = mean(bm_met$fila_chla_mgm2)/sd(bm_met$fila_chla_mgm2))
 B_e = rgamma(N, shape = mean(bm_met$epil_chla_mgm2)^2/sd(bm_met$epil_chla_mgm2),
              rate = mean(bm_met$epil_chla_mgm2)/sd(bm_met$epil_chla_mgm2))
-B_f_se = rgamma(N, 1, 4)
-B_e_se = rgamma(N, 1, 2)
 
+B_f_se = rgamma(N, 1/3, 1/3)
+B_e_se = rgamma(N, 1/2, 1/2)
+
+B_f_mod <- rgamma(N, shape = B_f^2/B_f_se, rate = B_f/B_f_se)
+B_e_mod <- rgamma(N, shape = B_e^2/B_e_se, rate = B_e/B_e_se)
 
 site = factor(bm_met$site)
 light = bm_met$PAR_bc_Jm2
@@ -95,19 +99,27 @@ K_I = 5
 sigma = 1
 
 # Simulate NPP:
+NPP = mu_f * B_f + mu_e * B_e + rnorm(N, 0, sigma)
 # NPP = (mu_f * B_f * (1/(1 + K_Bf * B_f)) + mu_e * B_e) * (light/(K_I + light)) +
 NPP = (mu_fj[site] * B_f + mu_e * B_e) * (light/(K_I + light)) +
     rnorm(N, 0, sigma)
 
-plot(NPP~B_f)
-abline(0, mu_f)
 
 # test brms model:
 dd <- data.frame(NPP = NPP,
-                 B_e = B_e,
-                 B_f = B_f,
-                 light = light)
-# bb <- brm(NPP ~ 0 + B_e + B_f, data = dd)
+                 B_e_mod = B_e_mod,
+                 B_f_mod = B_f_mod,
+                 B_e_se = B_e_se,
+                 B_f_se = B_f_se)
+ll <- lm(NPP ~ 0 + B_e_mod + B_f_mod, data = dd)
+summary(ll)
+bform <- bf(NPP ~ 0 + me(B_e_mod, B_e_se) + me(B_f_mod, B_f_se))
+stancode(bform, data = dd)
+bb <- brm(NPP ~ 0 + me(B_e_mod, B_e_se) + me(B_f_mod, B_f_se),
+          data = dd,
+          ncores = 4, nchains = 4)
+summary(bb)
+
 
 # Fit STAN model ####
 # Prepare data for Stan
@@ -116,17 +128,17 @@ sim_list <- list(
     NPP = NPP,
     Mme = 2,
     NCme = 1,
-    B_f_mean = B_f,
-    B_e_mean = B_e,
-    B_f_se = B_f_se,
-    B_e_se = B_e_se
+    Bf_mod = B_f_mod,
+    Be_mod = B_e_mod,
+    Bf_se = B_f_se,
+    Be_se = B_e_se
     # light = light
 )
 
 # Compile the Stan model
-summary(lm(NPP ~ 0 + B_e + B_f))
-stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error.stan")
-stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error2.stan")
+stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_brms_build.stan")
+# stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error.stan")
+# stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error2.stan")
 
 # init_list = list(list(mu_f = 0.2,
 #                       sigma_f = 0.1),
@@ -138,7 +150,7 @@ stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error2.stan"
 #                       sigma_f = 0.08))
 
 # Run the Stan model
-fit_sim <- sampling(stan_model,
+fit_sim_lb <- sampling(stan_model,
                     data = sim_list,
                     iter = 2000,
                     # init = init_list,
@@ -147,7 +159,10 @@ fit_sim <- sampling(stan_model,
 
 # Evaluate the output
 summary(bb)
-summary(fit_sim, pars = c("mu_f", "mu_e", "K_I", "sigma"))
+summary(fit_sim)
+summary(fit_sim_lb, pars = c("mu_f", "mu_e", "meanme", "sdme", "sigma"))
+traceplot(fit_sim_lb, pars = c("mu_f", "mu_e", "meanme", "sdme", "sigma"))
+pairs(fit_sim, pars = c("mu_f", "mu_e", "meanme", "sdme", "sigma"))
 summary(fit_sim, pars = c("mu_f", "sigma_f", "mu_e", "K_I", "sigma"))
 traceplot(fit_sim, pars = c("mu_f", "mu_e", "K_I", "sigma"))
 plot(fit_sim, pars = c("mu_f", "mu_e", "K_Bf", "K_I", "sigma"))
