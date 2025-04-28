@@ -208,15 +208,16 @@ dat_list <- list(
   Zs_2_3 = standata(f2_bgamma)$Zs_2_3
 )
 
-# fitg <- sampling(stan_mod,
-#                  data = dat_list,
-#                  control = list(max_treedepth = 14,
-#                                 adapt_delta = 0.95),
-#                  iter = 5000,
-#                  chains = 4,
-#                  cores = 4)
-#
-# saveRDS(fitg, "full_biomass_partition_mod.rds")
+fitg <- sampling(stan_mod_err,
+                 data = dat_list,
+                 control = list(max_treedepth = 15,
+                                adapt_delta = 0.99,
+                                stepsize = 0.01),
+                 iter = 8000,
+                 chains = 4,
+                 cores = 4)
+
+saveRDS(fitg, "full_biomass_partition_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
 fitg <- readRDS("full_biomass_partition_mod.rds")
 
 
@@ -252,14 +253,14 @@ dat_list <- list(
 
 fitchla <- sampling(stan_mod_err,
                       data = dat_list,
-                      control = list(max_treedepth = 18,
-                                     adapt_delta = 0.999,
+                      control = list(max_treedepth = 15,
+                                     adapt_delta = 0.99,
                                      stepsize = 0.01),
-                      iter = 2000,
+                      iter = 8000,
                       chains = 4,
                       cores = 4)
 
-saveRDS(fitchla, "full_biomass_partition_chla_NPPerr_mod_td18_ad999_ss01_iter2000.rds")
+saveRDS(fitchla, "full_biomass_partition_chla_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
 
 # Evaluate model fits: ####
 #AFDM model
