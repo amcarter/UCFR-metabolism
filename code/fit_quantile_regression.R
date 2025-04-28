@@ -58,6 +58,7 @@ fit_bqr <-
     control = list(max_treedepth = 13))
 
 saveRDS(fit_bqr, "data/model_fits/brms_quantile_regression_ARf.rds")
+fit_bqr <- readRDS("data/model_fits/brms_quantile_regression_ARf.rds")
 summary(fit_bqr)
 ranef(fit_bqr)
 plot(fit_bqr)
