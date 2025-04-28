@@ -208,16 +208,17 @@ dat_list <- list(
   Zs_2_3 = standata(f2_bgamma)$Zs_2_3
 )
 
-# fitg <- sampling(stan_mod,
-#                  data = dat_list,
-#                  control = list(max_treedepth = 14,
-#                                 adapt_delta = 0.95),
-#                  iter = 5000,
-#                  chains = 4,
-#                  cores = 4)
-#
-# saveRDS(fitg, "full_biomass_partition_mod.rds")
-fitg <- readRDS("full_biomass_partition_mod.rds")
+fitg <- sampling(stan_mod,
+                 data = dat_list,
+                 control = list(max_treedepth = 15,
+                                adapt_delta = 0.99,
+                                stepsize = 0.1),
+                 iter = 8000,
+                 chains = 4,
+                 cores = 4)
+
+saveRDS(fitg, "full_biomass_partition_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
+fitg <- readRDS("full_biomass_partition_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
 
 
 # fit model on chla biomass:####
@@ -252,17 +253,19 @@ dat_list <- list(
 
 fitchla <- sampling(stan_mod_err,
                       data = dat_list,
-                      control = list(max_treedepth = 18,
-                                     adapt_delta = 0.999,
+                      control = list(max_treedepth = 15,
+                                     adapt_delta = 0.99,
                                      stepsize = 0.01),
-                      iter = 2000,
+                      iter = 8000,
                       chains = 4,
                       cores = 4)
 
-saveRDS(fitchla, "full_biomass_partition_chla_NPPerr_mod_td18_ad999_ss01_iter2000.rds")
+saveRDS(fitchla, "full_biomass_partition_chla_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
 
 # Evaluate model fits: ####
 #AFDM model
+fitg <- readRDS("full_biomass_partition_mod_td14_ad95_iter2000.rds")
+fitg <- readRDS("full_biomass_partition_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
 traceplot(fitg, pars = c("b", "sigma", "lp__"))
 pairs(fitg, pars = c("b", "sigma", "lp__"))
 
@@ -281,20 +284,21 @@ cat("Number of divergent transitions:", n_divergent, "\n")
 
 
 # Chla model
-fitchla <- readRDS("full_biomass_partition_chla_mod.rds")
+fitchla <- readRDS("full_biomass_partition_chla_NPPerr_mod_td14_ad95_iter1000.rds")
+fitchla <- readRDS("full_biomass_partition_chla_NPPerr_mod_td18_ad999_s01_iter2000.rds")
 summary(fitchla)
 traceplot(fitchla, pars = c("b", "sigma", "lp__"))
 pairs(fitchla, pars = c("b", "sigma", "lp__"))
 
 posterior_draws <- as_draws_df(fitchla, .nchains = 4)
 summary_stats <- summarize_draws(posterior_draws)
-summary_stats$percent_ess <- summary_stats$ess_tail/20000
+summary_stats$percent_ess <- summary_stats$ess_tail/4000
 summary(summary_stats)
 print(summary_stats[, c("variable", "rhat", "ess_bulk", "ess_tail")])
 
 # Check for divergences
 sampler_params <- get_sampler_params(fitchla, inc_warmup = FALSE)
-n_divergent <- sum(sapply(sampler_params, function(x) sum(x[4000:5000, "divergent__"])))
+n_divergent <- sum(sapply(sampler_params, function(x) sum(x[, "divergent__"])))
 cat("Number of divergent transitions:", n_divergent, "\n")
 
 
@@ -302,74 +306,62 @@ cat("Number of divergent transitions:", n_divergent, "\n")
 
 # Simulated posterior predictive data
 # Assume you generated `y_rep` inside Stan and it is accessible
-y_rep <- posterior::as_draws_matrix(chlafit, variable = "y_rep")
+y_rep <- posterior::as_draws_df(fitchla, variable = "y_rep") %>% select(starts_with("NPP["))  %>% as.matrix()
+y_rep_g <- posterior::as_draws_df(fitg, variable = "y_rep") %>% select(starts_with("NPP["))  %>% as.matrix()
 # Your observed data
+bm_met$NPP[1] <- 5
 y_obs <- bm_met$NPP # vector of observed responses
-
 # Plot 1: Distributional overlap
-ppc_dens_overlay(y = y_obs, yrep = y_rep[1:100, ]) # overlay first 100 posterior draws
+library(bayesplot)
+p_chla <- ppc_dens_overlay(y = zoo::na.approx(y_obs), yrep = y_rep[1:100, ])+ # overlay first 100 posterior draws
+  xlab("NPP (g C m-2 d-1)") +
+  ggtitle('Model with chl a biomass')
+p_g <- ppc_dens_overlay(y = zoo::na.approx(y_obs), yrep = y_rep[1:100, ])+ # overlay first 100 posterior draws
+  xlab("NPP (g C m-2 d-1)") +
+  ggtitle('Model with AFDM biomass')
 
-# Plot 2: Mean vs predicted mean
-y_pred_mean <- colMeans(y_rep)
-ggplot(data.frame(obs = y_obs, pred = y_pred_mean), aes(x = obs, y = pred)) +
-  geom_point() +
-  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
-  labs(x = "NPP estimates", y = "Posterior Predicted Mean") +
-  theme_minimal()
+png("figures/ppcheck_NPP_full_biomass_models.png", width = 3.6, height = 5, units = "in", res = 300)
+  ggpubr::ggarrange(p_g, p_chla, ncol = 1)
+dev.off()
 
-# Plot 3: Coverage plot
 # 90% credible intervals
 y_pred_q <- apply(y_rep, 2, quantile, probs = c(0.05, 0.95))
+y_pred_qg <- apply(y_rep_g, 2, quantile, probs = c(0.05, 0.95))
 coverage <- (y_obs > y_pred_q[1, ]) & (y_obs < y_pred_q[2, ])
-coverage_rate <- mean(coverage)
+coverageg <- (y_obs > y_pred_qg[1, ]) & (y_obs < y_pred_qg[2, ])
+coverage_rate_chla <- mean(coverage, na.rm = T)
+coverage_rate_AFDM <- mean(coverageg, na.rm = T)
 cat("Empirical 90% coverage rate:", coverage_rate, "\n")
-
-ggplot(data.frame(
-  obs = y_obs,
-  lower = y_pred_q[1, ],
-  upper = y_pred_q[2, ],
-  covered = coverage
-), aes(x = obs, ymin = lower, ymax = upper, color = covered)) +
-  geom_point(aes(y = obs)) +
-  geom_errorbar(width = 0) +
-  theme_minimal() +
-  labs(x = "Observed value", y = "Posterior interval")
-
-# 3. Residual analysis ----
-
-# Residuals = observed - predicted mean
-residuals <- y_obs - y_pred_mean
-
-# Plot residuals vs predicted
-ggplot(data.frame(pred = y_pred_mean, resid = residuals), aes(x = pred, y = resid)) +
-  geom_point() +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  theme_minimal() +
-  labs(x = "Posterior Predicted Mean", y = "Residual")
-
-# Optional: QQ-plot of residuals
-qqnorm(residuals)
-qqline(residuals)
-
-# 4. Model fit measures ----
-
-# LOO-CV
-log_lik_matrix <- posterior::as_draws_matrix(fit, variable = "log_lik") # extract log likelihood
-loo_fit <- loo(log_lik_matrix)
-print(loo_fit)
-
-# WAIC
-waic_fit <- waic(log_lik_matrix)
-print(waic_fit)
 
 # Bayesian R^2
 # Assume y_rep is matrix (iterations x observations)
 var_fit <- apply(y_rep, 1, var) # variance of predictions
-var_resid <- apply((y_rep - y_obs)^2, 1, mean) # variance of residuals
-R2_bayes <- var_fit / (var_fit + var_resid)
-cat("Bayesian R² (posterior mean):", mean(R2_bayes), "\n")
+var_fitg <- apply(y_rep_g, 1, var) # variance of predictions
+var_resid <- apply((y_rep - y_obs)^2, 1, function(x) mean(x, na.rm = T)) # variance of residuals
+var_residg <- apply((y_rep_g - y_obs)^2, 1, function(x) mean(x, na.rm = T)) # variance of residuals
+R2_bayes_chla <- mean(var_fit / (var_fit + var_resid))
+R2_bayes_AFDM <- mean(var_fitg / (var_fitg + var_residg))
 
-
+labs_dat <- data.frame(model = c("Chl a Model", "AFDM Model"),
+           R2_bayes = c(R2_bayes_chla, R2_bayes_AFDM),
+           coverage = c(coverage_rate_chla, coverage_rate_AFDM),
+           obs = c(1,1), pred = c(10, 10)) %>%
+  mutate(lab = paste0("Bayesian R² (posterior mean):", round(R2_bayes, 2), "\n",
+                      "Empirical 90% coverage rate:", round(coverage, 3) * 100, "%"))
+# Plot 2: Mean vs predicted mean
+y_pred_mean <- colMeans(y_rep)
+y_pred_g_mean <- colMeans(y_rep_g)
+png("figures/mean_vs_predicted_fullbiomassmods.png", width = 7, height = 3.5, units = "in", res = 300)
+  ggplot(data.frame(obs = c(y_obs, y_obs), pred = c(y_pred_mean, y_pred_g_mean),
+                    model = rep(c("Chl a Model", "AFDM Model"), each = length(y_obs))),
+         aes(x = obs, y = pred)) +
+    geom_point() +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", col = "grey25") +
+    labs(x = "NPP estimates", y = "Posterior Predicted Mean") +
+    geom_text(data = labs_dat, aes(label = lab), adj = c(0,0))+
+    facet_grid(.~model) + ylim(0, 12.5) +
+    theme_bw()
+dev.off()
 
 
 
@@ -394,10 +386,10 @@ apply(coefs_chla, 2, function(x) {
 # extract missing data estimates
 Ymi_epil <- draws_afdm %>% select(starts_with("Ymi_epil"))
 Ymi_fila <- draws_afdm %>% select(starts_with("Ymi_fila"))
-Ymi_NPP <- draws_afdm %>% select(starts_with("Ymi_NPP"))
+Ymi_NPP <- draws_afdm %>% select(starts_with("NPP["))
 Ymi_epil_chla <- draws_chla %>% select(starts_with("Ymi_epil"))
 Ymi_fila_chla <- draws_chla %>% select(starts_with("Ymi_fila"))
-Ymi_NPP_chla <- draws_chla %>% select(starts_with("Ymi_NPP"))
+Ymi_NPP_chla <- draws_chla %>% select(starts_with("NPP"))
 Ymi_sum <- data.frame(
   epilithon_gm2 = apply(Ymi_epil, 2, median),
   epilithon_gm2_lower = apply(Ymi_epil, 2, function(x) quantile(x, 0.025)),
