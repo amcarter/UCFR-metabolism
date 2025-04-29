@@ -3,7 +3,6 @@ data {
     vector[N] epil_meas;  // measured epiithon algae
     vector[N] fila_meas;  // measured filamentous algae
     vector[N] NPP_est;  // estimated NPP
-    vector[N] fila_pres_prob;  // binomial probability of filamentous presence/absence
     real<lower=0> NPP_se;  // standard error on NPP estimates
     vector[N] light;  // MODIS derived light
     int<lower=0> Nmi_epil;  // number of missings
@@ -126,7 +125,7 @@ model {
     vector[N] Yl_NPP = NPP_est;
     Yl_NPP[Jmi_NPP] = Ymi_NPP;
     vector[N] mu;
-    mu = ((b[1])*(Yl_epil.*fila_pres_prob) + (b[2])*Yl_fila ) .* (light ./ (0.5 + light));
+    mu = ((b[1])*Yl_epil + (b[2])*Yl_fila ) .* (light ./ (0.5 + light));
     target += normal_lpdf(NPP | mu, sigma);
     target += normal_lpdf(Yl_NPP | NPP, NPP_se);
     // priors including constants

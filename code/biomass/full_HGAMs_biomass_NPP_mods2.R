@@ -381,12 +381,15 @@ apply(coefs_afdm, 2, function(x) {
 # chla fits
 draws_chla <- as_draws_df(fitchla)
 coefs_chla <- draws_chla %>% select(starts_with(c("b[", "sigma")))
-apply(coefs_chla, 2, function(x) {
+names(coefs_chla) <- c('mu_epil', 'mu_fila', 'sigma')
+coefs_df <- apply(coefs_chla, 2, function(x) {
   c(median = median(x),
     lower = quantile(x, 0.025),
     upper = quantile(x, 0.975))
-})
-
+}) %>% as.data.frame() %>% mutate(stat = c("median", "low", "high"))
+str(coefs_df)
+saveRDS(list(post_draws = coefs_chla, coefs_df = coefs_df),
+        "data/full_biomass_NPP_partition_mod_chla_posterior_coefs.rds")
 # extract missing data estimates
 Ymi_epil <- draws_afdm %>% select(starts_with("Ymi_epil"))
 Ymi_fila <- draws_afdm %>% select(starts_with("Ymi_fila"))
