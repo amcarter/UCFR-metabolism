@@ -2,8 +2,8 @@ data {
     int<lower=1> N;  // total number of observations
     vector[N] epil_meas;  // measured epiithon algae
     vector[N] fila_meas;  // measured filamentous algae
-    vector[N] fila_pres_prob;  // binomial probability of filamentous presence/absence
     vector[N] NPP_est;  // estimated NPP
+    vector[N] fila_pres_prob;  // binomial probability of filamentous presence/absence
     real<lower=0> NPP_se;  // standard error on NPP estimates
     vector[N] light;  // MODIS derived light
     int<lower=0> Nmi_epil;  // number of missings
@@ -36,10 +36,6 @@ parameters {
     vector<lower=0>[Nmi_fila] Ymi_fila;  // estimated missing filas
     vector[Nmi_NPP] Ymi_NPP;  // estimated missing NPPs
     vector[N] NPP;  // true NPPs
-    // vector[N] epil;  // true epil
-    // vector[N] fila;  // true fila
-    // real<lower=0> epil_se;
-    // real<lower=0> fila_se;
     vector<lower=0>[K] b;  // regression coefficients for algal biomass
     // real<lower=0> K_I;    // saturation coefficient for light
     real<lower=0> sigma; // dispersion parameter
@@ -130,7 +126,7 @@ model {
     vector[N] Yl_NPP = NPP_est;
     Yl_NPP[Jmi_NPP] = Ymi_NPP;
     vector[N] mu;
-    mu = ((b[1])*(Yl_epil) + (b[2])*Yl_fila ) .* (light ./ (0.5 + light));
+    mu = ((b[1])*(Yl_epil.*fila_pres_prob) + (b[2])*Yl_fila ) .* (light ./ (0.5 + light));
     target += normal_lpdf(NPP | mu, sigma);
     target += normal_lpdf(Yl_NPP | NPP, NPP_se);
     // priors including constants

@@ -224,7 +224,7 @@ fitg <- sampling(stan_mod_err,
                  #                adapt_delta = 0.99,
                  #                stepsize = 0.1),
                  iter = 1000,
-                 chains = 1,
+                 chains = 4,
                  cores = 4)
 
 saveRDS(fitg, "full_biomass_partition_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
@@ -236,6 +236,7 @@ dat_list <- list(
   N = nrow(bm_met),
   epil_meas = bm_met$epilithon_chla_mgm2_min2,
   fila_meas = bm_met$filamentous_chla_mgm2_min2,
+  fila_pres_prob = bm_met$p_present_fila,
   NPP_est = bm_met$NPP2,
   NPP_se = mean(bm_met$NPP.se, na.rm = T),
   # light = bm_met$PAR_bc_Jm2,
@@ -483,12 +484,12 @@ bm_met$filamentous_chla_lower[which_mi] <- Ymi_sum$filamentous_chla_lower1
 bm_met <- bm_met %>%
   mutate(#across(starts_with("epilithon_gm2"),
          #       ~ .x - min_vals$min[min_vals$biomass == "epilithon_gm2"]),
-         across(starts_with("filamentous_gm2"),
-                ~ .x - min_vals$min[min_vals$biomass == "filamentous_gm2"]),
-         #across(starts_with("epilithon_chla"),
-         #       ~ .x - min_vals$min[min_vals$biomass == "epilithon_chla_mgm2"]),
-         across(starts_with("filamentous_chla"),
-                ~ .x - min_vals$min[min_vals$biomass == "filamentous_chla_mgm2"]),
+         # across(starts_with("filamentous_gm2"),
+         #        ~ .x - min_vals$min[min_vals$biomass == "filamentous_gm2"]),
+         # #across(starts_with("epilithon_chla"),
+         # #       ~ .x - min_vals$min[min_vals$biomass == "epilithon_chla_mgm2"]),
+         # across(starts_with("filamentous_chla"),
+         #        ~ .x - min_vals$min[min_vals$biomass == "filamentous_chla_mgm2"]),
          across(starts_with(c("epilithon", "filamentous")),
                 ~ if_else(.x < 0, 0, .x)),
          frac_fila = NA,
@@ -506,6 +507,8 @@ write_csv(bm_met, 'data/biomass_data/log_gamma_brms_gam_fits_biomass.csv')
 qq <- read_csv('data/biomass_data/log_gamma_brms_gam_fits_biomass.csv')
 qq <- qq %>%
     select(-NPP) %>%
+    mutate(across(starts_with("filamentous"),
+                  ~ .x * p_present_fila)) %>%
     rename_with(.fn = ~paste0(.x, "_fit"), .cols = ends_with("gm2")) %>%
     select(-ends_with(c("min", "min2"))) %>%
     mutate(site = case_when(site == 'BM' ~ 'BG',
@@ -583,7 +586,7 @@ mm <- qq %>% filter(units == 'gm2') %>%
     facet_grid(site~year, scales = 'free_x') +
     scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
     scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
-    # scale_y_log10(limits = c(0.3, 600))+
+    scale_y_log10(limits = c(0.3, 600))+
     xlab('Date') +
     ylab(expression('Algal Biomass (AFDM g '~ m^-2*')')) +
     theme_classic()+
@@ -608,7 +611,7 @@ cc <- qq %>%
     facet_grid(site~year, scales = 'free_x') +
     scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
     scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
-    # scale_y_log10(limits = c(0.3, 1000))+
+    scale_y_log10(limits = c(0.3, 1000))+
     xlab('Date') +
     ylab(expression('Algal Chlorophyll (mg chl a '~ m^-2*')')) +
     theme_classic()+
@@ -650,15 +653,6 @@ qq2 %>%
 dev.off()
 
 
-    pivot_longer(cols = c(fit, meas), names_to = 'group', values_to = 'val') %>%
-    mutate(group = case_when(group == "fit" ~ "Modeled",
-                             group == "meas" ~ "Measured"),
-           units = case_when(units == "gm2" ~ "AFDM (g/m2)",
-                             units == "chla" ~ "Chl a (mg/m2)"),
-           biomass = paste(biomass_type, units, sep = "_")) %>%
-    group_by(date, site, year, group, units, biomass_type) %>%
-    summarize(val = mean(val, na.rm = T)) %>%
-    pivot_wider(names_from = group, values_from = val)
 
 qq2 %>%
     select(date, year, site, fit, meas, units, biomass_type) %>%
@@ -667,4 +661,4 @@ qq2 %>%
     ggplot(aes(meas, fit2, col = site)) +
     geom_point() +
     geom_abline(slope = 1, intercept = 0, lty = 2)+
-    facet_grid(units~biomass_type, scales = "free")
+    facet_grid(units~biomass_type)
