@@ -114,9 +114,11 @@ bm_met <- s_preds %>%
             by = c("site", "date", "year")) %>%
   mutate(
       epilithon_gm2_min  = epilithon_gm2 + 0,
-      filamentous_gm2_min = if_else(filamentous_gm2 == 0, NA_real_, filamentous_gm2),
+      filamentous_gm2_min = filamentous_gm2 + min_vals$min[min_vals$biomass == filamentous_gm2],
+      # filamentous_gm2_min = if_else(filamentous_gm2 == 0, NA_real_, filamentous_gm2),
       epilithon_chla_mgm2_min  = epilithon_chla_mgm2 + 0,
-      filamentous_chla_mgm2_min = if_else(filamentous_chla_mgm2 == 0, NA_real_, filamentous_chla_mgm2),
+      filamentous_chla_mgm2_min = filamentous_chla_mgm2 + min_vals$min[min_vals$biomass == filamentous_chla_mgm2],
+      # filamentous_chla_mgm2_min = if_else(filamentous_chla_mgm2 == 0, NA_real_, filamentous_chla_mgm2),
       site_year = factor(paste(site, year, sep = "_")),
       site = factor(site),
       year = factor(year)) %>%
@@ -192,7 +194,7 @@ dat_list <- list(
   N = nrow(bm_met),
   epil_meas = bm_met$epilithon_gm2_min2,
   fila_meas = bm_met$filamentous_gm2_min2,
-  fila_pres_prob = bm_met$p_present_fila,
+  # fila_pres_prob = bm_met$p_present_fila,
   NPP_est = bm_met$NPP2,
   NPP_se = mean(bm_met$NPP.se, na.rm = T),
   # light = bm_met$PAR_bc_Jm2,
@@ -220,15 +222,15 @@ dat_list <- list(
 
 fitg <- sampling(stan_mod_err,
                  data = dat_list,
-                 # control = list(max_treedepth = 15,
-                 #                adapt_delta = 0.99,
-                 #                stepsize = 0.1),
-                 iter = 1000,
+                 control = list(max_treedepth = 14,
+                                adapt_delta = 0.9),
+                                # stepsize = 0.1),
+                 iter = 5000,
                  chains = 4,
                  cores = 4)
 
-saveRDS(fitg, "full_biomass_partition_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
-fitg <- readRDS("full_biomass_partition_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
+saveRDS(fitg, "full_meanbiomass_partition_NPPerr_mod_td14_ad9_ss1_iter5000.rds")
+# fitg <- readRDS("full_biomass_partition_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
 
 
 # fit model on chla biomass:####
@@ -236,7 +238,7 @@ dat_list <- list(
   N = nrow(bm_met),
   epil_meas = bm_met$epilithon_chla_mgm2_min2,
   fila_meas = bm_met$filamentous_chla_mgm2_min2,
-  fila_pres_prob = bm_met$p_present_fila,
+  # fila_pres_prob = bm_met$p_present_fila,
   NPP_est = bm_met$NPP2,
   NPP_se = mean(bm_met$NPP.se, na.rm = T),
   # light = bm_met$PAR_bc_Jm2,
@@ -264,14 +266,14 @@ dat_list <- list(
 
 fitchla <- sampling(stan_mod_err,
                       data = dat_list,
-                      # control = list(max_treedepth = 15,
-                      #                adapt_delta = 0.99,
+                      control = list(max_treedepth = 14,
+                                     adapt_delta = 0.9),
                       #                stepsize = 0.01),
-                      iter = 1000,
+                      iter = 5000,
                       chains = 4,
                       cores = 4)
 
-saveRDS(fitchla, "full_biomass_partition_chla_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
+saveRDS(fitchla, "full_meanbiomass_partition_chla_NPPerr_mod_td14_ad9_ss1_iter5000.rds")
 
 # Evaluate model fits: ####
 #AFDM model
