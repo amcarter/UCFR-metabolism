@@ -194,7 +194,6 @@ dat_list <- list(
   N = nrow(bm_met),
   epil_meas = bm_met$epilithon_gm2_min2,
   fila_meas = bm_met$filamentous_gm2_min2,
-  # fila_pres_prob = bm_met$p_present_fila,
   NPP_est = bm_met$NPP2,
   NPP_se = mean(bm_met$NPP.se, na.rm = T),
   # light = bm_met$PAR_bc_Jm2,
@@ -225,7 +224,7 @@ fitg <- sampling(stan_mod_err,
                  control = list(max_treedepth = 14,
                                 adapt_delta = 0.9),
                                 # stepsize = 0.1),
-                 iter = 5000,
+                 iter = 1000,
                  chains = 4,
                  cores = 4)
 
