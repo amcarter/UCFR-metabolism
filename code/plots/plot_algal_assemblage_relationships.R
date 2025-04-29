@@ -71,22 +71,22 @@ NPP <- mutate(biogams, year = factor(lubridate::year(date))) %>%
               frac_fila_lower = mean(frac_fila_lower, na.rm = T)) %>%
     left_join(NPP, by = c('site', 'year'))
 
-ggplot(NPP, aes(epil_meas, epil_gm, col = site)) +
-    geom_point(size = 2)
-ggplot(NPP, aes(fila_meas, fila_gm, col = site)) +
-    geom_point(size = 2)
-ggplot(NPP, aes(epil_gm, ARf, col = site)) +
-    geom_point(size = 2)
-ggplot(NPP, aes(fila_chla, ARf, col = year)) +
-    geom_point(size = 2)
-ggplot(NPP, aes((fila_chla + epil_chla)/(fila_gm + epil_gm), ARf, col = year)) +
-    geom_point(size = 2)
-ggplot(NPP, aes((fila_chla)/(fila_gm), ARf, col = site)) +
-    geom_point(size = 2)
-ggplot(NPP, aes(fila_chla/(fila_chla + epil_chla), ARf, col = year)) +
-    geom_point(size = 2)
-ggplot(NPP, aes(epil_chla/(fila_chla + epil_chla), ARf, col = year)) +
-    geom_point(size = 2)
+# ggplot(NPP, aes(epil_meas, epil_gm, col = site)) +
+#     geom_point(size = 2)
+# ggplot(NPP, aes(fila_meas, fila_gm, col = site)) +
+#     geom_point(size = 2)
+# ggplot(NPP, aes(epil_gm, ARf, col = site)) +
+#     geom_point(size = 2)
+# ggplot(NPP, aes(fila_chla, ARf, col = year)) +
+#     geom_point(size = 2)
+# ggplot(NPP, aes((fila_chla + epil_chla)/(fila_gm + epil_gm), ARf, col = year)) +
+#     geom_point(size = 2)
+# ggplot(NPP, aes((fila_chla)/(fila_gm), ARf, col = site)) +
+#     geom_point(size = 2)
+# ggplot(NPP, aes(fila_chla/(fila_chla + epil_chla), ARf, col = year)) +
+#     geom_point(size = 2)
+# ggplot(NPP, aes(epil_chla/(fila_chla + epil_chla), ARf, col = year)) +
+#     geom_point(size = 2)
 
 npp <- NPP %>%
     select(-ends_with('_meas')) %>%
@@ -247,7 +247,8 @@ extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
                F_days_bio.lower = days_bio_lower) %>%
         mutate(C_ARf.mean = 100*C_ARf.mean, C_ARf.upper = C_ARf.upper * 100,
                C_ARf.lower = 100*C_ARf.lower,
-               fila_bloom = factor(fila_bloom, levels = c('No Bloom', 'Bloom'))) %>%
+               fila_bloom = factor(fila_bloom, levels = c('No Bloom', 'Bloom')),
+               D_NPP_C.upper = D_NPP_C.mean + 0.48, D_NPP_C.lower = D_NPP_C.mean - 0.48) %>%
         bind_rows(extra_row) %>%
         pivot_longer(cols = starts_with(c('A_GPP_C', 'B_ER_C', 'C_ARf', 'D_NPP_C',
                                      'E_biomass_C', 'F_days_bio')),
@@ -257,9 +258,9 @@ extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
         pivot_wider(names_from = stat, values_from = value) %>%
         ggplot(aes(frac_fila, mean)) +
         geom_errorbar(aes(xmin = frac_fila_lower, xmax = frac_fila_upper,
-                          col = fila_bloom), alpha = 0.4) +
+                          col = fila_bloom), alpha = 0.34) +
         geom_errorbar(aes(ymin = lower, ymax = upper,
-                          col = fila_bloom), alpha = 0.4) +
+                          col = fila_bloom), alpha = 0.34) +
         geom_point(aes(shape = fila_bloom,
                        col = fila_bloom), size = 1.4) +
         scale_color_manual("", values = c( '#7FB43A','#111011'))+
