@@ -218,14 +218,12 @@ dat_list <- list(
   Zs_2_3 = standata(f2_bgamma)$Zs_2_3
 )
 
-
 fitg <- sampling(stan_mod_err,
                  data = dat_list,
                  # control = list(max_treedepth = 15,
                  #                adapt_delta = 0.99,
                  #                stepsize = 0.1),
                  iter = 1000,
-                 init = 0.1,
                  chains = 1,
                  cores = 4)
 
@@ -238,7 +236,6 @@ dat_list <- list(
   N = nrow(bm_met),
   epil_meas = bm_met$epilithon_chla_mgm2_min2,
   fila_meas = bm_met$filamentous_chla_mgm2_min2,
-  fila_pres_prob = bm_met$p_present_fila,
   NPP_est = bm_met$NPP2,
   NPP_se = mean(bm_met$NPP.se, na.rm = T),
   # light = bm_met$PAR_bc_Jm2,
@@ -270,7 +267,7 @@ fitchla <- sampling(stan_mod_err,
                       #                adapt_delta = 0.99,
                       #                stepsize = 0.01),
                       iter = 1000,
-                      chains = 1,
+                      chains = 4,
                       cores = 4)
 
 saveRDS(fitchla, "full_biomass_partition_chla_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
@@ -401,11 +398,6 @@ Ymi_NPP <- draws_afdm %>% select(starts_with("NPP["))
 Ymi_epil_chla <- draws_chla %>% select(starts_with("Ymi_epil"))
 Ymi_fila_chla <- draws_chla %>% select(starts_with("Ymi_fila"))
 Ymi_NPP_chla <- draws_chla %>% select(starts_with("NPP"))
-epil <- draws_afdm %>% select(starts_with("epil["))
-fila <- draws_afdm %>% select(starts_with("fila["))
-algae <- data.frame(
-
-)
 Ymi_sum <- data.frame(
   epilithon_gm2 = apply(Ymi_epil, 2, median),
   epilithon_gm2_lower = apply(Ymi_epil, 2, function(x) quantile(x, 0.025)),
@@ -676,19 +668,3 @@ qq2 %>%
     geom_point() +
     geom_abline(slope = 1, intercept = 0, lty = 2)+
     facet_grid(units~biomass_type, scales = "free")
-
-dd$date <- bm_met$date
-dd$site <- bm_met$site
-dd$year <- bm_met$year
-dd %>%
-    ggplot(aes(date, fila_med)) +
-    geom_line()+
-    geom_ribbon(aes(ymax = fila_upper, ymin = fila_lower), alpha = 0.4, color = NA)+
-    geom_point(data = filter(meas_chl2, biomass_type == "Filamentous"), aes(date, meas))+
-    facet_grid(site~year, scales = 'free_x')+
-    scale_y_log10(limits = c(0.3, 1000))+
-    xlab('Date') +
-    ylab(expression('Algal Chlorophyll (mg chl a '~ m^-2*')')) +
-    theme_classic()+
-    theme(panel.border = element_rect(fill = NA),
-          panel.spacing = unit(0, 'line'))
