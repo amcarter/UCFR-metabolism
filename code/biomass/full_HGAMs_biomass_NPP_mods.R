@@ -218,13 +218,13 @@ dat_list <- list(
 fitg <- sampling(stan_mod_err,
                  data = dat_list,
                  control = list(max_treedepth = 15,
-                                adapt_delta = 0.9),
-                 #                stepsize = 0.1),
-                 iter = 4000,
+                                adapt_delta = 0.99,
+                                stepsize = 0.1),
+                 iter = 8000,
                  chains = 4,
                  cores = 4)
 
-saveRDS(fitg, "full_biomass_partition_NPPerr_mod_td15_ad9_ss1_iter4000.rds")
+saveRDS(fitg, "full_biomass_partition_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
 
 
 # fit model on chla biomass:####
@@ -260,13 +260,13 @@ dat_list <- list(
 fitchla <- sampling(stan_mod_err,
                       data = dat_list,
                       control = list(max_treedepth = 15,
-                                     adapt_delta = 0.95,
+                                     adapt_delta = 0.99,
                                      stepsize = 0.1),
-                      iter = 4000,
+                      iter = 8000,
                       chains = 4,
                       cores = 4)
 
-saveRDS(fitchla, "full_biomass_partition_chla_NPPerr_mod_td15_ad95_ss01_iter4000.rds")
+saveRDS(fitchla, "full_biomass_partition_chla_NPPerr_mod_td15_ad99_ss01_iter8000.rds")
 
 # Evaluate model fits: ####
 #AFDM model
@@ -276,7 +276,7 @@ pairs(fitg, pars = c("b", "sigma", "lp__"))
 
 posterior_draws <- as_draws_df(fitg, .nchains = 4)
 summary_stats <- summarize_draws(posterior_draws)
-summary_stats$percent_ess <- summary_stats$ess_tail/20000
+summary_stats$percent_ess <- summary_stats$ess_tail/8000
 summary(summary_stats)
 print(summary_stats[, c("variable", "rhat", "ess_bulk", "ess_tail")])
 
