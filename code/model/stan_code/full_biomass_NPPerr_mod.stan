@@ -2,6 +2,7 @@ data {
     int<lower=1> N;  // total number of observations
     vector[N] epil_meas;  // measured epiithon algae
     vector[N] fila_meas;  // measured filamentous algae
+    vector<lower=0>[N] fila_pres_prob;  // binomial probability of filamentous presence/absence
     vector[N] NPP_est;  // estimated NPP
     real<lower=0> NPP_se;  // standard error on NPP estimates
     vector[N] light;  // MODIS derived light
@@ -31,10 +32,14 @@ data {
 transformed data {
 }
 parameters {
-    vector<lower=0>[Nmi_epil] Ymi_epil;  // estimated missing epils
-    vector<lower=0>[Nmi_fila] Ymi_fila;  // estimated missing filas
+    vector[Nmi_epil] Ymi_epil;  // estimated missing epils
+    vector[Nmi_fila] Ymi_fila;  // estimated missing filas
     vector[Nmi_NPP] Ymi_NPP;  // estimated missing NPPs
     vector[N] NPP;  // true NPPs
+    vector<lower=0>[N] epil;  // true epil
+    vector<lower=0>[N] fila;  // true fila
+    real<lower=0> epil_se;
+    real<lower=0> fila_se;
     vector<lower=0>[K] b;  // regression coefficients for algal biomass
     // real<lower=0> K_I;    // saturation coefficient for light
     real<lower=0> sigma; // dispersion parameter
@@ -125,7 +130,9 @@ model {
     vector[N] Yl_NPP = NPP_est;
     Yl_NPP[Jmi_NPP] = Ymi_NPP;
     vector[N] mu;
-    mu = ((b[1])*Yl_epil + (b[2])*Yl_fila ) .* (light ./ (0.5 + light));
+    mu = ((b[1])*epil + (b[2])*fila ) .* (light ./ (0.5 + light));
+    target += normal_lpdf(Yl_fila .* fila_pres_prob | fila, fila_se);
+    target += normal_lpdf(Yl_epil | epil, epil_se);
     target += normal_lpdf(NPP | mu, sigma);
     target += normal_lpdf(Yl_NPP | NPP, NPP_se);
     // priors including constants
@@ -144,15 +151,15 @@ generated quantities {
     real b_Intercept_epil = Intercept_epil;
     real b_Intercept_fila = Intercept_fila;
     // vector combining observed and missing responses
-    vector[N] Yl_epil = epil_meas;
-    vector[N] Yl_fila = fila_meas;
-    vector[N] y_rep;
-    vector[N] y_rep2;
-    Yl_epil[Jmi_epil] = Ymi_epil;
-    Yl_fila[Jmi_fila] = Ymi_fila;
-
-    for (n in 1:N) {
-        y_rep2[n] = normal_rng(((b[1]) * Yl_epil[n] + (b[2]) * Yl_fila[n])*(light[n] / (0.5 + light[n])), sigma);
-        y_rep[n] = normal_rng(NPP[n], NPP_se);
-    }
+    // vector[N] Yl_epil = epil_meas;
+    // vector[N] Yl_fila = fila_meas;
+    // vector[N] y_rep;
+    // vector[N] y_rep2;
+    // Yl_epil[Jmi_epil] = Ymi_epil;
+    // Yl_fila[Jmi_fila] = Ymi_fila;
+    //
+    // for (n in 1:N) {
+    //     y_rep2[n] = normal_rng(((b[1]) * Yl_epil[n] + (b[2]) * Yl_fila[n])*(light[n] / (0.5 + light[n])), sigma);
+    //     y_rep[n] = normal_rng(NPP[n], NPP_se);
+    // }
 }
