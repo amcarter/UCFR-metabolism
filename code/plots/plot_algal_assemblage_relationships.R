@@ -47,28 +47,28 @@ NPP <- met %>%
 NPP <- bio %>%
     mutate(year = factor(lubridate::year(date))) %>%
     group_by(site, year) %>%
-    summarize(fila_chla_meas = mean(filamentous_chla_mgm2),
-              epil_chla_meas = mean(epilithon_chla_mgm2),
-              fila_meas = mean(filamentous_gm2),
-              epil_meas = mean(epilithon_gm2)) %>%
+    summarize(fila_chla_meas = median(filamentous_chla_mgm2),
+              epil_chla_meas = median(epilithon_chla_mgm2),
+              fila_meas = median(filamentous_gm2),
+              epil_meas = median(epilithon_gm2)) %>%
     left_join(NPP, by = c('site', 'year'))
 NPP <- mutate(biogams, year = factor(lubridate::year(date))) %>%
     group_by(site, year) %>%
-    summarize(fila_chla = mean(filamentous_chla_mgm2),
-              epil_chla = mean(epilithon_chla_mgm2),
-              upper_fila_chla = mean(filamentous_chla_upper),
-              lower_fila_chla = mean(filamentous_chla_lower),
-              upper_epil_chla = mean(epilithon_chla_upper),
-              lower_epil_chla = mean(epilithon_chla_lower),
-              fila_gm = mean(filamentous_gm2),
-              epil_gm = mean(epilithon_gm2),
-              upper_fila_gm = mean(filamentous_gm2_upper),
-              lower_fila_gm = mean(filamentous_gm2_lower),
-              upper_epil_gm = mean(epilithon_gm2_upper),
-              lower_epil_gm = mean(epilithon_gm2_lower),
-              frac_fila = mean(frac_fila),
-              frac_fila_upper = mean(frac_fila_upper, na.rm = T),
-              frac_fila_lower = mean(frac_fila_lower, na.rm = T)) %>%
+    summarize(fila_chla = median(filamentous_chla_mgm2),
+              epil_chla = median(epilithon_chla_mgm2),
+              upper_fila_chla = median(filamentous_chla_upper),
+              lower_fila_chla = median(filamentous_chla_lower),
+              upper_epil_chla = median(epilithon_chla_upper),
+              lower_epil_chla = median(epilithon_chla_lower),
+              fila_gm = median(filamentous_gm2),
+              epil_gm = median(epilithon_gm2),
+              upper_fila_gm = median(filamentous_gm2_upper),
+              lower_fila_gm = median(filamentous_gm2_lower),
+              upper_epil_gm = median(epilithon_gm2_upper),
+              lower_epil_gm = median(epilithon_gm2_lower),
+              frac_fila = median(frac_fila),
+              frac_fila_upper = median(frac_fila_upper, na.rm = T),
+              frac_fila_lower = median(frac_fila_lower, na.rm = T)) %>%
     left_join(NPP, by = c('site', 'year'))
 
 # ggplot(NPP, aes(epil_meas, epil_gm, col = site)) +
@@ -145,16 +145,16 @@ corrplot::corrplot(ff_cor)
 labs <- data.frame(response = c('A_GPP_C', 'B_ER_C', 'C_ARf', 'D_NPP_C',
                      'E_biomass_C', 'F_days_bio'),
                    corr = c(#'', '', '', '',
-                            paste0('r = ', round(ff_cor[1,2], 2)),
+                            paste0('r = ', round(ff_cor[1,2], 2)),# '0'),
                             paste0('r = ', round(ff_cor[1,3], 2)),
                             paste0('r = ', round(ff_cor[1,4], 2)),
-                            paste0('r = ', round(ff_cor[1,5], 2), '0'),
+                            paste0('r = ', round(ff_cor[1,5], 2)),
                             paste0('r = ', round(ff_cor[1,6], 2)),
                             paste0('r = ', round(ff_cor[1,7], 2))))
 
 
 
-png('figures/algal_assemblage_relationships.png',
+png('figures/algal_assemblage_relationships_meds.png',
     width = 4.5, height = 5, units = 'in', res = 300)
 
 extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
@@ -227,7 +227,7 @@ extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
 dev.off()
 
 
-png('figures/algal_assemblage_relationships_error.png',
+png('figures/algal_assemblage_relationships_meds_error.png',
     width = 4.5, height = 5, units = 'in', res = 300)
 
 extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
@@ -278,7 +278,7 @@ extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
         labs(y = NULL, x = 'Filamentous fraction of total biomass')+
         xlim(0,0.91) +
         scale_y_continuous(expand =  expand_scale(#mult = c(.08),
-                                                  add = 0.7)) +
+                                                  add = 0.9)) +
         geom_text(data = labs, aes(label = corr, x = -Inf, y = Inf),
                   size = 3, hjust = -0.25, vjust = 1.7)+
         theme_classic()+

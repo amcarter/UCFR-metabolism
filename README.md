@@ -133,6 +133,14 @@ Metabolism estimates from Stream Metabolizer
 
 **1. prepare_biomass_metab_model_data.R** - compiles metabolism, biomass, light, discharge into a single file for running biomass metabolism models. 
 
+**2. fit_quantile_regression.R** - fit quantile regression to GPP and ER data using BRMS. Also generates plots of model fit.
+
+**3. full_HGAMs_biomass_NPP_mods.R** - fits Stan models that jointly estimate biomass GAMs and partition NPP on both the Chla and AFDM data. Makes plots of interpolated biomass.
+
+**4. full_biomass_NPPerr_mod.stan** - stan code for hierarcical model that fits thin plate spline GAMS to biomass data and estimates their contributions to NPP using an NPP measurement model.
+
+Older model versions:
+
 **2. fit_linear_brms_models.R** - trial model fits using bayesian linear regression in the brms package.
 
 **3. compare_ar1_linearmod.R** - compare coefficients generated using a basic linear model to those generated from an ar1 model.
@@ -141,10 +149,11 @@ Metabolism estimates from Stream Metabolizer
 
 **5. run_hierarchical_ar1_models.R** 
 
-<!--stan-code-->
-### Stan Code
+<!--plots-->
+### Plots
 
-<!--npp-calculations-->
-### NPP Calculations
+**1. plot_metabolism.R** - generates figure 2
 
-**1. fit_quantile_regression.R** - fits a multilevel quantile regression model to the GPP and ER estimates from each site year to estimate the fraction of GPP that is respired as autotrophic respiration. Based on this calculation, it estimates NPP for each day. Part two of this code builds a second multilevel linear regression to estimate daily NPP as a function of chlorophyll in the epilithon and filamentous fraction with an intercept of zero. Based on these rates, we calculate turnover times of each biomass fraction. This script also makes several plots of these data. 
+**2. plot_algal_assemblage_relationships.R** - generates figure 3
+
+**3. plot_max_bio_turnover_dists.R** - generates figures 4 and 5

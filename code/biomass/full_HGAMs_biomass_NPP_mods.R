@@ -111,6 +111,7 @@ bm_met <- s_preds %>%
   tibble() %>%
   full_join(biomass,
             by = c("site", "date", "year", "doy")) %>%
+    mutate(
     epilithon_gm2_min  = epilithon_gm2 + min_vals$min[min_vals$biomass == "epilithon_gm2"],
     filamentous_gm2_min = filamentous_gm2 + min_vals$min[min_vals$biomass == 'filamentous_gm2'],
     epilithon_chla_mgm2_min  = epilithon_chla_mgm2 + min_vals$min[min_vals$biomass == "epilithon_chla_mgm2"],
@@ -293,8 +294,9 @@ pairs(fitchla, pars = c("b", "sigma", "lp__"))
 
 posterior_draws <- as_draws_df(fitchla, .nchains = 4)
 summary_stats <- summarize_draws(posterior_draws)
-summary_stats$percent_ess <- summary_stats$ess_tail/4000
+summary_stats$percent_ess <- summary_stats$ess_tail/8000
 summary(summary_stats)
+summary_stats %>% arrange(percent_ess) %>% print(n = 100)
 print(summary_stats[, c("variable", "rhat", "ess_bulk", "ess_tail")])
 
 # Check for divergences
@@ -368,19 +370,29 @@ dev.off()
 # AFDM fits
 draws_afdm <- as_draws_df(fitg)
 coefs_afdm <- draws_afdm %>% select(starts_with(c("b[", "sigma")))
-apply(coefs_afdm, 2, function(x) {
+coefs_afdm <- apply(coefs_afdm, 2, function(x) {
   c(median = median(x),
     lower = quantile(x, 0.025),
     upper = quantile(x, 0.975))
-})
+})%>%
+    as.data.frame()
+colnames(coefs_afdm) <- c("mu_epil", "mu_fila", "sigma")
 # chla fits
 draws_chla <- as_draws_df(fitchla)
 coefs_chla <- draws_chla %>% select(starts_with(c("b[", "sigma")))
-apply(coefs_chla, 2, function(x) {
+coefs_chla <- apply(coefs_chla, 2, function(x) {
   c(median = median(x),
     lower = quantile(x, 0.025),
     upper = quantile(x, 0.975))
-})
+}) %>%
+    as.data.frame()
+colnames(coefs_chla) <- c("mu_epil", "mu_fila", "sigma")
+
+saveRDS(list(post_draws_chla = draws_chla,
+             post_draws_afdm = draws_afdm,
+             coefs_chla = coefs_chla,
+             coefs_afdm = coefs_afdm),
+        'data/full_biomass_NPP_partition_mod_chla_posterior_coefs.rds')
 
 # extract missing data estimates
 Ymi_epil <- draws_afdm %>% select(starts_with("Ymi_epil"))
@@ -427,7 +439,7 @@ NPP_mod <- bind_cols(bm_met, select(Ymi_NPP_sum, -NPP)) %>%
             NPP_lower = mean(NPP_lower)) %>%
   ungroup()
 png("figures/ppreds_NPP_full_biomass_mod.png", width = 10, height = 8, units = "in", res = 300)
-left_join(select(bm_sum, date, doy, year, site, NPP_est = NPP),
+left_join(select(bm_sum2, date, doy, year, site, NPP_est = NPP),
           NPP_mod, by = c("site", "date")) %>%
     mutate(site = factor(site, levels = c("PL", "DL", "GR", "GC", "BG", "BN"))) %>%
     ggplot(aes(date, NPP_mod)) +
@@ -659,7 +671,7 @@ cc <- qq %>%
         panel.spacing = unit(0, 'line'))
 
 
-png('figures/biomass_gamma_brms_gams_comb_zeros.png', width = 7.5, height = 5, units = 'in',
+png('figures/biomass_gamma_brms_gams_comb_zeros_linear.png', width = 7.5, height = 5, units = 'in',
     res = 300)
 
     ggpubr::ggarrange(mm, cc, nrow = 1, common.legend = TRUE,
@@ -683,3 +695,37 @@ qq3 %>%
   ggtitle("Posterior predictive distributions of algal biomass")+
   theme_bw()
 dev.off()
+
+var_fitg <- apply(y_rep_g, 1, var) # variance of predictions
+var_resid <- apply((y_rep - y_obs)^2, 1, function(x) mean(x, na.rm = T)) # variance of residuals
+var_residg <- apply((y_rep_g - y_obs)^2, 1, function(x) mean(x, na.rm = T)) # variance of residuals
+R2_bayes_chla <- mean(var_fit / (var_fit + var_resid))
+
+
+qq2 %>%
+    mutate(fit2 = if_else(!is.na(meas), NA_real_, fit)) %>%
+    group_by(biomass_type, units, site, year) %>%
+    mutate(fit2 = zoo::na.approx(fit2, x = doy, na.rm = FALSE)) %>%
+    ungroup() %>%
+    mutate(resid = fit2 - meas) %>%
+    group_by(biomass_type, units) %>%
+    summarize(var_pred = var(fit2, na.rm = T),
+           var_resid = mean(resid^2, na.rm = T),
+           bayes_r2 = var_pred/(var_pred + var_resid))
+
+qq %>%
+    mutate(frac_fila_se = (frac_fila_upper - frac_fila_lower)/4) %>%
+    group_by(site, year) %>%
+    summarize(fila_mean = mean(filamentous_gm2, na.rm = T),
+              epil_mean = mean(epilithon_gm2, na.rm = T),
+              ff_mean = mean(frac_fila, na.rm = T),
+              ff_median = median(frac_fila, na.rm = T),
+              ff_se1 = sd(frac_fila, na.rm = T),
+              ff_se2 = sqrt(sum(frac_fila_se^2, na.rm = T))/n())
+ian(frac_fila, na.rm = T),
+              ff_longer(cols = c(fit, meas), names_to = 'group', values_to = 'val') %>%
+    mutate(group = case_when(group == "fit" ~ "Modeled",
+                             group == "meas" ~ "Measured"),
+           units = case_when(units == "gm2" ~ "AFDM (g/m2)",
+                             units == "chla" ~ "Chl a (mg/m2)"),
+           biomass = paste(biomass_type, units, sep = "_"))

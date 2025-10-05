@@ -1,27 +1,27 @@
 data {
-    int<lower=1> N;  // total number of observations
-    vector[N] epil_meas;  // measured epiithon algae
-    vector[N] fila_meas;  // measured filamentous algae
-    vector[N] NPP_est;  // estimated NPP
+    int<lower=1> N;        // total number of observations
+    vector[N] epil_meas;   // measured epiithon algae
+    vector[N] fila_meas;   // measured filamentous algae
+    vector[N] NPP_est;     // estimated NPP
     real<lower=0> NPP_se;  // standard error on NPP estimates
-    vector[N] light;  // MODIS derived light
-    int<lower=0> Nmi_epil;  // number of missings
-    int<lower=0> Nmi_fila;  // number of missings
-    int<lower=0> Nmi_NPP;  // number of missings
+    vector[N] light;       // MODIS derived light
+    int<lower=0> Nmi_epil; // number of days without epilithon measurements
+    int<lower=0> Nmi_fila; // number of days without epilithon measurements
+    int<lower=0> Nmi_NPP;  // number of days without NPP estimates
     array[Nmi_epil] int<lower=1> Jmi_epil;  // positions of missings
     array[Nmi_fila] int<lower=1> Jmi_fila;  // positions of missings
-    array[Nmi_NPP] int<lower=1> Jmi_NPP;  // positions of missings
-    int<lower=1> K; // number of population-level effects
+    array[Nmi_NPP] int<lower=1> Jmi_NPP;    // positions of missings
+    int<lower=1> K;        // number of population-level effects
     // data for splines
     int Ks;  // number of linear effects
-    matrix[N, Ks] Xs;  // design matrix for the linear effects
-    // data for spline 1
-    int nb_1;  // number of bases
+    matrix[N, Ks] Xs;         // design matrix for the linear effects
+    // data for global day-of-year spline
+    int nb_1;                 // number of bases
     array[nb_1] int knots_1;  // number of knots
     // basis function matrices
     matrix[N, knots_1[1]] Zs_1_1;
-    // data for spline 2
-    int nb_2;  // number of bases
+    // data for day-of-year splines grouped by site-year
+    int nb_2;                 // number of bases
     array[nb_2] int knots_2;  // number of knots
     // basis function matrices
     matrix[N, knots_2[1]] Zs_2_1;
@@ -33,22 +33,21 @@ transformed data {
 parameters {
     vector<lower=0>[Nmi_epil] Ymi_epil;  // estimated missing epils
     vector<lower=0>[Nmi_fila] Ymi_fila;  // estimated missing filas
-    vector[Nmi_NPP] Ymi_NPP;  // estimated missing NPPs
-    vector[N] NPP;  // true NPPs
-    vector<lower=0>[K] b;  // regression coefficients for algal biomass
-    // real<lower=0> K_I;    // saturation coefficient for light
-    real<lower=0> sigma; // dispersion parameter
-    real Intercept_epil;  // temporary intercept for centered predictors
-    real Intercept_fila;  // temporary intercept for centered predictors
-    vector[Ks] bs_epil;  // unpenalized spline coefficients
-    vector[Ks] bs_fila;  // unpenalized spline coefficients
-    // parameters for spline 1
+    vector[Nmi_NPP] Ymi_NPP;             // estimated missing NPP estimatess
+    vector[N] NPP;                       // true NPP valuess
+    vector<lower=0>[K] b;                // growth rates for algal biomass
+    real<lower=0> sigma;                 // dispersion parameter
+    real Intercept_epil;                 // temporary intercept for centered predictors
+    real Intercept_fila;                 // temporary intercept for centered predictors
+    vector[Ks] bs_epil;                  // unpenalized spline coefficients
+    vector[Ks] bs_fila;                  // unpenalized spline coefficients
+    // parameters for global day-of-year spline
     // standardized penalized spline coefficients
     vector[knots_1[1]] zs_1_1_epil;
     vector[knots_1[1]] zs_1_1_fila;
     vector<lower=0>[nb_1] sds_1_epil;  // SDs of penalized spline coefficients
     vector<lower=0>[nb_1] sds_1_fila;  // SDs of penalized spline coefficients
-    // parameters for spline 2
+    // parameters for day-of-year splines grouped by site-year
     // standardized penalized spline coefficients
     vector[knots_2[1]] zs_2_1_epil;
     vector[knots_2[1]] zs_2_1_fila;
@@ -60,35 +59,30 @@ parameters {
     vector[knots_2[3]] zs_2_3_fila;
     vector<lower=0>[nb_2] sds_2_epil;  // SDs of penalized spline coefficients
     vector<lower=0>[nb_2] sds_2_fila;  // SDs of penalized spline coefficients
-    real<lower=0> shape_epil;  // shape parameter
-    real<lower=0> shape_fila;  // shape parameter
+    real<lower=0> shape_epil;          // shape parameter for distribution of epilithic biomass
+    real<lower=0> shape_fila;          // shape parameter for distribution of filamentous biomass
 }
 transformed parameters {
     // penalized spline coefficients
     vector[knots_1[1]] s_1_1_epil;
     vector[knots_1[1]] s_1_1_fila;
-    // penalized spline coefficients
     vector[knots_2[1]] s_2_1_epil;
     vector[knots_2[1]] s_2_1_fila;
-    // penalized spline coefficients
     vector[knots_2[2]] s_2_2_epil;
     vector[knots_2[2]] s_2_2_fila;
-    // penalized spline coefficients
     vector[knots_2[3]] s_2_3_epil;
     vector[knots_2[3]] s_2_3_fila;
-    real lprior = 0;  // prior contributions to the log posterior
+    real lprior = 0;  // initialize prior contributions to the log posterior
     // compute penalized spline coefficients
     s_1_1_epil = sds_1_epil[1] * zs_1_1_epil;
     s_1_1_fila = sds_1_fila[1] * zs_1_1_fila;
-    // compute penalized spline coefficients
     s_2_1_epil = sds_2_epil[1] * zs_2_1_epil;
     s_2_1_fila = sds_2_fila[1] * zs_2_1_fila;
-    // compute penalized spline coefficients
     s_2_2_epil = sds_2_epil[2] * zs_2_2_epil;
     s_2_2_fila = sds_2_fila[2] * zs_2_2_fila;
-    // compute penalized spline coefficients
     s_2_3_epil = sds_2_epil[3] * zs_2_3_epil;
     s_2_3_fila = sds_2_fila[3] * zs_2_3_fila;
+    // prior contributions to log posterior
     lprior += student_t_lpdf(sigma | 3, 0, 2.5)
     - 1 * student_t_lccdf(0 | 3, 0, 2.5);
     lprior += student_t_lpdf(Intercept_epil | 3, 0, 2.5);

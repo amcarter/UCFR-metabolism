@@ -136,8 +136,8 @@ sim_list <- list(
 )
 
 # Compile the Stan model
-stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_brms_build.stan")
-# stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error.stan")
+stan_model <- stan_model(file = "code/model/stan_code/old/partition_NPP_brms_build.stan")
+stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error.stan")
 # stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error2.stan")
 
 # init_list = list(list(mu_f = 0.2,
@@ -157,6 +157,7 @@ fit_sim_lb <- sampling(stan_model,
                     chains = 4,
                     cores = 4)
 
+get_prior(stan_model)
 # Evaluate the output
 summary(bb)
 summary(fit_sim)
