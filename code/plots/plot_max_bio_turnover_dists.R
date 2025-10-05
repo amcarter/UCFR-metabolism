@@ -6,7 +6,7 @@ library(brms)
 
 # read in datasets:
 
-coefs <- readRDS("data/full_biomass_NPP_partition_mod_chla_posterior_coefs.rds")
+coefs <- readRDS("figures/full_biomass_NPP_partition_mod_chla_posterior_coefs.rds")
 bm_met <- read_csv("data/biomass_data/log_gamma_brms_gam_fits_biomass.csv")
 
 # do calculations with bayesian model output:
@@ -149,7 +149,7 @@ bm_met_C %>%
 
 bm_fila_chl %>%
     group_by(Biomass, measure, stat) %>%
-    summarize(value = mean(value, na.rm = T)) %>%
+    summarize(value = mean(value, na.rm = T))
 
 p1 <- bm_fila_chl%>%
     mutate(Rate = 'chl') %>%
@@ -230,7 +230,7 @@ ann_text2.1 <- ann_text2 %>%
            sitename = case_when(year == 2020 ~ site,
                                 TRUE ~ ""))
 
-# p <-
+p <-
     bm_met_C %>%
         group_by(site, year) %>%
         mutate(across(c(filamentous_gm2, epilithon_gm2),
@@ -288,6 +288,70 @@ ann_text2.1 <- ann_text2 %>%
                                    order = 3))
 png('figures/biomass_prod_and_turnover.png', width = 6, height = 8,
     units = 'in', res = 300)
+p
+dev.off()
+p <-
+    bm_met_C %>%
+        group_by(site, year) %>%
+        mutate(across(c(filamentous_gm2, epilithon_gm2),
+                      ~ zoo::rollmean(.x, k = 7, na.pad = TRUE))) %>%
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR','GC','BG','BN'))) %>%
+    mutate(filamentous_gm2 = case_when(filamentous_gm2 < min_fila_gm2 ~ NA_real_,
+                                TRUE ~ filamentous_gm2)) %>%
+        ungroup() %>%
+    select(site, date, year, light,
+           starts_with(c('fila_prodgCd', 'epil_prodgCd')),
+                       fila_gm2_med = filamentous_gm2, epil_gm2_med = epilithon_gm2) %>%
+    pivot_longer(cols = starts_with(c('fila', 'epil')),
+                 values_to = 'value', names_to = c('biomass', 'measure'),
+                 names_pattern = '(fila|epil).*_(prod.*|gm2)') %>%
+    pivot_wider(names_from = measure, values_from = value) %>%
+    mutate(Light = factor(rep(" ", 2*nrow(bm_met)), levels = c("1"," ")),
+           gCm2 = gm2/2,
+           biomass = case_when(biomass == 'fila' ~ 'Filamentous',
+                               biomass == 'epil'~'Epilithic'),
+           biomass = factor(biomass, levels = c('Filamentous', 'Epilithic')))%>%
+    mutate(prodgCd_med = if_else(prodgCd_med > 2, 2, prodgCd_med)) %>%
+    ggplot(aes(date, prodgCd_med/gCm2, col = biomass))+
+    geom_area(aes(date, gCm2/coeff, fill = biomass), color = NA, alpha = 0.4)+
+    geom_line(size = 1.2)+
+    geom_line(aes(y = light/2.5, lty = Light), col = 'grey20') +
+    facet_grid(site~year, scales = 'free_x', ) +
+    geom_text(data = ann_text2, aes(label = trophic), col = 'black') +
+    geom_text(data = ann_text2.1, aes(label = sitename), col = 'black') +
+    scale_y_continuous(
+        expand = expand_scale(mult = c(0.1, 0.1)),
+        name = expression(paste('Production rate (', d^-1, ')')),
+        sec.axis = sec_axis(~.*coeff,
+                            name = expression(paste('Biomass (g C', m^-2, ')')),
+                            breaks = c(0, 25, 50))
+    )+
+    scale_fill_manual('Biomass standing stock',
+                      values = c('#97BB43', '#1B9EC9')) +
+    scale_color_manual('Biomass production rate',
+                       values = c('#97BB43', '#1B9EC9')) +
+    scale_linetype_manual('Light', values = c(2)) +
+    theme_classic()+
+    xlab('Date')+
+    theme(strip.text.y = element_blank(),
+          panel.border = element_rect(fill = NA),
+          panel.spacing = unit(0, units = 'in'),
+          axis.title = element_text(size = 14),
+          # axis.text = element_text(size = 8),
+          legend.text = element_text(size = 12),
+          legend.title = element_text(size = 12),
+          # legend.spacing.x = unit(1, 'cm'),
+          # legend.justification = 'top')
+          # legend.box.margin = margin(0, 5, 0, 5, "cm"),
+          legend.position = 'top')+
+    guides(color = guide_legend(title.position = "top", title.hjust = 0,
+                                order = 1),
+           fill = guide_legend(title.position = "top", title.hjust = 0,
+                               order = 2),
+           linetype = guide_legend(title.position = 'top', title.hjust = 0,
+                                   order = 3))
+tiff('figures/biomass_prod_and_turnover.tiff', width = 18, height = 24,
+    units = 'cm', res = 600)
 p
 dev.off()
 
@@ -459,6 +523,13 @@ p1 <- bm_fila_chl%>%
           panel.border = element_rect(fill = NA))
 png('figures/biomass_cumulative_and_turnover.png', width = 6.5, height = 3.5,
     units = 'in', res = 300)
+ggpubr::ggarrange(p4, p1, ncol = 2,
+                  labels = c('(a)', '(b)'),
+                  align = 'h', widths = c(1.5, 1))
+
+dev.off()
+tiff('figures/biomass_cumulative_and_turnover.tiff', width = 18, height = 9.7,
+    units = 'cm', res = 600)
 ggpubr::ggarrange(p4, p1, ncol = 2,
                   labels = c('(a)', '(b)'),
                   align = 'h', widths = c(1.5, 1))

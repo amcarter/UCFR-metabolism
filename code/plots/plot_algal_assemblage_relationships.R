@@ -226,6 +226,78 @@ extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
 
 dev.off()
 
+tiff('figures/algal_assemblage_relationships_meds.tiff',
+    width = 8.5, height = 9.45, units = 'cm', res = 600)
+
+extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
+                        A_GPP_C.mean = 0, B_ER_C.mean = -0.8, C_ARf.mean = 50,
+                        D_NPP_C.mean = 0, E_biomass_C.mean = 0, F_days_bio.mean = 0)
+
+    npp %>%
+        select(site, year, fila_bloom, fila_gm,
+               frac_fila, frac_fila_upper, frac_fila_lower,
+               A_GPP_C.mean = GPP_C, A_GPP_C.upper = GPP_C_upper,
+               A_GPP_C.lower = GPP_C_lower, B_ER_C.mean = ER_C,
+               B_ER_C.upper = ER_C_upper, B_ER_C.lower = ER_C_lower,
+               C_ARf.mean = ARf, C_ARf.lower = ARf.lower, C_ARf.upper = ARf.upper,
+               D_NPP_C.mean = NPP_C, E_biomass_C.mean = biomass_C,
+               E_biomass_C.upper = biomass_C_upper, E_biomass_C.lower = biomass_C_lower,
+               F_days_bio.mean = days_bio, F_days_bio.upper = days_bio_upper,
+               F_days_bio.lower = days_bio_lower) %>%
+        mutate(C_ARf.mean = 100*C_ARf.mean, C_ARf.upper = C_ARf.upper * 100,
+               C_ARf.lower = 100*C_ARf.lower,
+               fila_bloom = factor(fila_bloom, levels = c('No Bloom', 'Bloom'))) %>%
+        bind_rows(extra_row) %>%
+        pivot_longer(cols = starts_with(c('A_GPP_C', 'B_ER_C', 'C_ARf', 'D_NPP_C',
+                                     'E_biomass_C', 'F_days_bio')),
+                     names_to = 'response',
+                     values_to = 'value') %>%
+        separate_wider_delim(response, ".", names = c("response", "stat")) %>%
+        pivot_wider(names_from = stat, values_from = value) %>%
+        ggplot(aes(frac_fila, mean)) +
+        # geom_point(aes(col = fila_gm), size = 1.6) +
+        # scale_color_continuous(expression('Filamentous Algae (g m'^{-2}*')'))+
+        # geom_errorbar(aes(xmin = frac_fila_lower, xmax = frac_fila_upper,
+        #                   col = fila_bloom), alpha = 0.4) +
+        # geom_errorbar(aes(ymin = lower, ymax = upper,
+        #                   col = fila_bloom), alpha = 0.4) +
+        geom_point(aes(shape = fila_bloom,
+                       col = fila_bloom), size = 1.4) +
+        scale_color_manual("", values = c( '#7FB43A','#111011'))+
+        scale_shape_manual("", values = c(17,19))+
+        facet_wrap(response~., scales = 'free_y',
+                   strip.position = 'left',
+                   nrow = 3,
+                   labeller = as_labeller(c(A_GPP_C = 'GPP~(g~C~m^{-2}~d^{-1})',
+                                            B_ER_C = 'ER~(g~C~m^{-2}~d^{-1})',
+                                            C_ARf = 'AR~Fraction~("%")',
+                                            D_NPP_C = 'P[N]~(g~C~m^{-2}~d^{-1})',
+                                            E_biomass_C = 'Biomass~(g~C~m^{-2})',
+                                            F_days_bio = 'Turnover~Time~(d)'),
+                                          default = label_parsed)) +
+        labs(y = NULL, x = 'Filamentous fraction of total biomass')+
+        # annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, col = 'grey50')+
+        # xlim(0,0.91) +
+        xlim(0,0.82) +
+        # scale_x_continuous(expand = c(0.04, 0.04)) +
+        scale_y_continuous(expand =  expand_scale(mult = c(.08, 0.2),
+                                                  add = c(0, 0.2))) +
+        geom_text(data = labs, aes(label = corr, x = -Inf, y = Inf),
+                  size = 3, hjust = -0.25, vjust = 1.7)+
+        theme_classic()+
+        theme(strip.background = element_blank(),
+              strip.placement = "outside",
+              panel.border = element_rect(color = "grey50", fill = NA),
+              legend.title = element_text(size = 9, vjust = 0.8),
+              axis.line = element_line(color = "grey50"),     # Color of axis lines
+              axis.text = element_text(color = "grey50"),     # Color of axis labels
+              axis.ticks = element_line(color = "grey50"),    # Color of axis ticks
+              strip.text = element_text(color = "grey10"),
+              # legend.title = element_blank(),
+              legend.position = 'top')
+
+dev.off()
+
 
 png('figures/algal_assemblage_relationships_meds_error.png',
     width = 4.5, height = 5, units = 'in', res = 300)
@@ -291,5 +363,73 @@ extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
               axis.ticks = element_line(color = "grey50"),    # Color of axis ticks
               strip.text = element_text(color = "grey10"),
               legend.position = 'top')
+
+dev.off()
+tiff('figures/algal_assemblage_relationships_meds_error.tiff',
+    width = 8.5, height = 9.4, units = 'cm', res = 600)
+
+extra_row <- data.frame(fila_bloom = 'Bloom', frac_fila = -1,
+                        A_GPP_C.mean = 0, B_ER_C.mean = -0.8, C_ARf.mean = 50,
+                        D_NPP_C.mean = 0, E_biomass_C.mean = 0, F_days_bio.mean = 0)
+
+    npp %>%
+        select(site, year, fila_bloom, fila_gm,
+               frac_fila, frac_fila_upper, frac_fila_lower,
+               A_GPP_C.mean = GPP_C, A_GPP_C.upper = GPP_C_upper,
+               A_GPP_C.lower = GPP_C_lower, B_ER_C.mean = ER_C,
+               B_ER_C.upper = ER_C_upper, B_ER_C.lower = ER_C_lower,
+               C_ARf.mean = ARf, C_ARf.lower = ARf.lower, C_ARf.upper = ARf.upper,
+               D_NPP_C.mean = NPP_C, E_biomass_C.mean = biomass_C,
+               E_biomass_C.upper = biomass_C_upper, E_biomass_C.lower = biomass_C_lower,
+               F_days_bio.mean = days_bio, F_days_bio.upper = days_bio_upper,
+               F_days_bio.lower = days_bio_lower) %>%
+        mutate(C_ARf.mean = 100*C_ARf.mean, C_ARf.upper = C_ARf.upper * 100,
+               C_ARf.lower = 100*C_ARf.lower,
+               fila_bloom = factor(fila_bloom, levels = c('No Bloom', 'Bloom')),
+               D_NPP_C.upper = D_NPP_C.mean + 0.48, D_NPP_C.lower = D_NPP_C.mean - 0.48) %>%
+        bind_rows(extra_row) %>%
+        pivot_longer(cols = starts_with(c('A_GPP_C', 'B_ER_C', 'C_ARf', 'D_NPP_C',
+                                     'E_biomass_C', 'F_days_bio')),
+                     names_to = 'response',
+                     values_to = 'value') %>%
+        separate_wider_delim(response, ".", names = c("response", "stat")) %>%
+        pivot_wider(names_from = stat, values_from = value) %>%
+        ggplot(aes(frac_fila, mean)) +
+        geom_errorbar(aes(xmin = frac_fila_lower, xmax = frac_fila_upper,
+                          col = fila_bloom), alpha = 0.34) +
+        geom_errorbar(aes(ymin = lower, ymax = upper,
+                          col = fila_bloom), alpha = 0.34) +
+        geom_point(aes(shape = fila_bloom,
+                       col = fila_bloom), size = 1.4) +
+        scale_color_manual("", values = c( '#7FB43A','#111011'))+
+        scale_shape_manual("", values = c(17,19))+
+        facet_wrap(response~., scales = 'free_y',
+                   strip.position = 'left',
+                   nrow = 3,
+                   labeller = as_labeller(c(A_GPP_C = 'GPP~(g~C~m^{-2}~d^{-1})',
+                                            B_ER_C = 'ER~(g~C~m^{-2}~d^{-1})',
+                                            C_ARf = 'AR~Fraction~("%")',
+                                            D_NPP_C = 'P[N]~(g~C~m^{-2}~d^{-1})',
+                                            E_biomass_C = 'Biomass~(g~C~m^{-2})',
+                                            F_days_bio = 'Turnover~Time~(d)'),
+                                          default = label_parsed)) +
+        labs(y = NULL, x = 'Filamentous fraction of total biomass')+
+        xlim(0,0.91) +
+        scale_y_continuous(expand =  expand_scale(#mult = c(.08),
+                                                  add = 0.9)) +
+        geom_text(data = labs, aes(label = corr, x = -Inf, y = Inf),
+                  size = 2.5, hjust = -0.25, vjust = 1.7)+
+        theme_classic()+
+        theme(strip.background = element_blank(),
+              strip.placement = "outside",
+              panel.border = element_rect(color = "grey50", fill = NA),
+              legend.title = element_text(size = 7.5, vjust = 1),
+              legend.text = element_text(size = 7.5),
+              axis.line = element_line(color = "grey50"),     # Color of axis lines
+              axis.text = element_text(color = "grey50", size = 8),     # Color of axis labels
+              axis.title = element_text( size = 9),     # Color of axis labels
+              axis.ticks = element_line(color = "grey50"),    # Color of axis ticks
+              strip.text = element_text(color = "grey10", size = 7.5),
+              legend.position = 'top', vjust = 1)
 
 dev.off()
