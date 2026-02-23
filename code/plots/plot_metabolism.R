@@ -133,9 +133,36 @@ png('figures/metabolism_across_sites.png', width = 6.5, height = 6.5,
         xlab('Date')
 
     # M + geom_text(data = M_sum, aes(label = trophic), col = 'black')
-
     M + geom_text(data = M_sum, aes(label = PR_lab),
                    col = 'black', size = 3.2)
+dev.off()
+tiff('figures/metabolism_across_sites.tiff', width = 18, height = 18,res = 600, units = 'cm')
+    M <- met %>%
+        mutate(NEP = ER + GPP) %>%
+        filter(is.na(DO_fit) | DO_fit != 'bad') %>%
+        ggplot(aes(date, GPP, group = c(site))) +
+        geom_hline(yintercept = 0, size = 0.5, col = 'grey75')+
+        geom_line(col = 'grey30') +
+        geom_ribbon(aes(ymin = GPP.lower, ymax = GPP.upper),
+                      fill = '#007828', alpha = 0.6) +
+        geom_line(aes(y = ER), col = 'grey30') +
+        geom_line(aes(y = NEP), col = 'grey30') +
+        geom_ribbon(aes(ymin = ER.lower, ymax = ER.upper),
+                      fill = '#A84F06', alpha = 0.6 ) +
+        geom_ribbon(aes(ymin = NEP - 1.96*NEP.se, ymax = NEP + 1.96*NEP.se),
+                      fill = 'grey', alpha = 0.6 ) +
+        facet_grid(site~year, scales = 'free_x') +
+        theme_classic() +
+        theme(panel.border = element_rect(fill = NA),
+              panel.spacing = unit(0, 'line'),
+              axis.title = element_text(size = 12))+
+        ylim(-22.5,22)+
+        ylab(expression(paste('Metabolism (g ', O[2], m^-2, d^-1, ')'))) +
+        xlab('Date')
+
+    # M + geom_text(data = M_sum, aes(label = trophic), col = 'black')
+    M + geom_text(data = M_sum, aes(label = PR_lab),
+                   col = 'black', size = 3.6)
 dev.off()
 
 

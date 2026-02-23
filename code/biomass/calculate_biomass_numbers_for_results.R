@@ -49,7 +49,7 @@ mean(bb$epilithon_chla_mgm2/bb$epilithon_gm2)
 calculate_ts_mean_se(bb$epilithon_chla_mgm2/bb$epilithon_gm2)
 
 
-bio <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv')
+bio <- read_csv('data/biomass_data/log_gamma_brms_gam_fits_biomass.csv')
 bio <- left_join(select(met, 'site', 'date'), bio, by = c('site', 'date')) %>%
     filter(!is.na(year))
 
@@ -64,12 +64,12 @@ year_sum <- data.frame(site_year = unique(bio$site_year),
 
 for(i in 1:nrow(year_sum)){
     mm <- filter(bio, site_year == year_sum$site_year[i])
-    year_sum$max_epil[i] <- max(mm$epil_gm2_fit, na.rm = T)
-    year_sum$max_fila[i] <- max(mm$fila_gm2_fit, na.rm = T)
-    year_sum$mean_epil[i] <- mean(mm$epil_gm2_fit, na.rm = T)
-    year_sum$mean_epil.se[i] <- calculate_ts_mean_se(mm$epil_gm2_fit)
-    year_sum$mean_fila[i] <- mean(mm$fila_gm2_fit, na.rm = T)
-    year_sum$mean_fila.se[i] <- calculate_ts_mean_se(mm$fila_gm2_fit)
+    year_sum$max_epil[i] <- max(mm$epilithon_gm2, na.rm = T)
+    year_sum$max_fila[i] <- max(mm$filamentous_gm2, na.rm = T)
+    year_sum$mean_epil[i] <- mean(mm$epilithon_gm2, na.rm = T)
+    year_sum$mean_epil.se[i] <- calculate_ts_mean_se(mm$epilithon_gm2)
+    year_sum$mean_fila[i] <- mean(mm$filamentous_gm2, na.rm = T)
+    year_sum$mean_fila.se[i] <- calculate_ts_mean_se(mm$filamentous_gm2)
 }
 
 summary(year_sum)

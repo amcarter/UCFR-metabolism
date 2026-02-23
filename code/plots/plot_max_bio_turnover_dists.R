@@ -5,723 +5,39 @@ library(brms)
 # Growth rate calculations ####
 
 # read in datasets:
-met <- read_csv('data/metabolism/metabolism_compiled_all_sites_mle_fixedK_correctedSE.csv') %>%
-    mutate(site = case_when(site == 'BM' ~ 'BG',
-                            TRUE ~ site),
-           site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BG', 'BN')),
-           year = factor(year),
-           GPP.se = (GPP.upper - GPP.lower)/(2*1.96),
-           ER.se = (ER.upper - ER.lower)/(2*1.96))
 
-q90 <- read_csv('data/quantile_PR_fits_summary_brms.csv') %>%
-    mutate(site = case_when(site == 'BM' ~ 'BG',
-                            TRUE ~ site),
-           year = factor(year))
-met <- left_join(met, select(q90, site, year, ARf = slope, ARf.se = slope.se), by = c('site', 'year')) %>%
-    mutate(year = factor(year),
-           NPP = GPP * (1-ARf),
-           NPP.se = sqrt(GPP.se ^2 + ARf.se^2),
-           # NPP_globalARf = GPP * (1 + beta[2,1]),
-           AR = -GPP *(ARf),
-           AR.se = sqrt(GPP.se^2 + ARf.se^2),
-           HR = ER - AR,
-           HR.se = sqrt(ER.se^2 + AR.se^2)) %>%
-    select(-msgs.fit, -warnings, -errors, -K600, -DO_fit)
-
-biogams <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv') %>%
-    mutate(epilg = log(epil_gm2_fit),
-           epilgse = abs(epil_gm2_se/epil_gm2_fit),
-           filag = log(fila_gm2_fit + 1),
-           filagse = abs(fila_gm2_se/(fila_gm2_fit+1)),
-           epilc = log(epil_chla_mgm2_fit),
-           epilcse = abs(epil_chla_mgm2_se/epil_chla_mgm2_fit),
-           filac = log(fila_chla_mgm2_fit + 1),
-           filacse = abs(fila_chla_mgm2_se/(fila_chla_mgm2_fit+1)))
-
-# need to get light into the correct units! ####
-light <- read_csv('data/site_data/daily_modeled_light_all_sites.csv') %>%
-    mutate(site = case_when(site == 'BM' ~ 'BG',
-                            TRUE ~ site))
-ggplot(light, aes(date, PAR_bc_Jm2, col = site)) +
-    geom_line()
-ggplot(light, aes(date, LAI, col = site)) +
-    geom_line()
-
-# create data frame for models
-bm_met <- select(biogams, site, date, epil_gm2_fit, fila_gm2_fit,
-                 epil_chla_mgm2_fit, fila_chla_mgm2_fit,
-                 epil_gm2_se, fila_gm2_se,
-                 epil_chla_mgm2_se, fila_chla_mgm2_se,
-                 epilg, epilgse, filag, filagse,
-                 epilc, epilcse, filac, filacse) %>%
-    rename_with(~gsub('_fit', '', .x)) %>%
-    left_join(select(ungroup(met), site, date, year, GPP, ER, ARf, NPP,
-                     GPP.se, ER.se, ARf.se, NPP.se),
-              by = c('site', 'date')) %>%
-    left_join(select(light, site, date, PAR_bc_Jm2)) %>%
-    mutate(light = PAR_bc_Jm2/max(PAR_bc_Jm2),
-           epilcl = epilc*light,
-           epilcsel = epilcse*light,
-           filacl = filac*light,
-           filacsel = filacse*light,
-           epil_chla_mgm2_l = epil_chla_mgm2*light,
-           epil_chla_mgm2_sel = epil_chla_mgm2_se*light) %>%
-    filter(!is.na(GPP))
-
-# write_csv(bm_met, "data_for_model.csv")
-# bm_met <- read_csv("data_for_model.csv")
-
-# Simulate data ####
-N = nrow(bm_met)
-meanme <- c(40, 30)
-sdme <- c(12, 8)
-B_f = rgamma(N, shape = mean(bm_met$fila_chla_mgm2)^2/sd(bm_met$fila_chla_mgm2),
-             rate = mean(bm_met$fila_chla_mgm2)/sd(bm_met$fila_chla_mgm2))
-B_e = rgamma(N, shape = mean(bm_met$epil_chla_mgm2)^2/sd(bm_met$epil_chla_mgm2),
-             rate = mean(bm_met$epil_chla_mgm2)/sd(bm_met$epil_chla_mgm2))
-
-B_f_se = rgamma(N, 1/3, 1/3)
-B_e_se = rgamma(N, 1/2, 1/2)
-
-B_f_mod <- rgamma(N, shape = B_f^2/B_f_se, rate = B_f/B_f_se)
-B_e_mod <- rgamma(N, shape = B_e^2/B_e_se, rate = B_e/B_e_se)
-
-site = factor(bm_met$site)
-light = bm_met$PAR_bc_Jm2
-
-# define coefficients:
-mu_f = 0.1
-sigma_f = 0.02
-mu_fj = rnorm(6, mu_f, sigma_f)
-mu_e = 0.5
-K_Bf = 0.2
-K_I = 5
-sigma = 1
-
-# Simulate NPP:
-NPP = mu_f * B_f + mu_e * B_e + rnorm(N, 0, sigma)
-# NPP = (mu_f * B_f * (1/(1 + K_Bf * B_f)) + mu_e * B_e) * (light/(K_I + light)) +
-NPP = (mu_fj[site] * B_f + mu_e * B_e) * (light/(K_I + light)) +
-    rnorm(N, 0, sigma)
-
-
-# test brms model:
-dd <- data.frame(NPP = NPP,
-                 B_e_mod = B_e_mod,
-                 B_f_mod = B_f_mod,
-                 B_e_se = B_e_se,
-                 B_f_se = B_f_se)
-ll <- lm(NPP ~ 0 + B_e_mod + B_f_mod, data = dd)
-summary(ll)
-bform <- bf(NPP ~ 0 + me(B_e_mod, B_e_se) + me(B_f_mod, B_f_se))
-stancode(bform, data = dd)
-bb <- brm(NPP ~ 0 + me(B_e_mod, B_e_se) + me(B_f_mod, B_f_se),
-          data = dd,
-          ncores = 4, nchains = 4)
-summary(bb)
-
-
-# Fit STAN model ####
-# Prepare data for Stan
-sim_list <- list(
-    N = nrow(bm_met),
-    NPP = NPP,
-    Mme = 2,
-    NCme = 1,
-    Bf_mod = B_f_mod,
-    Be_mod = B_e_mod,
-    Bf_se = B_f_se,
-    Be_se = B_e_se
-    # light = light
-)
-
-# Compile the Stan model
-stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_brms_build.stan")
-# stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error.stan")
-# stan_model <- stan_model(file = "code/model/stan_code/partition_NPP_error2.stan")
-
-# init_list = list(list(mu_f = 0.2,
-#                       sigma_f = 0.1),
-#                  list(mu_f = 0.3,
-#                       sigma_f = 0.05),
-#                  list(mu_f = 0.25,
-#                       sigma_f = 0.12),
-#                  list(mu_f = 0.22,
-#                       sigma_f = 0.08))
-
-# Run the Stan model
-fit_sim_lb <- sampling(stan_model,
-                    data = sim_list,
-                    iter = 2000,
-                    # init = init_list,
-                    chains = 4,
-                    cores = 4)
-
-# Evaluate the output
-summary(bb)
-summary(fit_sim)
-summary(fit_sim_lb, pars = c("mu_f", "mu_e", "meanme", "sdme", "sigma"))
-traceplot(fit_sim_lb, pars = c("mu_f", "mu_e", "meanme", "sdme", "sigma"))
-pairs(fit_sim, pars = c("mu_f", "mu_e", "meanme", "sdme", "sigma"))
-summary(fit_sim, pars = c("mu_f", "sigma_f", "mu_e", "K_I", "sigma"))
-traceplot(fit_sim, pars = c("mu_f", "mu_e", "K_I", "sigma"))
-plot(fit_sim, pars = c("mu_f", "mu_e", "K_Bf", "K_I", "sigma"))
-pairs(fit_sim, pars = c("mu_f", "mu_e", "K_Bf", "K_I", "sigma"))
-
-sim_ppreds <- summary(fit_sim)$summary %>%
-    data.frame() %>%
-    mutate(param = rownames(summary(fit_sim)$summary))
-
-plot(density(sim_ppreds$mean), xlim = c(0, 30), lty = 2)
-lines(density(NPP))
-
-# Fit model on real data####
-lm(NPP/light ~ 0 + fila_chla_mgm2 + epil_chla_mgm2, data = bm_met)
-
-dat_list <- list(
-    N = nrow(bm_met),
-    Mme = 2,
-    NCme = 1,
-    NPP = bm_met$NPP,
-    B_f_mean = bm_met$fila_chla_mgm2,
-    B_e_mean = bm_met$epil_chla_mgm2,
-    B_f_se = bm_met$fila_chla_mgm2_se,
-    B_e_se = bm_met$epil_chla_mgm2_se
-    )
-    # light = bm_met$PAR_bc_Jm2)
-
-fit <- sampling(stan_model,
-                data = dat_list,
-                iter = 3000,
-                control = list(max_treedepth = 15),
-                chains = 4,
-                cores = 4)
-
-summary(fit)
-summary(modmix_brma)
-fit@stanmodel
-traceplot(fit)
-meanme <- c(7.2e-8, 25)
-sdme <- c(7.46e-7, 8.19)
-
-bfmix <- bf(NPP ~ 0 +  me(fila_chla_mgm2, fila_chla_mgm2_se) + me(epil_chla_mgm2, epil_chla_mgm2_se) )
-
-get_prior(bfmix, data = bm_met, family = gaussian)
-
-priorsa <- c(
-    prior(normal(0, 0.1), class = "b", coef = "mefila_chla_mgm2fila_chla_mgm2_se"),
-    prior(normal(0, 0.3), class = "b", coef = "meepil_chla_mgm2epil_chla_mgm2_se"),
-    prior(normal(0, 1), class = "meanme"))
-
-brms::stancode(bfmix, data = bm_met, family = gaussian, prior = priorsa)
-
-modmix_brma <- brms::brm(bfmix,
-                         data = bm_met,
-                         prior = priorsa,
-                         iter = 4000,
-                         control = options(max_treedepth = 16,
-                                           adapt_delta = 0.9),
-                         chains = 4, cores = 4)
-
-
-summary(modmix_brma)
-mean(bm_met$epil_chla_mgm2)
-mean(bm_met$fila_chla_mgm2)
-Lme <- matrix(data = c(1,0, 0.7, 0.96), ncol = 2)
-zme <- matrix(data = c(0.17,0.2,0.188,0.241,
-                       1,1,1,1), ncol = 2)
-
-matrix(c(rep(meanme[1], 4), rep(meanme[2], 4)), ncol = 2) + t((diag(sdme) %*% Lme) %*% t(zme))
-bm_met %>% select(fila_chla_mgm2, epil_chla_mgm2)
-
-summary(fit, pars = c("mu_f", "mu_e", "K_I", "sigma"))
-traceplot(fit, pars = c("mu_f", "mu_e", "K_I", "sigma"))
-traceplot(fit, pars = c("mu_f", "mu_e", "K_I", "sigma"))
-summary(fit, pars = c("mu_f", "sigma_f", "mu_e", "sigma_e", "K_I", "sigma"))
-traceplot(fit, pars = c("mu_f", "sigma_f", "mu_e", "sigma_e", "K_I", "sigma"))
-pairs(fit, pars = c("mu_f", "mu_e", "K_I", "sigma"))
-
-fit_ppreds <- summary(fit)$summary %>%
-    data.frame() %>%
-    mutate(param = rownames(summary(fit)$summary))
-
-plot(density(fit_ppreds$mean), xlim = c(-5, 20), lty = 2)
-lines(density(bm_met$NPP))
-
-NPP_meas <- bm_met$NPP
-shinystan::launch_shinystan(fit)
-
-+ epil_chla_mgm2 + fila_chla_mgm2, bm_met)
-mod1 <- lm(NPP ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
-mod2 <- lm(NPP ~ 0 + epil_chla_mgm2_l + fila_chla_mgm2_l, bm_met)
-mod3 <- lm(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2, bm_met)
-mod4 <- lm(NPP/light ~ 0 + epil_gm2 + fila_gm2, bm_met)
-
-modmix1 <- lme4::lmer(NPP/light ~ 0 + epil_chla_mgm2 + fila_chla_mgm2 +
-                         (0+epil_chla_mgm2+fila_chla_mgm2|site),
-                     data = bm_met,
-                     REML = FALSE,
-                     control = lmerControl(optimizer ="Nelder_Mead"))
-modmix2 <- lme4::lmer(NPP/light ~ 0 + epil_chla_mgm2 + filac +
-                         (0+epil_chla_mgm2+filac|site),
-                     data = bm_met,
-                     REML = FALSE,
-                     control = lmerControl(optimizer ="Nelder_Mead"))
-modmix3 <- lme4::lmer(NPP/light ~ 0 + epilc + filac +
-                         (0+epilc+filac|site),
-                     data = bm_met,
-                     REML = FALSE,
-                     control = lmerControl(optimizer ="Nelder_Mead"))
-modmix4 <- lme4::lmer(NPP ~ 0 + epilcl + filacl +
-                         (0+epilcl+filacl|site),
-                     data = bm_met,
-                     REML = FALSE,
-                     control = lmerControl(optimizer ="Nelder_Mead"))
-modmix5 <- lme4::lmer(NPP ~ 0 + epil_chla_mgm2_l + filacl +
-                         (0+epil_chla_mgm2_l+filacl|site),
-                     data = bm_met,
-                     REML = FALSE,
-                     control = lmerControl(optimizer ="Nelder_Mead"))
-
-summary(modmix1)
-ranef(modmix)
-
-ggplot(bm_met, aes(fila_chla_mgm2, NPP/light))+
-    geom_point() +
-    geom_errorbarh(aes(xmin = fila_chla_mgm2 - fila_chla_mgm2_se,
-                       xmax = fila_chla_mgm2 + fila_chla_mgm2_se))
-
-# build model using brms:
-bm_met <- bm_met %>%
-    mutate(NPPL = NPP/light,
-           filacl = filac*light,
-           epilcl = epilc*light,
-           filacsel = filacse*light,
-           epilcsel = epilcse*light)
-
-hist(bm_met$NPP)
-hist(log(bm_met$NPPL))
-hist(bm_met$epil_chla_mgm2)
-hist(bm_met$fila_chla_mgm2)
-hist(bm_met$epilc)
-hist(bm_met$epilcse)
-hist(bm_met$filac)
-hist(bm_met$filacse)
-
-bm_met$siteyear = as.factor(paste0(bm_met$site, bm_met$year))
-
-
-# Plot prior distributions:
-median_epil <- mean(1/(bm_met$light*4))
-max_epil <- mean(1/(bm_met$light*30))
-min_epil <- mean(1/(bm_met$light*1))
-median_epil <- mean(bm_met$epil_chla_mgm2/(bm_met$light*bm_met$epilc*0.1))
-median_epil <- mean(bm_met$epil_chla_mgm2/(bm_met$light *bm_met$epilc*4))
-max_fila <- mean(bm_met$fila_chla_mgm2/(bm_met$light*bm_met$filac*100))
-median_fila <- mean(bm_met$fila_chla_mgm2/(bm_met$light *bm_met$filac*10))
-min_fila <- mean(bm_met$fila_chla_mgm2/(bm_met$light*bm_met$filac*2))
-
-png("figures/priors_for_NPP_partition_model.png", width = 6, height = 6, units = "in", res = 300)
-par(mfrow = c(2,1), mar = c(4,4,1,1), oma = c(0,0,1,0))
-x = seq(0, 12, by = 0.01)
-plot(x, dlnorm(x, 0.4, 1), type = 'l', xlab = bquote("Value of "*mu ["f"]), ylab = "density")
-mtext("Priors for Algal Growth Rates", adj = 0, line = 0.2)
-mtext("Filamentous Algae", line = -1, adj = 0.9)
-polygon(c(x[x<max_fila], max_fila, max_fila, rev(x[x<max_fila])),
-        c(dlnorm(c(x[x<max_fila], max_fila), 0.4, 1), rep(0, length(x[x<max_fila]) + 1)),
-        col = "purple")
-polygon(c(min_fila, x[x>min_fila], rev(x[x>min_fila]), min_fila),
-        c(dlnorm(c(min_fila, x[x>min_fila]), 0.4, 1), rep(0, length(x[x>min_fila]) + 1)),
-        col = "purple")
-text(1.45, 0.05, "p(turnover time \n> 100 days)", col = "purple", cex = 0.8)
-text(3, 0.3, "Median expected \nturnover time \n= 10 days", cex = 0.8)
-text(9.5, 0.04, "p(turnover time < 2 days)", col = "purple", cex = 0.8)
-abline(v = median_fila, lty = 2)
-
-x = seq(0, 3.5, by = 0.01)
-plot(x, dlnorm(x, -0.9, 1), type = 'l', xlab = bquote("Value of "*mu ["e"]), ylab = "density")
-mtext( "Epilithic Algae", line = -1, adj = 0.9)
-polygon(c(x[x<max_epil], max_epil, max_epil, rev(x[x<max_epil])),
-        c(dlnorm(c(x[x<max_epil], max_epil), -0.9, 1), rep(0, length(x[x<max_epil]) + 1)),
-        col = "purple")
-polygon(c(min_epil, x[x>min_epil], rev(x[x>min_epil]), min_epil),
-        c(dlnorm(c(min_epil, x[x>min_epil]), -0.9, 1), rep(0, length(x[x>min_epil]) + 1)),
-        col = "purple")
-text(0.45, 0.18, "p(turnover time \n> 30 days)", col = "purple", cex = 0.8)
-text(.85, 1.2, "Median expected \nturnover time \n= 4 days", cex = 0.8)
-text(2.5, 0.18, "p(turnover time < 1 day)", col = "purple", cex = 0.8)
-abline(v = median_epil, lty = 2)
-dev.off()
-
-example(stan_model, package = "rstan", run.dontrun = TRUE)
-# Fit BRMS models: ####
-# Model 1: NPPL = (epil) + (fila)) * L
-bfmix <- bf(NPP ~ 0 +  me(fila_chla_mgm2, fila_chla_mgm2_se) + me(epil_chla_mgm2, epil_chla_mgm2_se) )
-bfmix <- bf(NPPL ~ 0 +  me(epil_chla_mgm2, epil_chla_mgm2_se) + me(fila_chla_mgm2, fila_chla_mgm2_se) +
-                (0 + me(epil_chla_mgm2, epil_chla_mgm2_se) + me(fila_chla_mgm2, fila_chla_mgm2_se)|siteyear))
-
-get_prior(bfmix, data = bm_met, family = gaussian)
-brms::stancode(bfmix, data = bm_met, family = gaussian, prior = priorsa)
-
-priorsa <- c(
-    prior(normal(0, 0.1), class = "b", coef = "mefila_chla_mgm2fila_chla_mgm2_se"),
-    prior(normal(0, 0.3), class = "b", coef = "meepil_chla_mgm2epil_chla_mgm2_se"),
-    prior(normal(0, 1), class = "meanme"))
-
-priorsb <- c(
-    prior(lognormal(-2.5, 1), class = "b", coef = "mefilaclfilacsel"),
-    prior(lognormal(-1.2, 1), class = "b", coef = "meepilclepilcsel"),
-    prior(normal(0, 0.2), class = "sd")
-)
-
-modmix_brma <- brms::brm(bfmix,
-                        data = bm_met,
-                        prior = priorsa,
-                        iter = 4000,
-                        control = options(max_treedepth = 16,
-                                          adapt_delta = 0.9),
-                        chains = 4, cores = 4)
-# saveRDS(modmix_brma, "data/model_fits/brms_NPPL_partition_linElinF_gaussPrior.rds")
-modL_linElinF_gauss <- readRDS("data/model_fits/model_fits/brms_NPPL_partition_linElinF_gaussPrior.rds")
-summary(modL_linElinF_gauss)
-# modmix_brmb <- brms::brm(bfmix,
-#                         data = bm_met,
-#                         family = gaussian(link = "identity"),
-#                         prior = priorsb,
-#                         iter = 6000,
-#                         control = options(max_treedepth = 16,
-#                                           adapt_delta = 0.9),
-#                         chains = 4, cores = 4)
-# saveRDS(modmix_brmb, "data/model_fits/brms_NPPL_partition_linElinF_logPrior.rds")
-modL_linElinF_log <- readRDS("data/model_fits/model_fits/brms_NPPL_partition_linElinF_logPrior.rds")
-summary(modL_linElinF_log)
-# plot(modL_linElinF_log)
-pp_check(modL_linElogF_log, ndraws = 100)
-preds_linlin_gauss = predict(modL_linElinF_gauss, newdata = bm_met)
-preds_linlin_log = predict(modL_linElinF_log, newdata = bm_met)
-
-mods <- data.frame(
-    response = c("NPP/L", "NPP/L"),
-    preds = c("linElinF", "linElinF"),
-    prior = c("gauss", "lnorm"),
-    rmse = c(sqrt(mean((preds_linlin_gauss[,'Estimate'] - bm_met$NPPL)^2)),
-             sqrt(mean((preds_linlin_log[,'Estimate'] - bm_met$NPPL)^2))),
-    coef_epil = c(fixef(modL_linElinF_gauss)[1,1], fixef(modL_linElinF_log)[1,1]),
-    coef_fila = c(fixef(modL_linElinF_gauss)[2,1], fixef(modL_linElinF_log)[2,1])
-)
-
-bm_met %>%
-    bind_cols(preds_linlin_gauss) %>%
-    mutate(predsl = Estimate,
-           predsl_q2.5 = Q2.5,
-           predsl_q97.5 = Q97.5) %>%
-    ggplot(aes(NPP/light, predsl, col = site)) +
-    geom_errorbar(aes(ymin = predsl_q2.5, ymax = predsl_q97.5), alpha = 0.3)+
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1) +
-    ggtitle("NPP/L ~ linE + linF, gauss prior")+
-    theme_bw()
-bm_met %>%
-    bind_cols(preds_linlin_log) %>%
-    mutate(predsl = Estimate,
-           predsl_q2.5 = Q2.5,
-           predsl_q97.5 = Q97.5) %>%
-    ggplot(aes(NPP/light, predsl, col = site)) +
-    geom_errorbar(aes(ymin = predsl_q2.5, ymax = predsl_q97.5), alpha = 0.3)+
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1) +
-    ggtitle("NPP/L ~ linE + linF, lnorm prior")+
-    theme_bw()
-
-# Model 2:  NPP/L = epil + log(fila) ####
-bfmix <- bf(NPPL ~ 0 +  me(epil_chla_mgm2, epil_chla_mgm2_se) + me(filac, filacse) +
-                (0 + me(epil_chla_mgm2, epil_chla_mgm2_se) + me(filac, filacse)|siteyear))
-
-priors <- c(
-    prior(normal(0, 0.5), class = "b", coef = "mefilaclfilacsel"),
-    prior(normal(0, 0.5), class = "b", coef = "meepil_chla_mgm2epil_chla_mgm2_se"),
-    prior(normal(0, 0.2), class = "sd")
-)
-
-# modmix_brmlinlog <- brms::brm(bfmix,
-#                               data = bm_met,
-#                               prior = priors,
-#                               iter = 10000,
-#                               control = options(max_treedepth = 15,
-#                                                 adapt_delta = 0.9),
-#                               chains = 4, cores = 4)
-#
-# saveRDS(modmix_brmlinlog, "data/model_fits/brms_NPPL_partition_linElogF.rds")
-modL_linElogF_gauss <- readRDS("data/model_fits/model_fits/brms_NPPL_partition_linElogF.rds")
-modL_linElogF_log <- readRDS("data/model_fits/brms_NPPL_partition_linElogF.rds")
-# modmix_brmlinlog <- readRDS("data/model_fits/brms_NPPL_partition_linElogF.rds")
-summary(modL_linElogF_gauss)
-get_prior(modL_linElogF_gauss)
-# plot(modL_linElogF_gauss)
-# pp_check(modL_linElogF_gauss, ndraws = 100)
-
-preds_linlog = predict(modL_linElogF_gauss, newdata = bm_met)
-sqrt(mean((preds_linlog[,'Estimate'] - bm_met$NPPL)^2))
-preds_linlog_log = predict(modL_linElogF_log, newdata = bm_met)
-sqrt(mean((preds_linlog_log[,'Estimate'] - bm_met$NPPL)^2))
-
-mods <- data.frame(
-    response = c("NPP/L", "NPP/L"),
-    preds = c("linElogF", "linElogF"),
-    prior = c("gauss", "lnorm"),
-    rmse = c(sqrt(mean((preds_linlog[,'Estimate'] - bm_met$NPPL)^2)),
-             sqrt(mean((preds_linlog_log[,'Estimate'] - bm_met$NPPL)^2))),
-    coef_epil = c(fixef(modL_linElogF_gauss)[1,1], fixef(modL_linElogF_log)[1,1]),
-    coef_fila = c(fixef(modL_linElogF_gauss)[2,1], fixef(modL_linElogF_log)[2,1])
-) %>%
-    bind_rows(mods)
-
-bm_met %>%
-    bind_cols(preds_linlog) %>%
-    mutate(predsl = Estimate,
-           predsl_q2.5 = Q2.5,
-           predsl_q97.5 = Q97.5) %>%
-    ggplot(aes(NPP/light, predsl, col = site)) +
-    geom_errorbar(aes(ymin = predsl_q2.5, ymax = predsl_q97.5), alpha = 0.3)+
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1) +
-    ggtitle("NPP/L ~ linE + logF, gauss prior")+
-    theme_bw()
-
-bm_met %>%
-    bind_cols(preds_linlog_log) %>%
-    mutate(predsl = Estimate,
-           predsl_q2.5 = Q2.5,
-           predsl_q97.5 = Q97.5) %>%
-    ggplot(aes(NPP/light, predsl, col = site)) +
-    geom_errorbar(aes(ymin = predsl_q2.5, ymax = predsl_q97.5), alpha = 0.3)+
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1) +
-    ggtitle("NPP/L ~ linE + logF, lnorm prior")+
-    theme_bw()
-
-
-# Model 2: NPPL = (log(epil) + log(fila))
-bfmix <- bf(NPPL ~ 0 +  me(epilc, epilcse) + me(filac, filacse) +
-                (0 + me(epilc, epilcse) + me(filac, filacse)|siteyear))
-get_prior(bfmix, data = bm_met, family = gaussian)
-
-# priorsa <- c(
-#     prior(normal(0, 0.2), class = "b", coef = "mefilaclfilacsel"),
-#     prior(normal(0, 1), class = "b", coef = "meepilclepilcsel"),
-#     prior(normal(0, 0.2), class = "sd")
-# )
-# priorsb <- c(
-#     prior(lognormal(-2, 1), class = "b", coef = "mefilaclfilacsel"),
-#     prior(lognormal(0.7, 1), class = "b", coef = "meepilclepilcsel"),
-#     prior(normal(0, 0.2), class = "sd")
-# )
-
-# modmix_brma <- brms::brm(bfmix,
-#                         data = bm_met,
-#                         family = gaussian(link = "identity"),
-#                         prior = priorsa,
-#                         iter = 6000,
-#                         control = options(max_treedepth = 16,
-#                                           adapt_delta = 0.9),
-#                         chains = 4, cores = 4)
-# saveRDS(modmix_brma, "data/model_fits/brms_NPPL_partition_logElogF_gaussPrior.rds")
-modL_logElogF_gauss <- readRDS("data/model_fits/model_fits/brms_NPPL_partition_logElogF_gaussPrior.rds")
-# modmix_brmb <- brms::brm(bfmix,
-#                         data = bm_met,
-#                         family = gaussian(link = "identity"),
-#                         prior = priorsb,
-#                         iter = 6000,
-#                         control = options(max_treedepth = 16,
-#                                           adapt_delta = 0.9),
-#                         chains = 4, cores = 4)
-# saveRDS(modmix_brmb, "data/model_fits/brms_NPPL_partition_logElogF_logPrior.rds")
-modL_logElogF_log <- readRDS("data/model_fits/model_fits/brms_NPPL_partition_logElogF_logPrior.rds")
-get_prior(modL_logElogF_gauss)
-summary(modL_logElogF_gauss)
-summary(modL_logElogF_log)
-# pp_check(modL_logElogF_gauss, ndraws = 100)
-# pp_check(modL_logElogF_log, ndraws = 100)
-# plot(modL_logElogF_log)
-
-preds_loglog_gauss = predict(modL_logElogF_gauss, newdata = bm_met)
-preds_loglog_log = predict(modL_logElogF_log, newdata = bm_met)
-sqrt(mean((preds_loglog_gauss[,'Estimate'] - bm_met$NPP/bm_met$light)^2))
-sqrt(mean((preds_loglog_log[,'Estimate'] - bm_met$NPP/bm_met$light)^2))
-
-mods <- data.frame(
-    response = c("NPP/L", "NPP/L"),
-    preds = c("logElogF", "logElogF"),
-    prior = c("gauss", "lnorm"),
-    rmse = c(sqrt(mean((preds_loglog_gauss[,'Estimate'] - bm_met$NPPL)^2)),
-             sqrt(mean((preds_loglog_log[,'Estimate'] - bm_met$NPPL)^2))),
-    coef_epil = c(fixef(modL_logElogF_gauss)[1,1], fixef(modL_logElogF_log)[1,1]),
-    coef_fila = c(fixef(modL_logElogF_gauss)[2,1], fixef(modL_logElogF_log)[2,1])
-) %>%
-    bind_rows(mods)
-
-bm_met %>%
-    bind_cols(preds_loglog_gauss) %>%
-    mutate(predsl = Estimate,
-           predsl_q2.5 = Q2.5,
-           predsl_q97.5 = Q97.5) %>%
-    ggplot(aes(NPP/light, predsl, col = site)) +
-    geom_errorbar(aes(ymin = predsl_q2.5, ymax = predsl_q97.5), alpha = 0.3)+
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1) +
-    ggtitle("NPP/L ~ logE + logF, gauss prior")+
-    theme_bw()
-
-bm_met %>%
-    bind_cols(preds_loglog_log) %>%
-    mutate(predsl = Estimate,
-           predsl_q2.5 = Q2.5,
-           predsl_q97.5 = Q97.5) %>%
-    ggplot(aes(NPP/light, predsl, col = site)) +
-    geom_errorbar(aes(ymin = predsl_q2.5, ymax = predsl_q97.5), alpha = 0.3)+
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1) +
-    ggtitle("NPP/L ~ logE + logF, lnorm prior")+
-    theme_bw()
-
-# Model 1.5: NPP = (log(epil) + log(fila)) * L
-bfmix_np <- bf(NPP ~ 0 +  me(epil_chla_mgm2_l, epil_chla_mgm2_sel) + me(filacl, filacsel))
-get_prior(bfmix_np, data = bm_met, family = gaussian)
-
-priorsa <- c(
-    prior(normal(0, 1), class = "b", coef = "mefilaclfilacsel"),
-    prior(normal(0, 1), class = "b", coef = "meepil_chla_mgm2_lepil_chla_mgm2_sel")
-)
-priorsb <- c(
-    prior(exponential(1), class = "b", coef = "mefilaclfilacsel"),
-    prior(exponential(1), class = "b", coef = "meepil_chla_mgm2_lepil_chla_mgm2_sel")
-)
-
-modmix_brm <- brms::brm(bfmix_np,
-                        data = bm_met,
-                        family = gaussian(link = "identity"),
-                        prior = priorsa,
-                        iter = 10000,
-                        control = list(max_treedepth = 16),
-                        chains = 4, cores = 4)
-saveRDS(modmix_brm, "data/model_fits/brms_NPP_pooled_linElogF_gaussprior.rds")
-modmix_brmexp <- brms::brm(bfmix_np,
-                        data = bm_met,
-                        family = gaussian(link = "identity"),
-                        prior = priorsb,
-                        iter = 10000,
-                        control = list(max_treedepth = 15),
-                        chains = 4, cores = 4)
-saveRDS(modmix_brm, "data/model_fits/brms_NPP_pooled_linElogF_expprior.rds")
-
-#### set two
-bfmix_np <- bf(NPP ~ 0 +  me(epil_chla_mgm2_l, epil_chla_mgm2_sel) + me(fila_chla_mgm2_l, fila_chla_mgm2_sel))
-get_prior(bfmix_np, data = bm_met, family = gaussian)
-
-priorsa <- c(
-    prior(normal(0, 0.2), class = "b", coef = "mefila_chla_mgm2_lfila_chla_mgm2_sel"),
-    prior(normal(0, .5), class = "b", coef = "meepil_chla_mgm2_lepil_chla_mgm2_sel")
-)
-priorsb <- c(
-    prior(exponential(1), class = "b", coef = "mefila_chla_mgm2_lfila_chla_mgm2_sel"),
-    prior(exponential(1), class = "b", coef = "meepil_chla_mgm2_lepil_chla_mgm2_sel")
-)
-
-modmix_brm <- brms::brm(bfmix_np,
-                        data = bm_met,
-                        family = gaussian(link = "identity"),
-                        prior = priorsa,
-                        iter = 10000,
-                        control = list(max_treedepth = 15),
-                        chains = 4, cores = 4)
-saveRDS(modmix_brm, "data/model_fits/brms_NPP_pooled_linElinF_gaussprior.rds")
-modmix_brmexp <- brms::brm(bfmix_np,
-                        data = bm_met,
-                        family = gaussian(link = "identity"),
-                        prior = priorsb,
-                        iter = 10000,
-                        control = list(max_treedepth = 15),
-                        chains = 4, cores = 4)
-saveRDS(modmix_brm, "data/model_fits/brms_NPP_pooled_linElinF_expprior.rds")
-
-
-
-
-
-summary(modmix_brm)
-pairs(modmix_brm)
-plot(modmix_brm)
-summary(modmix_brmexp)
-pairs(modmix_brmexp)
-plot(modmix_brmexp)
-saveRDS(modmix_brm_a, "data/model_fits/brms_NPP_partition_logElogF_gaussPrior.rds")
-mod_logElogF_gauss <- readRDS("data/model_fits/model_fits/brms_NPP_partition_logElogF_gaussPrior.rds")
-# modmix_brm_b <- brms::brm(bfmix_np,
-#                         data = bm_met,
-#                         family = gaussian(link = "identity"),
-#                         prior = priorsb,
-#                         iter = 6000,
-#                         control = options(max_treedepth = 15,
-#                                           adapt_delta = 0.9),
-#                         chains = 4, cores = 4)
-# saveRDS(modmix_brm_b, "data/model_fits/brms_NPP_partition_logElogF_logPrior.rds")
-mod_logElogF_log <- readRDS("data/model_fits/model_fits/brms_NPP_partition_logElogF_logPrior.rds")
-# get_prior(modmix_brm)
-summary(mod_logElogF_gauss)
-summary(mod_logElogF_log)
-# plot(modmix_brm)
-# pp_check(modmix_brm, ndraws = 100)
-
-preds_ll_gauss = predict(mod_logElogF_gauss, newdata = bm_met)
-preds_ll_log = predict(mod_logElogF_log, newdata = bm_met)
-sqrt(mean((preds_ll_gauss[,'Estimate'] - bm_met$NPP)^2))
-sqrt(mean((preds_ll_log[,'Estimate'] - bm_met$NPP)^2))
-
-mods <- data.frame(
-    response = c("NPP", "NPP"),
-    preds = c("logElogF", "logElogF"),
-    prior = c("gauss", "lnorm"),
-    rmse = c(sqrt(mean((preds_ll_gauss[,'Estimate'] - bm_met$NPP)^2)),
-             sqrt(mean((preds_ll_log[,'Estimate'] - bm_met$NPP)^2))),
-    coef_epil = c(fixef(mod_logElogF_gauss)[1,1], fixef(mod_logElogF_log)[1,1]),
-    coef_fila = c(fixef(mod_logElogF_gauss)[2,1], fixef(mod_logElogF_log)[2,1])
-) %>%
-    bind_rows(mods)
-
-bm_met %>%
-    bind_cols(preds_ll_gauss) %>%
-    mutate(predsl = Estimate,
-           predsl_q2.5 = Q2.5,
-           predsl_q97.5 = Q97.5) %>%
-    ggplot(aes(NPP, predsl, col = site)) +
-    geom_errorbar(aes(ymin = predsl_q2.5, ymax = predsl_q97.5), alpha = 0.3)+
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1) +
-    ggtitle("NPP ~ logE + logF, gauss prior")+
-    theme_bw()
-
-bm_met %>%
-    bind_cols(preds_ll_log) %>%
-    mutate(predsl = Estimate,
-           predsl_q2.5 = Q2.5,
-           predsl_q97.5 = Q97.5) %>%
-    ggplot(aes(NPP, predsl, col = site)) +
-    geom_errorbar(aes(ymin = predsl_q2.5, ymax = predsl_q97.5), alpha = 0.3)+
-    geom_point() +
-    geom_abline(intercept = 0, slope = 1) +
-    ggtitle("NPP ~ logE + logF, lnorm prior")+
-    theme_bw()
-
-
-
-# do calculations with bayesian model output:
-coefs <- readRDS("data/full_biomass_NPP_partition_mod_chla_posterior_coefs.rds")
+coefs <- readRDS("figures/full_biomass_NPP_partition_mod_chla_posterior_coefs.rds")
 bm_met <- read_csv("data/biomass_data/log_gamma_brms_gam_fits_biomass.csv")
 
-mu_epil <- coefs$coefs_df$mu_epil * 12/32
-mu_fila <- coefs$coefs_df$mu_fila * 12/32
+# do calculations with bayesian model output:
+coefs_afdm <- coefs$coefs_afdm %>%
+    mutate(across(starts_with("mu"),
+                  ~ .x * 2 *12/32), # convert to units of 1/d
+           sigma = sigma * 12/32)
+coefs_chl <- coefs$coefs_chla %>%
+    mutate(across(starts_with("mu"),
+                  ~ .x * 12/32),   # convert to units of mg C/mg chl a/d
+           sigma = sigma * 12/32)
 
-bm_met <- bm_met %>%
+coefs_afdm
+coefs_chl
+data.frame(t(coefs_chl)) %>% mutate(model = "chl")
+
+mu_epil <- coefs$coefs_afdm$mu_epil * 2*12/32
+mu_fila <- coefs$coefs_afdm$mu_fila * 2*12/32
+mu_epil_c <- coefs$coefs_chla$mu_epil * 12/32
+mu_fila_c <- coefs$coefs_chla$mu_fila * 12/32
+fila_chla_C <- bm_met$filamentous_chla_mgm2/bm_met$filamentous_gm2 * 2
+epil_chla_C <- bm_met$epilithon_chla_mgm2/bm_met$epilithon_gm2 * 2
+fila_chla_C <- if_else(is.infinite(fila_chla_C), NA, fila_chla_C)
+epil_chla_C <- if_else(is.infinite(epil_chla_C), NA, epil_chla_C)
+
+mu_epil_cC <- mu_epil_c * mean(epil_chla_C, na.rm = T)
+mu_fila_cC <- mu_fila_c * mean(fila_chla_C, na.rm = T)
+mu_epil_cC/mu_fila_cC
+mu_epil/mu_fila
+
+bm_met_C <- bm_met %>%
     mutate(light = PAR_bc_Jm2/max(PAR_bc_Jm2)) %>%
     select(site, date, doy, year, light,
            starts_with(c("NPP", "epilithon", "filamentous", "frac"))) %>%
@@ -732,12 +48,12 @@ bm_met <- bm_met %>%
            mu_fila_med = mu_fila[1]*lscale,
            mu_fila_low = mu_fila[2]*lscale,
            mu_fila_high = mu_fila[3]*lscale,
-           fila_prodgCd_med = filamentous_chla_mgm2 * mu_fila[1] * lscale,
-           fila_prodgCd_low = filamentous_chla_lower * mu_fila[2] * lscale,
-           fila_prodgCd_high = filamentous_chla_upper * mu_fila[3] * lscale,
-           epil_prodgCd_med = epilithon_chla_mgm2 * mu_epil[1] * lscale,
-           epil_prodgCd_low = epilithon_chla_upper * mu_epil[3] * lscale,
-           epil_prodgCd_high = epilithon_chla_lower * mu_epil[2] * lscale,
+           fila_prodgCd_med = filamentous_gm2/2 * mu_fila[1] * lscale,
+           fila_prodgCd_low = filamentous_gm2_lower/2 * mu_fila[2] * lscale,
+           fila_prodgCd_high = filamentous_gm2_upper/2 * mu_fila[3] * lscale,
+           epil_prodgCd_med = epilithon_gm2/2 * mu_epil[1] * lscale,
+           epil_prodgCd_low = epilithon_gm2_upper/2 * mu_epil[3] * lscale,
+           epil_prodgCd_high = epilithon_gm2_lower/2 * mu_epil[2] * lscale,
            fila_turn_med = filamentous_gm2/fila_prodgCd_med/2,
            fila_turn_high = filamentous_gm2_lower/fila_prodgCd_high/2,
            fila_turn_low = filamentous_gm2_upper/fila_prodgCd_low/2,
@@ -745,6 +61,31 @@ bm_met <- bm_met %>%
            epil_turn_high = epilithon_gm2_lower/epil_prodgCd_high/2,
            epil_turn_low = epilithon_gm2_upper/epil_prodgCd_low/2
            )
+bm_met_chl <- bm_met %>%
+    mutate(light = PAR_bc_Jm2/max(PAR_bc_Jm2)) %>%
+    select(site, date, doy, year, light,
+           starts_with(c("NPP", "epilithon", "filamentous", "frac"))) %>%
+    mutate(lscale = light/(light + 0.5),
+           mu_epil_med = mu_epil_c[1]*lscale,
+           mu_epil_low = mu_epil_c[2]*lscale,
+           mu_epil_high = mu_epil_c[3]*lscale,
+           mu_fila_med = mu_fila_c[1]*lscale,
+           mu_fila_low = mu_fila_c[2]*lscale,
+           mu_fila_high = mu_fila_c[3]*lscale,
+           fila_prodgCd_med = filamentous_chla_mgm2 * mu_fila_c[1] * lscale,
+           fila_prodgCd_low = filamentous_chla_lower * mu_fila_c[2] * lscale,
+           fila_prodgCd_high = filamentous_chla_upper * mu_fila_c[3] * lscale,
+           epil_prodgCd_med = epilithon_chla_mgm2 * mu_epil_c[1] * lscale,
+           epil_prodgCd_low = epilithon_chla_upper * mu_epil_c[3] * lscale,
+           epil_prodgCd_high = epilithon_chla_lower * mu_epil_c[2] * lscale,
+           fila_turn_med = filamentous_gm2/fila_prodgCd_med/2,
+           fila_turn_high = filamentous_gm2_lower/fila_prodgCd_high/2,
+           fila_turn_low = filamentous_gm2_upper/fila_prodgCd_low/2,
+           epil_turn_med = epilithon_gm2/epil_prodgCd_med/2,
+           epil_turn_high = epilithon_gm2_lower/epil_prodgCd_high/2,
+           epil_turn_low = epilithon_gm2_upper/epil_prodgCd_low/2
+           )
+
 
 
 # bm_met <- bm_met %>%
@@ -771,7 +112,14 @@ bloom_df <- data.frame(site = rep(c("PL","DL","GR", "GC", "BG", "BN"), each = 2)
 
 
 min_fila_gm2 <- 0.36129
-bm_fila <- filter(bm_met, filamentous_gm2 > min_fila_gm2) %>%
+bm_fila_C <- filter(bm_met_C, filamentous_gm2 > min_fila_gm2) %>%
+    pivot_longer(cols = ends_with(c('med', 'low', 'high')),
+                 values_to = 'value', names_to = c('Biomass', 'measure', 'stat'),
+                 names_pattern = '(epil|fila|mu)_(.*)_(med|high|low)')  %>%
+    filter(Biomass != 'mu') %>%
+    left_join(bloom_df, by = c("site", "year")) %>%
+    mutate(value = if_else(value > 10000, NA, value))
+bm_fila_chl <- filter(bm_met_chl, filamentous_gm2 > min_fila_gm2) %>%
     pivot_longer(cols = ends_with(c('med', 'low', 'high')),
                  values_to = 'value', names_to = c('Biomass', 'measure', 'stat'),
                  names_pattern = '(epil|fila|mu)_(.*)_(med|high|low)')  %>%
@@ -779,23 +127,50 @@ bm_fila <- filter(bm_met, filamentous_gm2 > min_fila_gm2) %>%
     left_join(bloom_df, by = c("site", "year")) %>%
     mutate(value = if_else(value > 10000, NA, value))
 
-p1 <- bm_fila %>%
+
+bm_fila_C %>%
+    group_by(Biomass, measure, stat) %>%
+    summarize(mean = mean(value, na.rm = T),
+              max = max(value, na.rm = T)) %>%
+    mutate(rate = 1/mean) %>%    print(n = 30)
+
+bm_met_C %>%
+    mutate(epil_percent = epilithon_gm2/(epilithon_gm2 + filamentous_gm2),
+           epil_percent_high = epilithon_gm2_upper/(epilithon_gm2_upper + filamentous_gm2_lower),
+           epil_percent_low = epilithon_gm2_lower/(epilithon_gm2_lower + filamentous_gm2_upper),
+           epil_percent_prod = epil_prodgCd_med/(epil_prodgCd_med + fila_prodgCd_med),
+           epil_percent_prodhigh = epil_prodgCd_high/(epil_prodgCd_high + fila_prodgCd_low),
+           epil_percent_prodlow = epil_prodgCd_low/(epil_prodgCd_low + fila_prodgCd_high)) %>%
+    left_join(bloom_df, by = c("site", "year")) %>%
+    # group_by(bloom) %>%
+    summarize(across(starts_with('epil_percent'),
+                     ~ mean(.x, na.rm = T)))
+
+
+bm_fila_chl %>%
+    group_by(Biomass, measure, stat) %>%
+    summarize(value = mean(value, na.rm = T))
+
+p1 <- bm_fila_chl%>%
+    mutate(Rate = 'chl') %>%
+    bind_rows(mutate(bm_fila_C, Rate = "C")) %>%
+    mutate(rate_biomass = paste0(Rate, Biomass)) %>%
     filter(measure == 'turn') %>%
-    ggplot(aes(x=value, group = Biomass, fill = Biomass)) +
+    ggplot(aes(x=value, group = rate_biomass, fill = Biomass, lty = Rate)) +
     geom_density(adjust=1.5, alpha=.4) +
-    xlim(0.1, 100)+
     scale_fill_manual(values = c('#1B9EC9', '#97BB43'))+
-    scale_x_log10(limits = c(1, 1500))+
+    scale_x_log10(limits = c(2, 1500))+
     ylab('Density')+
     xlab('Turnover time (d)')+
     theme_classic()+
-    theme(legend.position = 'none',
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.9,0.6),
           panel.border = element_rect(fill = NA))
-p1 <- p1 + annotate(geom = 'text', x = 12, y = 0.25,
-                    label="Epilithic", col = '#1B9EC9')
-p1 <- p1 + annotate(geom = 'text', x = 32, y = 0.06,
-                    label="Filamentous", col = '#97BB43')
-p2 <- bm_fila %>%
+# p1 <- p1 + annotate(geom = 'text', x = 12, y = 0.25,
+#                     label="Epilithic", col = '#1B9EC9')
+# p1 <- p1 + annotate(geom = 'text', x = 32, y = 0.06,
+#                     label="Filamentous", col = '#97BB43')
+p2 <- bm_fila_C %>%
     ggplot(aes(frac_fila, value))+
     xlab('Filamentous fraction of \ntotal biomass (%)')+
     ylab('Turnover time (d)')+
@@ -840,7 +215,7 @@ ggplot(bm_met, aes(date, fila_prod_gCd))+
 # png('figures/NPP_vs_standing_crop_all_sites.png',
 #     width = 6.5, height = 6.5,
 #     res = 300, units = 'in')
-coeff = 200
+coeff = 150
 ann_text2 <- read_csv('data/metabolism/auto_sites_figure_labels.csv') %>%
     mutate(site = case_when(site == 'BM' ~ 'BG',
                             TRUE ~ site),
@@ -856,7 +231,7 @@ ann_text2.1 <- ann_text2 %>%
                                 TRUE ~ ""))
 
 p <-
-    bm_met %>%
+    bm_met_C %>%
         group_by(site, year) %>%
         mutate(across(c(filamentous_gm2, epilithon_gm2),
                       ~ zoo::rollmean(.x, k = 7, na.pad = TRUE))) %>%
@@ -876,6 +251,7 @@ p <-
            biomass = case_when(biomass == 'fila' ~ 'Filamentous',
                                biomass == 'epil'~'Epilithic'),
            biomass = factor(biomass, levels = c('Filamentous', 'Epilithic')))%>%
+    mutate(prodgCd_med = if_else(prodgCd_med > 2, 2, prodgCd_med)) %>%
     ggplot(aes(date, prodgCd_med/gCm2, col = biomass))+
     geom_area(aes(date, gCm2/coeff, fill = biomass), color = NA, alpha = 0.4)+
     geom_line(size = 1.2)+
@@ -884,7 +260,7 @@ p <-
     geom_text(data = ann_text2, aes(label = trophic), col = 'black') +
     geom_text(data = ann_text2.1, aes(label = sitename), col = 'black') +
     scale_y_continuous(
-        expand = expand_scale(mult = c(0.05, 0.1)),
+        expand = expand_scale(mult = c(0.1, 0.1)),
         name = expression(paste('Production rate (', d^-1, ')')),
         sec.axis = sec_axis(~.*coeff,
                             name = expression(paste('Biomass (g C', m^-2, ')')),
@@ -912,6 +288,70 @@ p <-
                                    order = 3))
 png('figures/biomass_prod_and_turnover.png', width = 6, height = 8,
     units = 'in', res = 300)
+p
+dev.off()
+p <-
+    bm_met_C %>%
+        group_by(site, year) %>%
+        mutate(across(c(filamentous_gm2, epilithon_gm2),
+                      ~ zoo::rollmean(.x, k = 7, na.pad = TRUE))) %>%
+    mutate(site = factor(site, levels = c('PL', 'DL', 'GR','GC','BG','BN'))) %>%
+    mutate(filamentous_gm2 = case_when(filamentous_gm2 < min_fila_gm2 ~ NA_real_,
+                                TRUE ~ filamentous_gm2)) %>%
+        ungroup() %>%
+    select(site, date, year, light,
+           starts_with(c('fila_prodgCd', 'epil_prodgCd')),
+                       fila_gm2_med = filamentous_gm2, epil_gm2_med = epilithon_gm2) %>%
+    pivot_longer(cols = starts_with(c('fila', 'epil')),
+                 values_to = 'value', names_to = c('biomass', 'measure'),
+                 names_pattern = '(fila|epil).*_(prod.*|gm2)') %>%
+    pivot_wider(names_from = measure, values_from = value) %>%
+    mutate(Light = factor(rep(" ", 2*nrow(bm_met)), levels = c("1"," ")),
+           gCm2 = gm2/2,
+           biomass = case_when(biomass == 'fila' ~ 'Filamentous',
+                               biomass == 'epil'~'Epilithic'),
+           biomass = factor(biomass, levels = c('Filamentous', 'Epilithic')))%>%
+    mutate(prodgCd_med = if_else(prodgCd_med > 2, 2, prodgCd_med)) %>%
+    ggplot(aes(date, prodgCd_med/gCm2, col = biomass))+
+    geom_area(aes(date, gCm2/coeff, fill = biomass), color = NA, alpha = 0.4)+
+    geom_line(size = 1.2)+
+    geom_line(aes(y = light/2.5, lty = Light), col = 'grey20') +
+    facet_grid(site~year, scales = 'free_x', ) +
+    geom_text(data = ann_text2, aes(label = trophic), col = 'black') +
+    geom_text(data = ann_text2.1, aes(label = sitename), col = 'black') +
+    scale_y_continuous(
+        expand = expand_scale(mult = c(0.1, 0.1)),
+        name = expression(paste('Production rate (', d^-1, ')')),
+        sec.axis = sec_axis(~.*coeff,
+                            name = expression(paste('Biomass (g C', m^-2, ')')),
+                            breaks = c(0, 25, 50))
+    )+
+    scale_fill_manual('Biomass standing stock',
+                      values = c('#97BB43', '#1B9EC9')) +
+    scale_color_manual('Biomass production rate',
+                       values = c('#97BB43', '#1B9EC9')) +
+    scale_linetype_manual('Light', values = c(2)) +
+    theme_classic()+
+    xlab('Date')+
+    theme(strip.text.y = element_blank(),
+          panel.border = element_rect(fill = NA),
+          panel.spacing = unit(0, units = 'in'),
+          axis.title = element_text(size = 14),
+          # axis.text = element_text(size = 8),
+          legend.text = element_text(size = 12),
+          legend.title = element_text(size = 12),
+          # legend.spacing.x = unit(1, 'cm'),
+          # legend.justification = 'top')
+          # legend.box.margin = margin(0, 5, 0, 5, "cm"),
+          legend.position = 'top')+
+    guides(color = guide_legend(title.position = "top", title.hjust = 0,
+                                order = 1),
+           fill = guide_legend(title.position = "top", title.hjust = 0,
+                               order = 2),
+           linetype = guide_legend(title.position = 'top', title.hjust = 0,
+                                   order = 3))
+tiff('figures/biomass_prod_and_turnover.tiff', width = 18, height = 24,
+    units = 'cm', res = 600)
 p
 dev.off()
 
@@ -999,7 +439,7 @@ ann_text <- data.frame(Date = rep(as.Date('2020-07-16'), 6),
 
 p3 <- p + geom_text(data = ann_text, aes(label = site), col = 'black')
 
-bm_sum <-  bm_met %>%
+bm_sum <-  bm_met_C %>%
     mutate(site = factor(site, levels = c('PL', 'DL', 'GR','GC','BG','BN'))) %>%
     group_by(site, year) %>%
     summarize(n = n(),
@@ -1064,25 +504,32 @@ p4 <- bm_sum %>%
           legend.spacing.y = unit(-0.1, "cm"),
           legend.position = c(0.24, 0.79),
           legend.background = element_rect(fill = NA))
-
-p1 <- bm_fila %>%
+p1 <- bm_fila_chl%>%
+    mutate(Rate = 'chl') %>%
+    bind_rows(mutate(bm_fila_C, Rate = "C")) %>%
+    mutate(rate_biomass = paste0(Rate, Biomass),
+           Biomass = case_when(Biomass == "epil" ~ "Epilithic",
+                               Biomass == "fila" ~ "Filamentous")) %>%
     filter(measure == 'turn') %>%
-    ggplot(aes(x=value, group = Biomass, fill = Biomass)) +
+    ggplot(aes(x=value, group = rate_biomass, fill = Biomass, lty = Rate)) +
     geom_density(adjust=1.5, alpha=.4) +
-    xlim(0.1, 100)+
     scale_fill_manual(values = c('#1B9EC9', '#97BB43'))+
-    scale_x_log10(limits = c(1, 1500))+
+    scale_x_log10(limits = c(2, 1500))+
     ylab('Density')+
     xlab('Turnover time (d)')+
     theme_classic()+
-    theme(legend.position = 'none',
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.7,0.6),
           panel.border = element_rect(fill = NA))
-p1 <- p1 + annotate(geom = 'text', x = 25, y = 3,
-                    label="Epilithic", col = '#1B9EC9')
-p1 <- p1 + annotate(geom = 'text', x = 80, y = 0.8,
-                    label="Filamentous", col = '#97BB43')
 png('figures/biomass_cumulative_and_turnover.png', width = 6.5, height = 3.5,
     units = 'in', res = 300)
+ggpubr::ggarrange(p4, p1, ncol = 2,
+                  labels = c('(a)', '(b)'),
+                  align = 'h', widths = c(1.5, 1))
+
+dev.off()
+tiff('figures/biomass_cumulative_and_turnover.tiff', width = 18, height = 9.7,
+    units = 'cm', res = 600)
 ggpubr::ggarrange(p4, p1, ncol = 2,
                   labels = c('(a)', '(b)'),
                   align = 'h', widths = c(1.5, 1))

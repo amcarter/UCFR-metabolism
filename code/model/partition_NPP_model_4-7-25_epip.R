@@ -17,7 +17,8 @@ q90 <- read_csv('data/quantile_PR_fits_summary_brms.csv') %>%
     mutate(site = case_when(site == 'BM' ~ 'BG',
                             TRUE ~ site),
            year = factor(year))
-met <- left_join(met, select(q90, site, year, ARf = slope, ARf.se = slope.se), by = c('site', 'year')) %>%
+met <- left_join(met, select(q90, site, year, ARf = slope, ARf.se = slope.se),
+                 by = c('site', 'year')) %>%
     mutate(year = factor(year),
            NPP = GPP * (1-ARf),
            NPP.se = sqrt(GPP.se ^2 + ARf.se^2),
@@ -28,13 +29,17 @@ met <- left_join(met, select(q90, site, year, ARf = slope, ARf.se = slope.se), b
            HR.se = sqrt(ER.se^2 + AR.se^2)) %>%
     select(-msgs.fit, -warnings, -errors, -K600, -DO_fit)
 
-biogams <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass.csv') %>%
+biogams <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass_epip.csv') %>%
     mutate(epilg = log(epil_gm2_fit),
            epilgse = abs(epil_gm2_se/epil_gm2_fit),
+           epipg = log(epip_gm2_fit+1),
+           epipgse = abs(epip_gm2_se/(epip_gm2_fit+1)),
            filag = log(fila_gm2_fit + 1),
            filagse = abs(fila_gm2_se/(fila_gm2_fit+1)),
            epilc = log(epil_chla_mgm2_fit),
            epilcse = abs(epil_chla_mgm2_se/epil_chla_mgm2_fit),
+           epipc = log(epip_chla_mgm2_fit+1),
+           epipcse = abs(epip_chla_mgm2_se/(epip_chla_mgm2_fit+1)),
            filac = log(fila_chla_mgm2_fit + 1),
            filacse = abs(fila_chla_mgm2_se/(fila_chla_mgm2_fit+1)))
 
@@ -48,12 +53,12 @@ ggplot(light, aes(date, LAI, col = site)) +
     geom_line()
 
 # create data frame for models
-bm_met <- select(biogams, site, date, epil_gm2_fit, fila_gm2_fit,
-                 epil_chla_mgm2_fit, fila_chla_mgm2_fit,
-                 epil_gm2_se, fila_gm2_se,
-                 epil_chla_mgm2_se, fila_chla_mgm2_se,
-                 epilg, epilgse, filag, filagse,
-                 epilc, epilcse, filac, filacse) %>%
+bm_met <- select(biogams, site, date, epil_gm2_fit, epip_gm2_fit, fila_gm2_fit,
+                 epil_chla_mgm2_fit, epip_chla_mgm2_fit, fila_chla_mgm2_fit,
+                 epil_gm2_se, epip_gm2_se, fila_gm2_se,
+                 epil_chla_mgm2_se, epip_chla_mgm2_se, fila_chla_mgm2_se,
+                 epilg, epilgse, epipg, epipgse, filag, filagse,
+                 epilc, epilcse, epipc, epipcse, filac, filacse) %>%
     rename_with(~gsub('_fit', '', .x)) %>%
     left_join(select(ungroup(met), site, date, year, GPP, ER, ARf, NPP,
                      GPP.se, ER.se, ARf.se, NPP.se),
@@ -62,14 +67,18 @@ bm_met <- select(biogams, site, date, epil_gm2_fit, fila_gm2_fit,
     mutate(light = PAR_bc_Jm2/max(PAR_bc_Jm2),
            epilcl = epilc*light,
            epilcsel = epilcse*light,
+           epipcl = epipc*light,
+           epipcsel = epipcse*light,
            filacl = filac*light,
            filacsel = filacse*light,
            epil_chla_mgm2_l = epil_chla_mgm2*light,
            epil_chla_mgm2_sel = epil_chla_mgm2_se*light) %>%
     filter(!is.na(GPP))
 
-# write_csv(bm_met, "data_for_model.csv")
-# bm_met <- read_csv("data_for_model.csv")
+# write_csv(bm_met, "data_for_model_epip.csv")
+# bm_met <- read_csv("data_for_model_epip.csv")
+
+
 
 # Simulate data ####
 N = nrow(bm_met)
@@ -79,12 +88,16 @@ B_f = rgamma(N, shape = mean(bm_met$fila_chla_mgm2)^2/sd(bm_met$fila_chla_mgm2),
              rate = mean(bm_met$fila_chla_mgm2)/sd(bm_met$fila_chla_mgm2))
 B_e = rgamma(N, shape = mean(bm_met$epil_chla_mgm2)^2/sd(bm_met$epil_chla_mgm2),
              rate = mean(bm_met$epil_chla_mgm2)/sd(bm_met$epil_chla_mgm2))
+B_ep = rgamma(N, shape = mean(bm_met$epip_chla_mgm2)^2/sd(bm_met$epip_chla_mgm2),
+             rate = mean(bm_met$epip_chla_mgm2)/sd(bm_met$epip_chla_mgm2))
 
 B_f_se = rgamma(N, 1/3, 1/3)
 B_e_se = rgamma(N, 1/2, 1/2)
+B_ep_se = rgamma(N, 1/2, 1/2)
 
 B_f_mod <- rgamma(N, shape = B_f^2/B_f_se, rate = B_f/B_f_se)
 B_e_mod <- rgamma(N, shape = B_e^2/B_e_se, rate = B_e/B_e_se)
+B_ep_mod <- rgamma(N, shape = B_ep^2/B_ep_se, rate = B_ep/B_ep_se)
 
 site = factor(bm_met$site)
 light = bm_met$PAR_bc_Jm2
@@ -94,30 +107,32 @@ mu_f = 0.1
 sigma_f = 0.02
 mu_fj = rnorm(6, mu_f, sigma_f)
 mu_e = 0.5
+mu_ep = 0.5
 K_Bf = 0.2
 K_I = 5
 sigma = 1
 
 # Simulate NPP:
-NPP = mu_f * B_f + mu_e * B_e + rnorm(N, 0, sigma)
+NPP = mu_f * B_f + mu_e * B_e + mu_ep * B_ep + rnorm(N, 0, sigma)
 # NPP = (mu_f * B_f * (1/(1 + K_Bf * B_f)) + mu_e * B_e) * (light/(K_I + light)) +
-NPP = (mu_fj[site] * B_f + mu_e * B_e) * (light/(K_I + light)) +
+NPP = (mu_fj[site] * B_f + mu_e * B_e + mu_ep * B_ep) * (light/(K_I + light)) +
     rnorm(N, 0, sigma)
 
 
 # test brms model:
 dd <- data.frame(NPP = NPP,
                  B_e_mod = B_e_mod,
+                 B_ep_mod = B_ep_mod,
                  B_f_mod = B_f_mod,
                  B_e_se = B_e_se,
+                 B_ep_se = B_ep_se,
                  B_f_se = B_f_se)
-ll <- lm(NPP ~ 0 + B_e_mod + B_f_mod, data = dd)
+ll <- lm(NPP ~ 0 + B_e_mod + B_ep_mod + B_f_mod, data = dd)
 summary(ll)
-bform <- bf(NPP ~ 0 + me(B_e_mod, B_e_se) + me(B_f_mod, B_f_se))
+bform <- bf(NPP ~ 0 + me(B_e_mod, B_e_se) + me(B_ep_mod, B_ep_se) + me(B_f_mod, B_f_se))
 stancode(bform, data = dd)
-bb <- brm(NPP ~ 0 + me(B_e_mod, B_e_se) + me(B_f_mod, B_f_se),
-          data = dd,
-          ncores = 4, nchains = 4)
+bb <- brm(NPP ~ 0 + me(B_e_mod, B_e_se) + me(B_ep_mod, B_ep_se) + me(B_f_mod, B_f_se),
+          data = dd, chains = 4, cores = 4)
 summary(bb)
 
 
@@ -126,11 +141,13 @@ summary(bb)
 sim_list <- list(
     N = nrow(bm_met),
     NPP = NPP,
-    Mme = 2,
+    Mme = 3,
     NCme = 1,
     Bf_mod = B_f_mod,
+    Bep_mod = B_ep_mod,
     Be_mod = B_e_mod,
     Bf_se = B_f_se,
+    Bep_se = B_ep_se,
     Be_se = B_e_se
     # light = light
 )
