@@ -111,6 +111,7 @@ bm_met <- s_preds %>%
   tibble() %>%
   full_join(biomass,
             by = c("site", "date", "year", "doy")) %>%
+  mutate(
     epilithon_gm2_min  = epilithon_gm2 + min_vals$min[min_vals$biomass == "epilithon_gm2"],
     filamentous_gm2_min = filamentous_gm2 + min_vals$min[min_vals$biomass == 'filamentous_gm2'],
     epilithon_chla_mgm2_min  = epilithon_chla_mgm2 + min_vals$min[min_vals$biomass == "epilithon_chla_mgm2"],
