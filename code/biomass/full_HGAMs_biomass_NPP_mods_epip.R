@@ -153,13 +153,13 @@ bm_sum2 <- bm_met %>%
 bform <- bf(epilithon_gm2_min | mi() ~ s(doy) +
               s(doy, site_year, bs = 'fs'))
 
-f2_bgamma <- brm(bform,
-      data = bm_met,
-      family = Gamma(link = 'log'),
-      chains = 4, cores = 4,
-      iter = 1000)
-# saveRDS(f2_bgamma, "data/model_fits/brms_gam_for_spline_full.rds")
-f2_bgamma <- readRDS("data/model_fits/brms_gam_for_spline.rds")
+# f2_bgamma <- brm(bform,
+#       data = bm_met,
+#       family = Gamma(link = 'log'),
+#       chains = 4, cores = 4,
+#       iter = 1000)
+# saveRDS(f2_bgamma, "data/model_fits/brms_gam_for_spline_epip.rds")
+f2_bgamma <- readRDS("data/model_fits/brms_gam_for_spline_epip.rds")
 
 # stancode(f2_bgamma)
 # str(f2_bgamma)
@@ -257,7 +257,7 @@ dat_list <- list(
   Jmi_epip = which(is.na(bm_met$epiphyton_chla_mgm2_min)),
   Jmi_fila = which(is.na(bm_met$filamentous_chla_mgm2_min)),
   Jmi_NPP = which(is.na(bm_met$NPP)),
-  K = 2,
+  K = 3,
   # data for fitting splines to DOY:
   Ks = 1,
   Xs = DOY_spline,
@@ -323,8 +323,10 @@ cat("Number of divergent transitions:", n_divergent, "\n")
 
 # Simulated posterior predictive data
 # Assume you generated `y_rep` inside Stan and it is accessible
-y_rep <- posterior::as_draws_df(fitchla, variable = "y_rep") %>% select(starts_with("NPP["))  %>% as.matrix()
-y_rep_g <- posterior::as_draws_df(fitg, variable = "y_rep") %>% select(starts_with("NPP["))  %>% as.matrix()
+y_rep <- posterior::as_draws_df(fitchla, variable = "y_rep") %>%
+  select(starts_with("NPP["))  %>% as.matrix()
+y_rep_g <- posterior::as_draws_df(fitg, variable = "y_rep") %>%
+  select(starts_with("NPP["))  %>% as.matrix()
 # Your observed data
 bm_met$NPP[1] <- 5
 y_obs <- bm_met$NPP # vector of observed responses
@@ -390,7 +392,7 @@ coefs_afdm <- apply(coefs_afdm, 2, function(x) {
     upper = quantile(x, 0.975))
 })%>%
     as.data.frame()
-colnames(coefs_afdm) <- c("mu_epil", "mu_fila", "sigma")
+colnames(coefs_afdm) <- c("mu_epil", "mu_epip", "mu_fila", "sigma")
 # chla fits
 draws_chla <- as_draws_df(fitchla)
 coefs_chla <- draws_chla %>% select(starts_with(c("b[", "sigma")))
@@ -400,7 +402,7 @@ coefs_chla <- apply(coefs_chla, 2, function(x) {
     upper = quantile(x, 0.975))
 }) %>%
     as.data.frame()
-colnames(coefs_chla) <- c("mu_epil", "mu_fila", "sigma")
+colnames(coefs_chla) <- c("mu_epil", "mu_epip", "mu_fila", "sigma")
 
 saveRDS(list(post_draws_chla = draws_chla,
              post_draws_afdm = draws_afdm,
@@ -410,9 +412,11 @@ saveRDS(list(post_draws_chla = draws_chla,
 
 # extract missing data estimates
 Ymi_epil <- draws_afdm %>% select(starts_with("Ymi_epil"))
+Ymi_epip <- draws_afdm %>% select(starts_with("Ymi_epip"))
 Ymi_fila <- draws_afdm %>% select(starts_with("Ymi_fila"))
 Ymi_NPP <- draws_afdm %>% select(starts_with("NPP["))
 Ymi_epil_chla <- draws_chla %>% select(starts_with("Ymi_epil"))
+Ymi_epip_chla <- draws_chla %>% select(starts_with("Ymi_epip"))
 Ymi_fila_chla <- draws_chla %>% select(starts_with("Ymi_fila"))
 Ymi_NPP_chla <- draws_chla %>% select(starts_with("NPP"))
 Ymi_sum <- data.frame(
@@ -421,6 +425,11 @@ Ymi_sum <- data.frame(
   epilithon_gm2_upper = apply(Ymi_epil, 2, function(x) quantile(x, 0.975)),
   epilithon_gm2_lower1 = apply(Ymi_epil, 2, function(x) quantile(x, 0.25)),
   epilithon_gm2_upper1 = apply(Ymi_epil, 2, function(x) quantile(x, 0.75)),
+  epiphyton_gm2 = apply(Ymi_epip, 2, median),
+  epiphyton_gm2_lower = apply(Ymi_epip, 2, function(x) quantile(x, 0.025)),
+  epiphyton_gm2_upper = apply(Ymi_epip, 2, function(x) quantile(x, 0.975)),
+  epiphyton_gm2_lower1 = apply(Ymi_epip, 2, function(x) quantile(x, 0.25)),
+  epiphyton_gm2_upper1 = apply(Ymi_epip, 2, function(x) quantile(x, 0.75)),
   filamentous_gm2 = apply(Ymi_fila, 2, median),
   filamentous_gm2_lower = apply(Ymi_fila, 2, function(x) quantile(x, 0.025)),
   filamentous_gm2_upper = apply(Ymi_fila, 2, function(x) quantile(x, 0.965)),
@@ -431,14 +440,21 @@ Ymi_sum <- data.frame(
   epilithon_chla_upper = apply(Ymi_epil_chla, 2, function(x) quantile(x, 0.975)),
   epilithon_chla_lower1 = apply(Ymi_epil_chla, 2, function(x) quantile(x, 0.25)),
   epilithon_chla_upper1 = apply(Ymi_epil_chla, 2, function(x) quantile(x, 0.75)),
+  epiphyton_chla_mgm2 = apply(Ymi_epip_chla, 2, median),
+  epiphyton_chla_lower = apply(Ymi_epip_chla, 2, function(x) quantile(x, 0.025)),
+  epiphyton_chla_upper = apply(Ymi_epip_chla, 2, function(x) quantile(x, 0.975)),
+  epiphyton_chla_lower1 = apply(Ymi_epip_chla, 2, function(x) quantile(x, 0.25)),
+  epiphyton_chla_upper1 = apply(Ymi_epip_chla, 2, function(x) quantile(x, 0.75)),
   filamentous_chla_mgm2 = apply(Ymi_fila_chla, 2, median),
   filamentous_chla_lower = apply(Ymi_fila_chla, 2, function(x) quantile(x, 0.025)),
   filamentous_chla_upper = apply(Ymi_fila_chla, 2, function(x) quantile(x, 0.975)),
   filamentous_chla_lower1 = apply(Ymi_fila_chla, 2, function(x) quantile(x, 0.25)),
   filamentous_chla_upper1 = apply(Ymi_fila_chla, 2, function(x) quantile(x, 0.75)),
-  frac_fila = apply(Ymi_fila/(Ymi_epil + Ymi_fila), 2, median),
-  frac_fila_lower = apply(Ymi_fila/(Ymi_epil + Ymi_fila), 2, function(x) quantile(x, 0.25)),
-  frac_fila_upper = apply(Ymi_fila/(Ymi_epil + Ymi_fila), 2, function(x) quantile(x, 0.75))
+  frac_fila = apply(Ymi_fila/(Ymi_epil + Ymi_epip + Ymi_fila), 2, median),
+  frac_fila_lower = apply(Ymi_fila/(Ymi_epil + Ymi_epip + Ymi_fila), 2,
+                          function(x) quantile(x, 0.25)),
+  frac_fila_upper = apply(Ymi_fila/(Ymi_epil + Ymi_epip + Ymi_fila), 2,
+                          function(x) quantile(x, 0.75))
   )
 Ymi_NPP_sum <- data.frame(
   NPP = apply(Ymi_NPP, 2, median),
@@ -469,10 +485,14 @@ bm_sum <- bm_sum2 %>%
   rename_with(~str_replace(.x, '_min_mean', '')) %>%
   mutate(epilithon_gm2_upper = epilithon_gm2 + 1.96 * epilithon_gm2_min_se,
          epilithon_gm2_lower = epilithon_gm2 - 1.96 * epilithon_gm2_min_se,
+         epiphyton_gm2_upper = epiphyton_gm2 + 1.96 * epiphyton_gm2_min_se,
+         epiphyton_gm2_lower = epiphyton_gm2 - 1.96 * epiphyton_gm2_min_se,
          filamentous_gm2_upper = filamentous_gm2 + 1.96 * filamentous_gm2_min_se,
          filamentous_gm2_lower = filamentous_gm2 - 1.96 * filamentous_gm2_min_se,
          epilithon_chla_upper = epilithon_chla_mgm2 + 1.96 * epilithon_chla_mgm2_min_se,
          epilithon_chla_lower = epilithon_chla_mgm2 - 1.96 * epilithon_chla_mgm2_min_se,
+         epiphyton_chla_upper = epiphyton_chla_mgm2 + 1.96 * epiphyton_chla_mgm2_min_se,
+         epiphyton_chla_lower = epiphyton_chla_mgm2 - 1.96 * epiphyton_chla_mgm2_min_se,
          filamentous_chla_upper = filamentous_chla_mgm2 + 1.96 * filamentous_chla_mgm2_min_se,
          filamentous_chla_lower = filamentous_chla_mgm2 - 1.96 * filamentous_chla_mgm2_min_se) %>%
   select(-ends_with("min_se"))
@@ -481,6 +501,9 @@ which_mi <- which(is.na(bm_sum$epilithon_gm2))
 bm_sum$epilithon_gm2[is.na(bm_sum$epilithon_gm2)] <- Ymi_sum$epilithon_gm2
 bm_sum$epilithon_gm2_upper[is.na(bm_sum$epilithon_gm2_upper)] <- Ymi_sum$epilithon_gm2_upper1
 bm_sum$epilithon_gm2_lower[is.na(bm_sum$epilithon_gm2_lower)] <- Ymi_sum$epilithon_gm2_lower1
+bm_sum$epiphyton_gm2[is.na(bm_sum$epiphyton_gm2)] <- Ymi_sum$epiphyton_gm2
+bm_sum$epiphyton_gm2_upper[is.na(bm_sum$epiphyton_gm2_upper)] <- Ymi_sum$epiphyton_gm2_upper1
+bm_sum$epiphyton_gm2_lower[is.na(bm_sum$epiphyton_gm2_lower)] <- Ymi_sum$epiphyton_gm2_lower1
 bm_sum$filamentous_gm2[is.na(bm_sum$filamentous_gm2)] <- Ymi_sum$filamentous_gm2
 bm_sum$filamentous_gm2_upper[is.na(bm_sum$filamentous_gm2_upper)] <- Ymi_sum$filamentous_gm2_upper1
 bm_sum$filamentous_gm2_lower[is.na(bm_sum$filamentous_gm2_lower)] <- Ymi_sum$filamentous_gm2_lower1
@@ -489,6 +512,9 @@ bm_sum$filamentous_gm2_lower[is.na(bm_sum$filamentous_gm2_lower)] <- Ymi_sum$fil
 bm_sum$epilithon_chla_mgm2[is.na(bm_sum$epilithon_chla_mgm2)] <- Ymi_sum$epilithon_chla_mgm2
 bm_sum$epilithon_chla_upper[is.na(bm_sum$epilithon_chla_upper)] <- Ymi_sum$epilithon_chla_upper1
 bm_sum$epilithon_chla_lower[is.na(bm_sum$epilithon_chla_lower)] <- Ymi_sum$epilithon_chla_lower1
+bm_sum$epiphyton_chla_mgm2[is.na(bm_sum$epiphyton_chla_mgm2)] <- Ymi_sum$epiphyton_chla_mgm2
+bm_sum$epiphyton_chla_upper[is.na(bm_sum$epiphyton_chla_upper)] <- Ymi_sum$epiphyton_chla_upper1
+bm_sum$epiphyton_chla_lower[is.na(bm_sum$epiphyton_chla_lower)] <- Ymi_sum$epiphyton_chla_lower1
 bm_sum$filamentous_chla_mgm2[is.na(bm_sum$filamentous_chla_mgm2)] <- Ymi_sum$filamentous_chla_mgm2
 bm_sum$filamentous_chla_upper[is.na(bm_sum$filamentous_chla_upper)] <- Ymi_sum$filamentous_chla_upper1
 bm_sum$filamentous_chla_lower[is.na(bm_sum$filamentous_chla_lower)] <- Ymi_sum$filamentous_chla_lower1
@@ -497,13 +523,17 @@ bm_sum$filamentous_chla_lower[is.na(bm_sum$filamentous_chla_lower)] <- Ymi_sum$f
 bm_sum <- bm_sum %>%
   mutate(across(starts_with("epilithon_gm2"),
                 ~ .x - min_vals$min[min_vals$biomass == "epilithon_gm2"]),
+         across(starts_with("epiphyton_gm2"),
+                ~ .x - min_vals$min[min_vals$biomass == "epiphyton_gm2"]),
          across(starts_with("filamentous_gm2"),
                 ~ .x - min_vals$min[min_vals$biomass == "filamentous_gm2"]),
          across(starts_with("epilithon_chla"),
                 ~ .x - min_vals$min[min_vals$biomass == "epilithon_chla_mgm2"]),
+         across(starts_with("epiphyton_chla"),
+                ~ .x - min_vals$min[min_vals$biomass == "epiphyton_chla_mgm2"]),
          across(starts_with("filamentous_chla"),
                 ~ .x - min_vals$min[min_vals$biomass == "filamentous_chla_mgm2"]),
-         across(starts_with(c("epilithon", "filamentous")),
+         across(starts_with(c("epilithon", "epiphyton", "filamentous")),
                 ~ if_else(.x < 0, 0, .x)),
          frac_fila = NA,
          frac_fila_upper = NA,
@@ -514,25 +544,26 @@ bm_sum$frac_fila_upper[which_mi] <- Ymi_sum$frac_fila_upper
 bm_sum$frac_fila_lower[which_mi] <- Ymi_sum$frac_fila_lower
 bm_sum <- left_join(bm_sum, NPP_mod, by = c("site", "date")) %>%
   left_join(select(light, site, date, PAR_bc_Jm2), by = c("site", "date"))
-write_csv(bm_sum, 'data/biomass_data/log_gamma_brms_gam_fits_biomass.csv')
+write_csv(bm_sum, 'data/biomass_data/log_gamma_brms_gam_fits_biomass_epip.csv')
 
 
 # plot GAMS  ####
-qq <- read_csv('data/biomass_data/log_gamma_brms_gam_fits_biomass.csv')
+qq <- read_csv('data/biomass_data/log_gamma_brms_gam_fits_biomass_epip.csv')
 qq <- qq %>%
     select(-NPP, -NPP_chla) %>%
     rename_with(.fn = ~paste0(.x, "_fit"), .cols = ends_with("gm2")) %>%
     mutate(site = case_when(site == 'BM' ~ 'BG',
                             TRUE ~ site),
            site = factor(site, levels = c('PL', 'DL', 'GR', 'GC', 'BG', 'BN'))) %>%
-    pivot_longer(cols = starts_with(c('epil', 'fila')),
+    pivot_longer(cols = starts_with(c('epil', 'epip', 'fila')),
              names_to = c('biomass_type', 'units', 'stat'),
              names_pattern = '([a-z]+)_([a-z0-9_]+)_([a-z]+)',
              values_to = 'value') %>%
     mutate(units = if_else(units == "chla_mgm2", "chla", units)) %>%
     pivot_wider(names_from = 'stat', values_from = 'value') %>%
     group_by(site, biomass_type, units) %>%
-    mutate(across(c('fit', 'upper', 'lower'), ~zoo::na.approx(., x = date, na.rm = F)))# %>%
+    mutate(across(c('fit', 'upper', 'lower'),
+                  ~zoo::na.approx(., x = date, na.rm = F)))# %>%
     # mutate(fit = case_when(se > fit ~ NA_real_,
     #                        se > 500 ~ NA_real_,
     #                        TRUE ~ fit),
@@ -540,10 +571,12 @@ qq <- qq %>%
     #                       TRUE ~ se))
 meas <- select(biomass, date, site, sample,
        epil_gm2_meas = epilithon_gm2,
+       epip_gm2_meas = epiphyton_gm2,
        fila_gm2_meas = filamentous_gm2,
        epil_chla_mgm2_meas = epilithon_chla_mgm2,
+       epip_chla_mgm2_meas = epiphyton_chla_mgm2,
        fila_chla_mgm2_meas = filamentous_chla_mgm2) %>%
-    pivot_longer(cols = starts_with(c('epil', 'fila')),
+    pivot_longer(cols = starts_with(c('epil', 'epip', 'fila')),
                  names_to = c('biomass_type', 'units', 'stat'),
                  names_pattern = '([a-z]+)_([a-z0-9_]+)_([a-z]+)',
                  values_to = 'value') %>%
@@ -555,12 +588,14 @@ meas_mass <- filter(meas, units == 'gm2')
 
 meas_mass2 <- mutate(meas_mass,
                      biomass_type = case_when(biomass_type == 'epil'~ 'Epilithon',
+                                              biomass_type == 'epip'~ 'Epiphyton',
                                               biomass_type == 'fila' ~ 'Filamentous'),
                      meas = case_when(meas < min_vals$min[min_vals$biomass == "filamentous_gm2"] ~
                                         min_vals$min[min_vals$biomass == "filamentous_gm2"],
                                       TRUE ~ meas))
 meas_chl2 <- mutate(meas_chl,
                     biomass_type = case_when(biomass_type == 'epil'~ 'Epilithon',
+                                             biomass_type == 'epip'~ 'Epiphyton',
                                              biomass_type == 'fila' ~ 'Filamentous'),
                     meas = case_when(meas < min_vals$min[min_vals$biomass == "filamentous_chla_mgm2"] ~
                                        min_vals$min[min_vals$biomass == "filamentous_chla_mgm2"],
@@ -570,12 +605,14 @@ measmeas <- distinct(meas_mass2, site, date, biomass_type) %>% mutate(meas = TRU
 measmeas <- meas %>% group_by(site, date, biomass_type, units) %>%
   summarize(meas = mean(meas, na.rm = T)) %>%
   mutate(biomass_type = case_when(biomass_type == 'epil'~ 'Epilithon',
+                                  biomass_type == 'epip'~ 'Epiphyton',
                                   biomass_type == 'fila' ~ 'Filamentous'),
          units = case_when(units == "chla_mgm2" ~ "chla",
                            TRUE ~ units))
 
 qq2 <- qq %>% mutate(biomass_type = case_when(biomass_type == 'epilithon'~ 'Epilithon',
-                                       biomass_type == 'filamentous' ~ 'Filamentous')) %>%
+                                              biomass_type == 'epip'~ 'Epiphyton',
+                                              biomass_type == 'filamentous' ~ 'Filamentous')) %>%
   left_join(measmeas, by = c("site", "date", "biomass_type", "units"))
 qq <- filter(qq2, is.na(meas))
 
@@ -595,8 +632,8 @@ mm <- qq %>% filter(units == 'gm2') %>%
                     fill = biomass_type), alpha = 0.4, color = NA)+
     geom_point(data = meas_mass2, aes(date, meas, col = biomass_type))+
     facet_grid(site~year, scales = 'free_x') +
-    scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
-    scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
+    # scale_color_discrete("Biomass Type"))+#, type = c('#1B9EC9', '#97BB43'))+
+    # scale_fill_discrete("Biomass Type"))+#, type = c('#1B9EC9', '#97BB43'))+
     scale_y_log10(limits = c(0.3, 600))+
     xlab('Date') +
     ylab(expression('Algal Biomass (AFDM g '~ m^-2*')')) +
@@ -620,8 +657,8 @@ cc <- qq %>%
                     fill = biomass_type), alpha = 0.4, color = NA)+
     geom_point(data = meas_chl2, aes(date, meas, col = biomass_type))+
     facet_grid(site~year, scales = 'free_x') +
-    scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
-    scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
+    # scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
+    # scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
     scale_y_log10(limits = c(0.3, 1000))+
     xlab('Date') +
     ylab(expression('Algal Chlorophyll (mg chl a '~ m^-2*')')) +
@@ -652,8 +689,8 @@ mm <- qq %>% filter(units == 'gm2') %>%
                   fill = biomass_type), alpha = 0.4, color = NA)+
   geom_point(data = meas_mass2, aes(date, meas, col = biomass_type))+
   facet_grid(site~year, scales = 'free_x') +
-  scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
-  scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
+  # scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
+  # scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
   xlab('Date') +ylim(0, 300) +
   ylab(expression('Algal Biomass (AFDM g '~ m^-2*')')) +
   theme_classic()+
@@ -676,8 +713,8 @@ cc <- qq %>%
                   fill = biomass_type), alpha = 0.4, color = NA)+
   geom_point(data = meas_chl2, aes(date, meas, col = biomass_type))+
   facet_grid(site~year, scales = 'free_x') +
-  scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
-  scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
+  # scale_color_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
+  # scale_fill_discrete("Biomass Type", type = c('#1B9EC9', '#97BB43'))+
   xlab('Date') +
   ylab(expression('Algal Chlorophyll (mg chl a '~ m^-2*')')) +
   theme_classic()+
@@ -736,7 +773,6 @@ qq %>%
               ff_median = median(frac_fila, na.rm = T),
               ff_se1 = sd(frac_fila, na.rm = T),
               ff_se2 = sqrt(sum(frac_fila_se^2, na.rm = T))/n())
-ian(frac_fila, na.rm = T),
               ff_longer(cols = c(fit, meas), names_to = 'group', values_to = 'val') %>%
     mutate(group = case_when(group == "fit" ~ "Modeled",
                              group == "meas" ~ "Measured"),
