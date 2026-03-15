@@ -18,12 +18,51 @@ met <- left_join(met, select(q90, site, year, ARf), by = c('site', 'year')) %>%
            HR = ER - AR) %>%
     select(-msgs.fit, -warnings, -errors, -K600, -DO_fit)
 
-biogams <- read_csv('data/biomass_data/log_gamma_gam_fits_biomass_epip.csv')
+biogams <- read_csv('data/biomass_data/log_gamma_brms_gam_fits_biomass_epip.csv') %>%
+    mutate(site = ifelse(site == "BG", "BM", site))
 bio <- read_csv('data/biomass_data/biomass_working_data_summary_epip.csv') %>%
     mutate(epi_gm2 = epilithon_gm2 + epiphyton_gm2,
            epi_chla_mgm2 = epilithon_chla_mgm2 + epiphyton_chla_mgm2,
            filaepip_gm2 = epiphyton_gm2 + filamentous_gm2,
            filaepip_chla_mgm2 = epiphyton_chla_mgm2 + filamentous_chla_mgm2)
+
+# Calculate a chla -> biomass conversion using the measured data:
+bio_full <- bio %>%
+    mutate(
+        filamentous_chla_mgm2 = ifelse(filamentous_gm2 <0.75, NA, filamentous_chla_mgm2 ),
+        filamentous_gm2 = ifelse(filamentous_gm2 <0.75, NA, filamentous_gm2 ),
+        fila_chla_per_gm = filamentous_chla_mgm2/filamentous_gm2,
+        epiphyton_chla_per_gm = epiphyton_chla_mgm2/epiphyton_gm2,
+        epilithon_chla_per_gm = epilithon_chla_mgm2/epilithon_gm2,
+        epiphyton_chla_per_gm = ifelse(is.infinite(epiphyton_chla_per_gm), NA, epiphyton_chla_per_gm)) %>%
+    right_join(select(biogams, site, date,
+                     epil_chla_mgm2_fit = epilithon_chla_mgm2,
+                     epil_chla_mgm2_lower = epilithon_chla_lower,
+                     epil_chla_mgm2_upper = epilithon_chla_upper,
+                     epip_chla_mgm2_fit = epiphyton_chla_mgm2,
+                     epip_chla_mgm2_lower = epiphyton_chla_lower,
+                     epip_chla_mgm2_upper = epiphyton_chla_upper,
+                     fila_chla_mgm2_fit = filamentous_chla_mgm2,
+                     fila_chla_mgm2_lower = filamentous_chla_lower,
+                     fila_chla_mgm2_upper = filamentous_chla_upper
+                     )) %>%
+    group_by(site) %>% arrange(date) %>%
+    mutate(across(ends_with('chla_per_gm'), ~zoo::na.approx(., na.rm = FALSE, x = date, rule = 2)),
+           epil_gm2_est = case_when(epil_chla_mgm2_fit == 0 ~ 0,
+                                    TRUE ~ epil_chla_mgm2_fit/epilithon_chla_per_gm),
+           epil_gm2_lower = epil_chla_mgm2_lower/epilithon_chla_per_gm,
+           epil_gm2_upper = epil_chla_mgm2_upper/epilithon_chla_per_gm,
+           epip_gm2_est = case_when(epip_chla_mgm2_fit == 0 ~ 0,
+                                    TRUE ~ epip_chla_mgm2_fit/epiphyton_chla_per_gm),
+           epip_gm2_lower = epip_chla_mgm2_lower/epiphyton_chla_per_gm,
+           epip_gm2_upper = epip_chla_mgm2_upper/epiphyton_chla_per_gm,
+           fila_gm2_est = case_when(fila_chla_mgm2_fit == 0 ~ 0,
+                                    TRUE ~ fila_chla_mgm2_fit/fila_chla_per_gm),
+           fila_gm2_lower = fila_chla_mgm2_lower/fila_chla_per_gm,
+           fila_gm2_upper = fila_chla_mgm2_upper/fila_chla_per_gm
+           ) %>%
+    select(-starts_with(c('epi_', 'filaepip_')))
+
 
 min_vals <- bio %>%
     select(epilithon_gm2, epilithon_chla_mgm2,
@@ -61,23 +100,27 @@ NPP <- bio %>%
     left_join(NPP, by = c('site', 'year'))
 NPP <- mutate(biogams, year = factor(year)) %>%
     group_by(site, year) %>%
-    summarize(fila_chla = mean(fila_chla_mgm2_fit),
-              filaepip_chla = mean(filaepip_chla_mgm2_fit),
-              epip_chla = mean(epip_chla_mgm2_fit),
-              epil_chla = mean(epil_chla_mgm2_fit),
-              fila_gm = mean(fila_gm2_fit),
-              filaepip_gm = mean(filaepip_gm2_fit),
-              epip_gm = mean(epip_gm2_fit),
-              epil_gm = mean(epil_gm2_fit),
+    summarize(fila_chla = mean(filamentous_chla_mgm2),
+              # filaepip_chla = mean(filaepip_chla_mgm2_fit),
+              epip_chla = mean(epiphyton_chla_mgm2),
+              epil_chla = mean(epilithon_chla_mgm2),
+              # fila_gm = mean(fila_gm2_fit),
+              # filaepip_gm = mean(filaepip_gm2_fit),
+              # epip_gm = mean(epip_gm2_fit),
+              # epil_gm = mean(epil_gm2_fit),
               frac_fila_chla = fila_chla/(epil_chla + epip_chla + fila_chla),
-              frac_fila_gmB = filaepip_gm/(epil_gm + filaepip_gm),
-              frac_fila_gm = fila_gm/(epil_gm + epip_chla + fila_gm)) %>%
+              # frac_fila_gmB = filaepip_gm/(epil_gm + filaepip_gm),
+              # frac_fila_gm = fila_gm/(epil_gm + epip_chla + fila_gm)
+              ) %>%
     left_join(NPP, by = c('site', 'year'))
+
+
 
 
 npp <- NPP %>%
     select(-ends_with('_meas')) %>%
-    mutate(biomass_C = (epil_gm + epip_gm + fila_gm)/2,
+    mutate(
+        # biomass_C = (epil_gm + epip_gm + fila_gm)/2,
            biomass_chla = epil_chla + epip_chla + fila_chla,
            GPP_C = GPP * 12/32,
            ER_C = ER * 12/32,
@@ -179,14 +222,13 @@ dev.off()
 
 # Growth rate calculations ####
 light <- read_csv('data/site_data/daily_modeled_light_all_sites.csv')
-bm_met <- select(biogams, site, date, epil_gm2_fit, epip_gm2_fit, epi_gm2_fit,
-                 fila_gm2_fit, filaepip_gm2_fit, epil_chla_mgm2_fit,
-                 epip_chla_mgm2_fit, epi_chla_mgm2_fit,
-                 fila_chla_mgm2_fit, filaepip_chla_mgm2_fit) %>%
-    rename_with(~gsub('_fit', '', .x)) %>%
+bm_met <- select(bio_full, site, date, epil_gm2_est, epip_gm2_est,
+                 fila_gm2_est, epil_chla_mgm2_fit,
+                 epip_chla_mgm2_fit, fila_chla_mgm2_fit) %>%
+    # rename_with(~gsub('_fit', '', .x)) %>%
     left_join(select(ungroup(met), site, date, year, GPP, ER, ARf, NPP),
               by = c('site', 'date')) %>%
-    left_join(select(light, site, date, PAR_surface)) %>%
+    left_join(select(light, site, date, PAR_surface = PAR_bc_Jm2)) %>%
     mutate(light = PAR_surface/max(PAR_surface)) %>%
     mutate(#light = PAR_surface,
            NPP_light = NPP/light) %>%

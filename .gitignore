@@ -10,8 +10,11 @@ todo_ucfr.txt
 .DS_store
 *.docx
 *.pdf
+*.rds
 text/
 full_biomass_partition*
 code/model/old
 data/full_biomass_NPP_partition_mod_chla_posterior_coefs.rds
+old_model_runs
+paper
 .aider*
